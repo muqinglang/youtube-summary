@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>旁听 Sidenote | YouTube AI 学习工作台</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="panel.css">
+  <script defer src="panel.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <a class="brand" href="index.html" aria-label="旁听首页"><span class="brand-mark">s.</span><span>旁听<span class="brand-en">sidenote</span></span></a>
+    <span class="header-divider"></span>
+    <div class="breadcrumb"><span>YouTube</span><span class="crumb-arrow">/</span><strong>专注学习</strong></div>
+    <div class="header-actions"><span class="demo-badge">交互演示</span><button class="button ghost" id="guide-start"><img class="icon" src="assets/icons/route.svg" alt="">功能引导</button><button class="icon-button" id="settings-open" aria-label="打开偏好设置" title="偏好设置"><img class="icon" src="assets/icons/settings-2.svg" alt=""></button><span class="avatar" title="本地演示访客">访</span></div>
+  </header>
+
+  <main class="workspace">
+    <section class="watch-column" aria-label="视频学习区">
+      <div class="watch-topline"><span><span class="status-dot"></span>学习空间</span><button id="focus-toggle" class="text-button"><img src="assets/icons/focus-2.svg" class="icon" alt=""><span>影院模式</span></button></div>
+      <section class="player" id="player" aria-label="示例播放器">
+        <div class="video-frame" id="video-frame">
+          <div class="reference-crop"><img src="assets/reference-video.png" alt="用户提供的课程参考截图，讲师与课件并列显示；此处为静态演示画面"></div>
+          <span class="frame-label">参考画面 · 静态演示</span>
+          <button id="frame-play" class="frame-play" aria-label="开始演示播放"><img src="assets/icons/player-play-filled.svg" alt=""></button>
+          <span class="play-state" id="play-state" hidden>正在演示字幕同步</span>
+        </div>
+        <div class="subtitle-stage" id="subtitle-stage" aria-live="off"><p class="caption-en" id="caption-en">Clear thinking starts with separating what you know from what you assume.</p><p class="caption-translation" id="caption-translation">清晰思考的第一步，是分清已知事实与自己的假设。</p></div>
+        <div class="playback-controls" id="playback-controls">
+          <label class="sr-only" for="timeline">演示播放进度</label><input type="range" id="timeline" min="0" max="1122" value="92" step="1" aria-valuetext="01:32 / 18:42">
+          <div class="controls-row"><button class="icon-button play-control" id="play-toggle" aria-label="开始演示播放"><img class="icon" src="assets/icons/player-play-filled.svg" alt=""></button><button class="icon-button" id="back-ten" aria-label="后退十秒" title="后退 10 秒"><img class="icon" src="assets/icons/rewind-backward-10.svg" alt=""></button><button class="icon-button" id="forward-ten" aria-label="前进十秒" title="前进 10 秒"><img class="icon" src="assets/icons/rewind-forward-10.svg" alt=""></button><span class="play-time"><b id="current-time">01:32</b><span>/ 18:42</span></span><div class="control-spacer"></div><label class="sr-only" for="speed">播放速度</label><select id="speed" class="bare-select" title="演示播放速度"><option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select><button class="icon-button active" id="captions-toggle" aria-label="隐藏双语字幕" aria-pressed="true" title="显示 / 隐藏字幕"><img class="icon" src="assets/icons/badge-cc.svg" alt=""></button><button class="icon-button" id="fullscreen-toggle" aria-label="全屏播放器" title="全屏"><img class="icon" src="assets/icons/maximize.svg" alt=""></button></div>
+        </div>
+      </section>
+
+      <div class="course-heading"><div><h1>How to Think Clearly in the Age of AI</h1><p>如何在 AI 时代保持清晰思考</p></div><button class="icon-button" id="bookmark" aria-label="收藏示例课程" aria-pressed="false" title="收藏课程"><img class="icon" src="assets/icons/bookmark.svg" alt=""></button></div>
+      <div class="course-meta"><span class="course-avatar">T</span><span>示例课程</span><span class="meta-separator"></span><span>18 分钟</span><span class="meta-separator"></span><span>英语</span><span class="demo-content-note">字幕与总结为示例内容</span></div>
+
+      <div class="language-bar" id="language-bar"><div class="language-label"><img class="icon" src="assets/icons/language.svg" alt=""><span>字幕语言</span></div><span class="source-language">英语 <span class="dim">原文</span></span><span class="language-arrow">→</span><label class="sr-only" for="target-language">翻译目标语言</label><select id="target-language"><option value="zh-CN">简体中文</option><option value="ja">日本語</option><option value="es">Español</option><option value="fr">Français</option><option value="en">English</option></select><div class="control-spacer"></div><label class="sr-only" for="subtitle-mode">字幕显示模式</label><select id="subtitle-mode"><option value="bilingual">双语对照</option><option value="original">仅原文</option><option value="translated">仅译文</option></select></div>
+
+      <section class="chapters" id="chapters" aria-labelledby="chapter-heading"><div class="section-heading"><h2 id="chapter-heading">章节导航</h2><span>点击回到关键时刻</span></div><div class="chapter-track"><button class="chapter-item" data-seek="0"><span class="chapter-number">01</span><div><strong>重新认识思考</strong><small>00:00</small></div></button><button class="chapter-item selected" data-seek="92"><span class="chapter-number">02</span><div><strong>事实与假设</strong><small>01:32</small></div></button><button class="chapter-item" data-seek="240"><span class="chapter-number">03</span><div><strong>建立思维框架</strong><small>04:00</small></div></button><button class="chapter-item" data-seek="420"><span class="chapter-number">04</span><div><strong>让 AI 成为伙伴</strong><small>07:00</small></div></button><button class="chapter-item" data-seek="670"><span class="chapter-number">05</span><div><strong>检验你的判断</strong><small>11:10</small></div></button><button class="chapter-item" data-seek="880"><span class="chapter-number">06</span><div><strong>从理解到行动</strong><small>14:40</small></div></button></div></section>
+
+      <aside class="welcome-tip" id="welcome-tip"><div class="tip-icon"><img class="icon" src="assets/icons/bulb.svg" alt=""></div><div><strong>让每一次观看，都留下收获。</strong><p>从右侧字幕开始，或切换到 AI 总结，快速了解完整内容。</p></div><button class="icon-button" id="tip-close" aria-label="关闭学习提示"><img class="icon" src="assets/icons/x.svg" alt=""></button></aside>
+    </section>
+    <aside class="learning-column" id="learning-panel" aria-label="字幕和 AI 学习面板"></aside>
+  </main>
+  <footer class="demo-footer"><span>设计预览，AI 与视频未连接</span><button id="review-open" class="text-button">查看验证清单 <span>↗</span></button><span class="footer-shortcut">空格播放 / 暂停 <kbd>Space</kbd></span></footer>
+
+  <dialog id="settings-dialog" class="app-dialog" aria-labelledby="settings-title"><div class="dialog-title"><div><span class="dialog-kicker">按你的习惯学习</span><h2 id="settings-title">偏好设置</h2></div><button class="icon-button" data-close="settings-dialog" aria-label="关闭设置"><img class="icon" src="assets/icons/x.svg" alt=""></button></div><div class="setting-row"><div><strong>字幕字号</strong><p>即时调整播放器中的字幕大小</p></div><select id="font-size" aria-label="字幕字号"><option value="small">较小</option><option value="medium" selected>标准</option><option value="large">较大</option></select></div><div class="setting-row"><div><strong>字幕背景</strong><p>增加字幕与画面的区分</p></div><label class="switch"><input type="checkbox" id="caption-background" checked><span></span><span class="sr-only">启用字幕背景</span></label></div><div class="setting-row"><div><strong>自动记住学习位置</strong><p>下次打开 Demo，继续上次的进度</p></div><label class="switch"><input type="checkbox" id="remember-position" checked><span></span><span class="sr-only">自动记住学习位置</span></label></div><p class="dialog-hint">偏好保存在当前浏览器中。正式版会在此增加模型与 API 设置。</p><button class="button primary full-width" data-close="settings-dialog">完成</button></dialog>
+
+  <dialog id="review-dialog" class="app-dialog review-dialog" aria-labelledby="review-title"><div class="dialog-title"><div><span class="dialog-kicker">开发前，先确认体验</span><h2 id="review-title">你的验证清单</h2></div><button class="icon-button" data-close="review-dialog" aria-label="关闭验证清单"><img class="icon" src="assets/icons/x.svg" alt=""></button></div><p class="review-intro">勾选体验满意的部分，备注需要调整的地方。可以下载反馈，发给我继续修改。</p><div id="review-checks"></div><label for="review-notes" class="field-label">修改建议</label><textarea id="review-notes" rows="3" placeholder="例如：右侧面板再宽一点，总结希望更详细…"></textarea><div class="review-progress" id="review-progress">已确认 0 / 6 项</div><button class="button primary full-width" id="download-review">下载验证反馈</button><p class="dialog-hint">这份反馈不会自动发送。确认设计后，再进入插件功能开发。</p></dialog>
+
+  <dialog class="tour-dialog" id="tour-dialog" aria-labelledby="tour-title"><div id="tour-focus" aria-hidden="true"></div><div class="tour-card" id="tour-card"><div class="tour-top"><span id="tour-counter">01 / 06</span><button id="tour-close" class="text-button" aria-label="退出功能引导">跳过</button></div><h2 id="tour-title"></h2><p id="tour-description"></p><div class="tour-bottom"><span id="tour-dots"></span><div><button class="button ghost" id="tour-prev">上一步</button><button class="button primary" id="tour-next">下一步 →</button></div></div></div></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "旁听 Sidenote - YouTube AI 学习助手",
+  "description": "YouTube 双语字幕、视频总结、思维导图与 AI 问答。支持自定义提示词和 XMind / PDF 导出。",
+  "version": "0.6.0",
+  "minimum_chrome_version": "130",
+  "permissions": ["storage", "activeTab", "declarativeNetRequestWithHostAccess"],
+  "host_permissions": [
+    "https://www.youtube.com/*",
+    "https://m.youtube.com/*",
+    "https://translate.googleapis.com/*"
+  ],
+  "optional_host_permissions": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
+  "background": { "service_worker": "background.js" },
+  "action": {
+    "default_title": "打开旁听学习页面",
+    "default_icon": { "16": "icons/16.png", "32": "icons/32.png" }
+  },
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
+  "options_ui": { "page": "panel.html?settings=1", "open_in_tab": true },
+  "content_scripts": [
+    {
+      "matches": ["https://www.youtube.com/*", "https://m.youtube.com/*"],
+      "js": ["page.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://www.youtube.com/*", "https://m.youtube.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none';"
+  }
+}

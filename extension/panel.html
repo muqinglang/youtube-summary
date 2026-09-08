@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>旁听 Sidenote</title>
+    <link rel="icon" href="icons/32.png" />
+    <link rel="stylesheet" href="panel.css" />
+    <script defer src="panel.js"></script>
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-mark">s.</span>
+        <div>旁听 <span>Sidenote</span></div>
+      </div>
+      <div class="actions">
+        <button class="icon-button" id="guide-open" title="功能引导" aria-label="功能引导">?</button
+        ><button class="text-button" id="settings-open">设置</button
+        ><button class="icon-button" id="panel-close" title="关闭面板" aria-label="关闭面板">
+          ×
+        </button>
+      </div>
+    </header>
+    <section class="video-info">
+      <p class="eyebrow" id="video-author">YouTube 学习空间</p>
+      <h1 id="video-title">正在连接视频…</h1>
+      <div class="video-meta">
+        <span id="video-duration"></span><span id="source-state">等待字幕</span>
+      </div>
+    </section>
+    <div class="notice" id="notice" role="status" hidden></div>
+    <nav class="tabs" role="tablist" aria-label="学习功能">
+      <button
+        id="tab-transcript"
+        role="tab"
+        data-tab="transcript"
+        aria-controls="view-transcript"
+        aria-selected="true"
+      >
+        字幕 <small id="cue-count">0</small></button
+      ><button
+        id="tab-chapters"
+        role="tab"
+        data-tab="chapters"
+        aria-controls="view-chapters"
+        aria-selected="false"
+        tabindex="-1"
+      >
+        章节</button
+      ><button
+        id="tab-summary"
+        role="tab"
+        data-tab="summary"
+        aria-controls="view-summary"
+        aria-selected="false"
+        tabindex="-1"
+      >
+        AI 总结</button
+      ><button
+        id="tab-chat"
+        role="tab"
+        data-tab="chat"
+        aria-controls="view-chat"
+        aria-selected="false"
+        tabindex="-1"
+      >
+        AI 问答
+      </button>
+    </nav>
+
+    <main class="views">
+      <section
+        id="view-transcript"
+        class="view transcript-view"
+        role="tabpanel"
+        aria-labelledby="tab-transcript"
+      >
+        <div class="subtitle-bar">
+          <div class="engine-toggle" role="group" aria-label="翻译方式">
+            <button id="engine-google" class="engine-tab" aria-selected="true">默认字幕</button
+            ><button id="engine-ai" class="engine-tab" aria-selected="false">AI 字幕</button>
+          </div>
+          <span class="translate-status" id="translate-status" hidden></span>
+          <button
+            id="settings-drawer-toggle"
+            class="icon-button"
+            aria-expanded="false"
+            aria-controls="settings-drawer"
+            title="翻译设置"
+            aria-label="翻译设置"
+          >
+            ⚙
+          </button>
+        </div>
+        <div class="settings-drawer" id="settings-drawer" hidden>
+          <div class="drawer-field">
+            <label for="target-language">翻译成</label
+            ><select id="target-language">
+              <option value="简体中文">简体中文</option>
+              <option value="English">English</option>
+              <option value="日本語">日本語</option>
+              <option value="한국어">한국어</option>
+              <option value="Español">Español</option>
+              <option value="Français">Français</option>
+              <option value="Deutsch">Deutsch</option>
+              <option value="Português">Português</option>
+              <option value="العربية">العربية</option>
+              <option value="हिन्दी">हिन्दी</option>
+            </select>
+          </div>
+          <div class="drawer-field">
+            <label for="track-select">原文字幕</label
+            ><select id="track-select" title="原文字幕轨">
+              <option value="">自动选择字幕</option>
+            </select>
+          </div>
+          <div class="drawer-field">
+            <label for="display-mode">字幕显示</label
+            ><select id="display-mode">
+              <option value="bilingual">双语对照</option>
+              <option value="original">仅原文</option>
+              <option value="translated">仅译文</option>
+            </select>
+          </div>
+          <div class="drawer-field">
+            <label for="font-size">列表字号</label
+            ><select id="font-size">
+              <option value="standard">标准</option>
+              <option value="large">大</option>
+            </select>
+          </div>
+          <label class="inline-check"
+            ><input type="checkbox" id="auto-translate" checked /> 随播放自动翻译</label
+          ><label class="inline-check"
+            ><input type="checkbox" id="overlay-enabled" checked /> 视频下方显示字幕</label
+          >
+          <div class="drawer-actions">
+            <button class="button small" id="translate-btn">翻译全部</button
+            ><button class="text-button" id="reload-transcript">重新读取</button
+            ><button class="text-button" id="import-open">导入 SRT / VTT</button
+            ><input
+              id="subtitle-file"
+              type="file"
+              accept=".srt,.vtt,text/vtt,application/x-subrip,text/plain"
+              hidden
+            />
+          </div>
+          <p class="translation-hint" id="translation-hint"></p>
+          <div class="google-web-fallback" id="google-web-fallback" hidden>
+            <button class="text-button" id="google-web-open">用 Google 网页翻译当前句 ↗</button>
+            <span>只打开当前句，不会自动回填整片字幕。</span>
+          </div>
+        </div>
+        <div class="transcript-tools">
+          <input
+            type="search"
+            id="search"
+            aria-label="搜索字幕"
+            placeholder="搜索原文或译文"
+          /><button id="follow-btn" class="text-button is-active" aria-pressed="true">
+            跟随播放
+          </button>
+        </div>
+        <div id="transcript-list" class="scroll transcript-list" tabindex="0" aria-label="字幕列表">
+          <div class="empty">
+            <div class="empty-mark">CC</div>
+            <h2>正在读取字幕</h2>
+            <p>首次读取通常需要几秒钟。</p>
+          </div>
+        </div>
+        <div class="transcript-footer"><span id="caption-range"></span></div>
+      </section>
+      <section
+        id="view-chapters"
+        class="view"
+        role="tabpanel"
+        aria-labelledby="tab-chapters"
+        hidden
+      >
+        <div class="view-tools chapter-heading">
+          <span id="chapter-source">章节导航</span>
+          <span class="chapter-heading-actions"
+            ><button id="chapter-outline-btn" class="text-button" data-generate-outline hidden>
+              生成 AI 目录</button
+            ><span id="chapter-count">0 章</span></span
+          >
+        </div>
+        <div
+          id="chapter-list"
+          class="scroll chapter-list"
+          tabindex="0"
+          aria-label="章节列表"
+          hidden
+        ></div>
+        <div id="chapter-empty" class="scroll empty" tabindex="0">
+          <div class="empty-mark">☰</div>
+          <h2>生成内容目录</h2>
+          <p>像书本目录一样，把整段视频按内容小结成带时间点的章节，点标题即可回看。</p>
+          <button class="button" data-generate-outline>生成内容目录</button>
+        </div>
+      </section>
+      <section id="view-summary" class="view" role="tabpanel" aria-labelledby="tab-summary" hidden>
+        <div class="view-tools">
+          <span>理解内容，留下重点</span
+          ><button id="prompt-open" class="button small">自定义 Prompt</button>
+        </div>
+        <div class="scroll summary-scroll">
+          <div id="summary-content" class="empty">
+            <div class="empty-mark">AI</div>
+            <h2>把完整视频，变成清晰笔记</h2>
+            <p>读取字幕后，生成带时间点的章节总结、核心观点和行动建议。</p>
+          </div>
+          <button class="button primary wide" id="summarize-btn">生成视频总结</button>
+          <p class="muted center" id="summary-disclaimer">总结将使用当前字幕与自定义 Prompt。</p>
+        </div>
+      </section>
+      <section id="view-chat" class="view" role="tabpanel" aria-labelledby="tab-chat" hidden>
+        <div id="messages" class="scroll messages" aria-live="polite">
+          <div class="empty chat-welcome">
+            <div class="empty-mark">AI</div>
+            <h2>带着问题，深入理解</h2>
+            <p>回答以当前视频字幕为依据，并提供可回看的时间点。</p>
+            <div class="suggestions">
+              <button data-question="这段视频最重要的三个观点是什么？">
+                最重要的三个观点是什么？ <span>↗</span></button
+              ><button data-question="把视频里的建议整理成一份行动清单。">
+                整理一份行动清单 <span>↗</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <form id="question-form">
+          <label for="question" class="sr-only">关于视频的问题</label
+          ><textarea
+            id="question"
+            rows="2"
+            maxlength="2000"
+            placeholder="关于这段视频，你想了解什么？"
+          ></textarea>
+          <div>
+            <span>Enter 发送，Shift + Enter 换行</span
+            ><button type="submit" id="ask-btn" class="button primary" aria-label="发送问题">
+              ↑
+            </button>
+          </div>
+        </form>
+      </section>
+      <div id="job-status" class="job-overlay" hidden role="status" aria-live="polite">
+        <div class="job-card">
+          <div class="job-cat" aria-hidden="true">
+            <svg viewBox="0 0 48 48" class="cat">
+              <g class="cat-dance">
+                <path class="cat-tail" d="M35 37c6.5 1 9.5-3.5 8.2-8.6" />
+                <g class="cat-body">
+                  <path class="cat-fill" d="M12.5 41c0-7.2 5.2-12.4 11.5-12.4S35.5 33.8 35.5 41z" />
+                  <ellipse class="cat-paw cat-paw-l" cx="18.4" cy="40.4" rx="3.3" ry="2.3" />
+                  <ellipse class="cat-paw cat-paw-r" cx="29.6" cy="40.4" rx="3.3" ry="2.3" />
+                </g>
+                <g class="cat-head">
+                  <path class="cat-fill" d="M15 14.5 16.2 6l7.2 5.2z" />
+                  <path class="cat-fill" d="M33 14.5 31.8 6l-7.2 5.2z" />
+                  <circle class="cat-fill" cx="24" cy="19.2" r="9.6" />
+                  <g class="cat-eyes">
+                    <circle cx="20.4" cy="18.6" r="1.5" />
+                    <circle cx="27.6" cy="18.6" r="1.5" />
+                  </g>
+                  <path class="cat-nose" d="M24 22.4 22.5 23.7h3z" />
+                  <path
+                    class="cat-whiskers"
+                    d="M11.8 17.4h4.2M11.8 21h4.2M36.2 17.4H32M36.2 21H32"
+                  />
+                </g>
+              </g>
+            </svg>
+          </div>
+          <p id="job-label" class="job-label">正在处理…</p>
+          <div
+            id="job-progress"
+            class="job-track"
+            role="progressbar"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="0"
+          >
+            <span id="job-bar" class="job-bar"></span>
+          </div>
+          <p class="job-meta"><span id="job-step"></span><span id="job-elapsed"></span></p>
+          <p id="job-hint" class="job-hint"></p>
+          <button class="text-button" id="cancel-job">取消</button>
+        </div>
+      </div>
+    </main>
+    <footer class="app-footer">
+      <span id="footer-note">笔记保存在本机</span>
+      <div class="export-wrap">
+        <button class="button" id="export-open" disabled aria-expanded="false">导出笔记 ↓</button>
+        <div id="export-menu" class="export-menu" hidden>
+          <button data-export="pdf">
+            <b>PDF</b><span>排版文档<small>打印并另存为 PDF</small></span></button
+          ><button data-export="xmind">
+            <b>XM</b><span>XMind<small>可继续编辑的思维导图</small></span></button
+          ><button data-export="markdown">
+            <b>MD</b><span>Markdown<small>文本笔记与时间点</small></span>
+          </button>
+        </div>
+      </div>
+    </footer>
+
+    <dialog id="settings-dialog" aria-labelledby="settings-title">
+      <header>
+        <div>
+          <p class="eyebrow">连接你的 AI</p>
+          <h2 id="settings-title">模型与偏好设置</h2>
+        </div>
+        <button class="icon-button" data-close="settings-dialog" aria-label="关闭设置">×</button>
+      </header>
+      <form id="settings-form">
+        <label for="provider">AI 服务商</label
+        ><select id="provider" required></select>
+        <p class="hint" id="provider-hint">选择服务商后，自动使用官方服务地址。</p>
+        <label for="model">模型</label
+        ><select id="model" required></select
+        ><label for="api-key">API Key</label
+        ><input
+          id="api-key"
+          type="password"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="输入 API Key"
+        />
+        <p class="hint" id="key-status">密钥不会显示在视频页面。</p>
+        <label class="inline-check"
+          ><input id="remember-key" type="checkbox" /> 在本机记住密钥</label
+        >
+        <p class="hint">
+          不勾选时，密钥仅保留到浏览器关闭。AI 功能会将所需字幕和提问发送给此服务；Google
+          内置翻译在本机处理。
+        </p>
+        <div id="settings-error" class="form-error" role="alert" hidden></div>
+        <div class="dialog-actions">
+          <button type="button" class="text-button" id="clear-key">清除密钥</button
+          ><button type="submit" class="button primary" id="save-settings">保存设置</button>
+        </div>
+        <button type="button" class="button wide" id="test-connection">测试连接</button>
+        <p class="hint">连接测试会发送一条简短请求，可能产生少量 API 费用。</p>
+      </form>
+      <div class="settings-cache">
+        <span>本地学习缓存</span><button class="text-button" id="clear-cache">清除缓存</button>
+      </div>
+    </dialog>
+    <dialog id="prompt-dialog" aria-labelledby="prompt-title">
+      <header>
+        <div>
+          <p class="eyebrow">让总结更懂你</p>
+          <h2 id="prompt-title">自定义总结 Prompt</h2>
+        </div>
+        <button class="icon-button" data-close="prompt-dialog" aria-label="关闭 Prompt">×</button>
+      </header>
+      <div class="prompt-presets">
+        <button class="button small" data-preset="learn">深度学习</button
+        ><button class="button small" data-preset="quick">快速概览</button
+        ><button class="button small" data-preset="action">行动清单</button>
+      </div>
+      <label for="prompt-text">你的总结要求</label
+      ><textarea id="prompt-text" rows="8" maxlength="8000"></textarea>
+      <p class="hint">你的要求会用于分段分析和全片汇总。导出结构由系统统一整理。</p>
+      <div class="dialog-actions">
+        <button class="text-button" data-preset="learn">恢复默认</button
+        ><button class="button primary" id="save-prompt">保存 Prompt</button>
+      </div>
+    </dialog>
+    <dialog id="guide-dialog" aria-labelledby="guide-title">
+      <header>
+        <div>
+          <p class="eyebrow" id="guide-count">01 / 05</p>
+          <h2 id="guide-title"></h2>
+        </div>
+        <button class="icon-button" data-close="guide-dialog" aria-label="关闭引导">×</button>
+      </header>
+      <p id="guide-copy" class="guide-copy"></p>
+      <div class="dialog-actions">
+        <button class="text-button" id="guide-prev">上一步</button
+        ><button class="button primary" id="guide-next">下一步</button>
+      </div>
+    </dialog>
+    <div id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>

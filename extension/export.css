@@ -1,0 +1,61 @@
+body {
+  margin: 0;
+  background: #eceeee;
+  color: #202225;
+  font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+}
+#export-controls {
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #161819;
+  color: #f0f0ee;
+}
+.export-actions {
+  display: flex;
+  gap: 10px;
+}
+.export-actions button {
+  padding: 10px 18px;
+  border: 1px solid #46484a;
+  border-radius: 8px;
+  background: #242728;
+  color: #f0f0ee;
+  cursor: pointer;
+  font: inherit;
+}
+.export-actions button:hover {
+  background: #313435;
+}
+.export-actions button.primary {
+  background: #edc65b;
+  color: #242016;
+  border-color: #edc65b;
+}
+.export-actions button.primary:hover {
+  background: #f3d275;
+}
+.export-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+#document {
+  max-width: 850px;
+  margin: 24px auto;
+  background: white;
+  padding: 36px;
+}
+@media print {
+  #export-controls {
+    display: none;
+  }
+  body {
+    background: white;
+  }
+  #document {
+    margin: 0;
+    padding: 0;
+    max-width: none;
+  }
+}

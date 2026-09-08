@@ -1,0 +1,13 @@
+node_modules/
+dist/
+release/
+test-results/
+playwright-report/
+.env
+.env.*
+!.env.example
+*.log
+.local/
+**/.cache/
+qa-downloads/
+tests/compatibility/artifacts/

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <meta name="color-scheme" content="dark" />
+    <title>旁听 · 独立学习空间</title>
+    <link rel="icon" href="icons/32.png" />
+    <link rel="stylesheet" href="learn.css" />
+    <script defer src="learn.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a
+        id="source-link"
+        class="back-button"
+        target="_blank"
+        rel="noopener"
+        title="返回 YouTube"
+        aria-label="返回 YouTube"
+        >‹</a
+      >
+      <div class="lesson-heading">
+        <h1 id="lesson-title">正在打开视频…</h1>
+        <p id="lesson-author">YouTube</p>
+      </div>
+      <nav class="top-actions" aria-label="学习设置">
+        <img class="brand" src="icons/32.png" width="28" height="28" alt="旁听 Sidenote" />
+        <button id="guide" class="icon-btn" title="功能引导" aria-label="功能引导">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7" />
+            <path
+              d="M9.2 9.3a2.8 2.8 0 1 1 3.7 2.7c-.7.3-1 .8-1 1.5v.4"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+            />
+            <circle cx="12" cy="17" r="1.1" fill="currentColor" />
+          </svg></button
+        ><button id="settings" class="icon-btn" title="AI 设置" aria-label="AI 设置">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7" />
+            <path
+              d="M12 2.8v2.3M12 18.9v2.3M21.2 12h-2.3M5.1 12H2.8M18.5 5.5l-1.6 1.6M7.1 16.9l-1.6 1.6M18.5 18.5l-1.6-1.6M7.1 7.1 5.5 5.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+            />
+          </svg>
+        </button>
+      </nav>
+    </header>
+    <main class="workspace">
+      <section class="theater" aria-label="视频与双语字幕">
+        <div class="screen">
+          <div class="video-stage">
+            <div class="player-wrap">
+              <iframe
+                id="player"
+                title="YouTube 视频播放器"
+                allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                referrerpolicy="strict-origin-when-cross-origin"
+              ></iframe>
+            </div>
+          </div>
+          <div id="player-error" class="player-error" role="status" hidden></div>
+          <div class="subtitles" id="subtitles" aria-live="off">
+            <p id="original">字幕会随播放同步显示</p>
+            <p id="translated"></p>
+          </div>
+          <div class="playback">
+            <label for="timeline" class="sr-only">播放进度</label
+            ><input id="timeline" type="range" min="0" max="1" value="0" step="0.1" />
+            <div class="playback-row">
+              <div class="playback-main">
+                <button id="play" aria-label="播放或暂停">▶</button
+                ><button id="backward" title="后退 10 秒" aria-label="后退 10 秒">
+                  ↶<small>10</small></button
+                ><button id="forward" title="前进 10 秒" aria-label="前进 10 秒">
+                  ↷<small>10</small></button
+                ><time id="clock">0:00 / 0:00</time>
+              </div>
+              <div class="playback-options">
+                <label for="speed" class="sr-only">播放速度</label
+                ><select id="speed">
+                  <option value="0.75">0.75×</option>
+                  <option value="1" selected>1×</option>
+                  <option value="1.25">1.25×</option>
+                  <option value="1.5">1.5×</option>
+                  <option value="2">2×</option>
+                </select>
+                <button
+                  id="captions-toggle"
+                  aria-label="显示视频字幕"
+                  aria-pressed="true"
+                  title="显示或隐藏视频字幕"
+                >
+                  CC</button
+                ><button id="fullscreen" aria-label="全屏学习" title="全屏学习">⛶</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <aside class="study" aria-label="字幕、章节与 AI 学习工具">
+        <iframe id="study-panel" title="旁听 AI 学习面板"></iframe>
+      </aside>
+    </main>
+  </body>
+</html>
