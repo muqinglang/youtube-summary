@@ -10,6 +10,7 @@ import type {
   Answer,
   Cue,
   ExportDocument,
+  Guide,
   JobProgress,
   LearningPreferences,
   Outline,
@@ -31,7 +32,7 @@ import {
 } from './google-translate';
 import { translateCuesCloud } from './cloud-translate';
 
-const TABS = ['transcript', 'chapters', 'summary', 'chat'] as const;
+const TABS = ['transcript', 'chapters', 'guide', 'summary', 'chat'] as const;
 type Tab = (typeof TABS)[number];
 type DisplayMode = 'bilingual' | 'original' | 'translated';
 const params = new URLSearchParams(location.search);
@@ -55,6 +56,7 @@ const state: {
   translations: Record<string, string>;
   summary?: Summary;
   outline?: Outline;
+  guide?: Guide;
   summaryPrompt: string;
   tab: Tab;
   query: string;
@@ -202,6 +204,76 @@ function renderChapters(): void {
   updateChapterPlayback();
 }
 
+/**
+ * Questions to hold in mind before watching. Answers stay collapsed on purpose: looking for the
+ * answer while watching is what makes it stick, so revealing one is a deliberate second click.
+ */
+function renderGuide(): void {
+  const questions = state.guide?.questions ?? [];
+  const list = $('#guide-list');
+  list.hidden = !questions.length;
+  $('#guide-empty').hidden = Boolean(questions.length);
+  $('#guide-refresh').hidden = !questions.length;
+  list.replaceChildren(
+    ...questions.map((item, index) => {
+      const card = document.createElement('div');
+      card.className = 'guide-card';
+
+      const row = document.createElement('button');
+      row.className = 'guide-row';
+      row.dataset.guide = String(index);
+      row.setAttribute('aria-expanded', 'false');
+      row.setAttribute('aria-controls', `guide-answer-${index}`);
+      const number = document.createElement('span');
+      number.className = 'guide-index';
+      number.textContent = String(index + 1).padStart(2, '0');
+      const text = document.createElement('span');
+      text.className = 'guide-text';
+      text.textContent = item.question;
+      const caret = document.createElement('span');
+      caret.className = 'guide-caret';
+      caret.setAttribute('aria-hidden', 'true');
+      caret.textContent = '答案';
+      row.append(number, text, caret);
+
+      const jump = document.createElement('button');
+      jump.className = 'guide-jump';
+      jump.dataset.seek = String(item.start);
+      jump.textContent = `${formatTime(item.start)} ↗`;
+      jump.title = '跳到视频中回答这个问题的位置';
+
+      const answer = document.createElement('div');
+      answer.className = 'guide-answer';
+      answer.id = `guide-answer-${index}`;
+      answer.hidden = true;
+      answer.textContent = item.answer || '字幕中没有给出明确答案，请到对应时间点自行判断。';
+
+      card.append(row, jump, answer);
+      return card;
+    }),
+  );
+}
+
+function toggleGuide(index: number): void {
+  const row = $('#guide-list').querySelector<HTMLButtonElement>(`[data-guide="${index}"]`);
+  const answer = document.getElementById(`guide-answer-${index}`);
+  if (!row || !answer) return;
+  const open = answer.hidden;
+  answer.hidden = !open;
+  row.setAttribute('aria-expanded', String(open));
+  row.querySelector('.guide-caret')!.textContent = open ? '收起' : '答案';
+}
+
+async function generateGuide(): Promise<void> {
+  const context = aiContext();
+  const result = await run({ task: 'guide', ...context }, Boolean(state.guide));
+  if (result?.task !== 'guide') return;
+  state.guide = result.guide;
+  renderGuide();
+  showTab('guide');
+  toast(`已生成 ${result.guide.questions.length} 个引导问题`);
+}
+
 function updateChapterPlayback(restoreCurrent = false): void {
   const container = $('#chapter-list');
   let index = chapters.length - 1;
@@ -294,7 +366,9 @@ function showTab(tab: Tab): void {
 function resetResults(): void {
   state.summary = undefined;
   state.outline = undefined;
+  state.guide = undefined;
   renderChapters();
+  renderGuide();
   state.summaryPrompt = '';
   $('#summary-content').className = 'empty';
   $('#summary-content').innerHTML =
@@ -1264,6 +1338,11 @@ function bindEvents(): void {
     if (data.question) {
       showTab('chat');
       void ask(data.question).catch((error: unknown) => notice(errorMessage(error), true));
+    }
+    if (data.guide !== undefined) toggleGuide(Number(data.guide));
+    if ('generateGuide' in data) {
+      showTab('guide');
+      void generateGuide().catch((error: unknown) => notice(errorMessage(error), true));
     }
     if ('generateOutline' in data) {
       showTab('chapters');

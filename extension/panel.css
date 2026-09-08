@@ -654,6 +654,86 @@ textarea {
 .chapter-card[aria-current='true'] .chapter-title {
   color: var(--accent);
 }
+/* ---- Guided questions ----------------------------------------------------
+   Answers stay collapsed: hunting for one while watching is the point, so
+   revealing it is a separate, deliberate click from jumping to the video. */
+.guide-list {
+  padding: 10px 14px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.guide-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 13px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.guide-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.guide-index {
+  padding-top: 2px;
+  font-size: 11px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.guide-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+.guide-caret {
+  flex: none;
+  padding: 2px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.guide-row:hover .guide-caret,
+.guide-row[aria-expanded='true'] .guide-caret {
+  color: var(--accent);
+  border-color: #4c472f;
+}
+.guide-jump {
+  align-self: start;
+  padding: 4px 9px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--muted);
+  font-size: 10px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.guide-jump:hover {
+  color: var(--accent);
+}
+.guide-answer {
+  grid-column: 1 / -1;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+  font-size: 12px;
+  line-height: 1.9;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
 .summary-scroll {
   padding: 0 20px 20px;
 }

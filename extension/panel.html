@@ -50,6 +50,15 @@
       >
         章节</button
       ><button
+        id="tab-guide"
+        role="tab"
+        data-tab="guide"
+        aria-controls="view-guide"
+        aria-selected="false"
+        tabindex="-1"
+      >
+        引导提问</button
+      ><button
         id="tab-summary"
         role="tab"
         data-tab="summary"
@@ -199,6 +208,30 @@
           <h2>生成内容目录</h2>
           <p>像书本目录一样，把整段视频按内容小结成带时间点的章节，点标题即可回看。</p>
           <button class="button" data-generate-outline>生成内容目录</button>
+        </div>
+      </section>
+      <section id="view-guide" class="view" role="tabpanel" aria-labelledby="tab-guide" hidden>
+        <div class="view-tools">
+          <span>带着问题看，理解更深</span
+          ><button id="guide-refresh" class="text-button" data-generate-guide hidden>
+            重新生成
+          </button>
+        </div>
+        <div
+          id="guide-list"
+          class="scroll guide-list"
+          tabindex="0"
+          aria-label="引导问题"
+          hidden
+        ></div>
+        <div id="guide-empty" class="scroll empty" tabindex="0">
+          <div class="empty-mark">?</div>
+          <h2>先带着问题，再看视频</h2>
+          <p>
+            由 AI
+            依据字幕提出几个关键问题。看的时候留意答案，比看完再回想记得牢。答案默认收起，想核对时再展开。
+          </p>
+          <button class="button" data-generate-guide>生成引导问题</button>
         </div>
       </section>
       <section id="view-summary" class="view" role="tabpanel" aria-labelledby="tab-summary" hidden>

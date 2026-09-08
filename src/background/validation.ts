@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { AiRequest, MindMapNode, Outline, Summary } from '../shared/types';
+import type { AiRequest, Guide, MindMapNode, Outline, Summary } from '../shared/types';
 
 const seconds = z.number().finite().min(0).max(604800);
 export const videoSchema = z.object({
@@ -56,6 +56,12 @@ export const aiRequestSchema: z.ZodType<AiRequest> = z.discriminatedUnion('task'
   }),
   z.object({
     task: z.literal('outline'),
+    video: videoSchema,
+    transcript: transcriptSchema,
+    language,
+  }),
+  z.object({
+    task: z.literal('guide'),
     video: videoSchema,
     transcript: transcriptSchema,
     language,
@@ -183,6 +189,17 @@ export const outlineSchema: z.ZodType<Outline> = z.object({
     (sections) => sections.length > 0,
     '内容目录为空',
   ),
+});
+
+export const guideSchema: z.ZodType<Guide> = z.object({
+  questions: outputArray(
+    z.object({
+      question: outputText(400),
+      start: outputSeconds,
+      answer: outputText(1200, false),
+    }),
+    12,
+  ).refine((questions) => questions.length > 0, '未生成任何引导问题'),
 });
 
 export const answerSchema = z.object({

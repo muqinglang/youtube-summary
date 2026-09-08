@@ -362,6 +362,7 @@ test('independent learning page: source untouched, embedded playback, real API, 
   expect(await panel.getByRole('tab').evaluateAll((tabs) => tabs.map((tab) => tab.id))).toEqual([
     'tab-transcript',
     'tab-chapters',
+    'tab-guide',
     'tab-summary',
     'tab-chat',
   ]);

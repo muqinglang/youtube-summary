@@ -72,6 +72,16 @@ export interface Outline {
   sections: OutlineEntry[];
 }
 
+/** A question to hold in mind before watching, plus where the video answers it. */
+export interface GuideQuestion {
+  question: string;
+  start: number;
+  answer: string;
+}
+export interface Guide {
+  questions: GuideQuestion[];
+}
+
 export interface Answer {
   text: string;
   citations: { start: number; label: string }[];
@@ -119,6 +129,7 @@ export type AiRequest =
       language: string;
     }
   | { task: 'outline'; video: VideoInfo; transcript: Transcript; language: string }
+  | { task: 'guide'; video: VideoInfo; transcript: Transcript; language: string }
   | { task: 'translate'; transcript: Transcript; language: string }
   | { task: 'ask'; video: VideoInfo; transcript: Transcript; question: string; language: string };
 
@@ -126,6 +137,7 @@ export type AiRequest =
 export type AiResult =
   | { task: 'summarize'; summary: Summary; notice?: string }
   | { task: 'outline'; outline: Outline; notice?: string }
+  | { task: 'guide'; guide: Guide; notice?: string }
   | { task: 'translate'; translations: Record<string, string>; notice?: string }
   | { task: 'ask'; answer: Answer; notice?: string };
 

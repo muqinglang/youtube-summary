@@ -6,6 +6,7 @@ import {
   aiRequestSchema,
   answerSchema,
   digestSchema,
+  guideSchema,
   outlineSchema,
   summarySchema,
   type Digest,
@@ -28,6 +29,7 @@ const DIGEST_BUDGET: JsonOptions = { timeoutMs: 45_000, maxTokens: 6000 };
 const SUMMARY_BUDGET: JsonOptions = { timeoutMs: 90_000, maxTokens: 8000 };
 const OUTLINE_BUDGET: JsonOptions = { timeoutMs: 60_000, maxTokens: 4000 };
 const ANSWER_BUDGET: JsonOptions = { timeoutMs: 60_000, maxTokens: 4000 };
+const GUIDE_BUDGET: JsonOptions = { timeoutMs: 60_000, maxTokens: 4000 };
 const TRANSLATE_BUDGET: JsonOptions = { timeoutMs: 45_000, maxTokens: 6000 };
 
 /** Cancellation must always win over the per-batch tolerance below. */
@@ -44,6 +46,8 @@ const SUMMARY_SCHEMA = `Return {"title":string,"overview":string,"sections":[{"t
 Cover the entire supplied source in chronological chapters. Include concrete explanations and examples when present. Aim for 6-14 chapters, 3-6 points per chapter, 3-8 takeaways. Each point must be a self-contained statement a reader can understand without watching the video. Section starts must be evidence timestamps, not estimated chapter times.`;
 const DIGEST_SCHEMA = `Return {"overview":string,"notes":[{"start":number,"text":string}]}.
 Create a faithful compact digest of the source. Maximum 1200 characters in overview, 12 notes, 500 characters in each note. Retain important claims, examples and decisions with exact source start values. Do not add unsupported knowledge.`;
+const GUIDE_SCHEMA = `Return {"questions":[{"question":string,"start":number,"answer":string}]}.
+Write 5-8 questions a viewer should hold in mind BEFORE watching, ordered by where the video addresses them. Each question must be answerable from the supplied evidence alone, must target this video's specific claims, decisions or examples rather than generic curiosity, and its start MUST equal an evidence timestamp marking where the video answers it. Keep every answer to at most two sentences drawn only from the evidence.`;
 const OUTLINE_SCHEMA = `Return {"sections":[{"title":string,"start":number}]}.
 Produce a table of contents for the entire video in chronological order, like a book's contents. Give 6-30 short, specific section titles that name what each part covers (no full sentences, no summaries, no points). Every start MUST equal a start value from the supplied evidence. Cover the whole source evenly from beginning to end.`;
 
@@ -365,7 +369,9 @@ Translate each source cue into the requested language. Preserve every cue id exa
       ? '正在根据字幕回答问题'
       : request.task === 'outline'
         ? '正在生成内容目录'
-        : '正在生成全片总结与思维导图',
+        : request.task === 'guide'
+          ? '正在生成引导问题'
+          : '正在生成全片总结',
   );
   if (request.task === 'outline') {
     const outline = await client.json(
@@ -387,6 +393,26 @@ ${OUTLINE_SCHEMA}`,
     assertNotAborted(signal);
     progress.done('内容目录完成');
     return { task: 'outline', outline, ...(notice ? { notice } : {}) };
+  }
+  if (request.task === 'guide') {
+    const guide = await client.json(
+      `${SOURCE_BOUNDARY}
+${GUIDE_SCHEMA}`,
+      {
+        videoTitle: request.video.title,
+        language: request.language,
+        coverage: request.transcript.coverage,
+        ...source,
+      },
+      guideSchema,
+      signal,
+      GUIDE_BUDGET,
+    );
+    for (const item of guide.questions) item.start = nearestStart(item.start, allowedTimes);
+    guide.questions.sort((a, b) => a.start - b.start);
+    assertNotAborted(signal);
+    progress.done('引导问题完成');
+    return { task: 'guide', guide, ...(notice ? { notice } : {}) };
   }
   if (request.task === 'summarize') {
     const summary = await client.json(

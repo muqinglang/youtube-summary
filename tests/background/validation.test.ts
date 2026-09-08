@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   answerSchema,
   digestSchema,
+  guideSchema,
   outlineSchema,
   summarySchema,
 } from '../../src/background/validation';
@@ -102,10 +103,26 @@ describe('lenient model output schemas', () => {
     expect(countNodes(wide.mindmap!)).toBeLessThanOrEqual(200);
   });
 
+  it('keeps a guided question whose answer came back empty', () => {
+    // An unanswered question is still worth showing; the UI explains the gap.
+    const guide = guideSchema.parse({
+      questions: [{ question: '作者如何定义清晰思考？', start: '1:30', answer: '' }],
+    });
+    expect(guide.questions[0]).toEqual({
+      question: '作者如何定义清晰思考？',
+      start: 90,
+      answer: '',
+    });
+  });
+
   it('still fails a response with nothing usable so the client can retry', () => {
     expect(summarySchema.safeParse({ ...validSummary, sections: [] }).success).toBe(false);
     expect(outlineSchema.safeParse({ sections: [] }).success).toBe(false);
     expect(answerSchema.safeParse({ text: '', citations: [] }).success).toBe(false);
+    expect(guideSchema.safeParse({ questions: [] }).success).toBe(false);
+    expect(
+      guideSchema.safeParse({ questions: [{ question: '', start: 0, answer: 'a' }] }).success,
+    ).toBe(false);
   });
 
   it('preserves a well-formed response unchanged', () => {

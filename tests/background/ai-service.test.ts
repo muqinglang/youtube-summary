@@ -120,6 +120,27 @@ describe('AI workflows', () => {
     ]);
   });
 
+  it('orders guided questions by where the video answers them and snaps those times', async () => {
+    const result = await runAi(
+      { task: 'guide', video, transcript: transcript(), language: '简体中文' },
+      DEFAULT_SETTINGS,
+      signal(),
+      undefined,
+      clientReturning({
+        questions: [
+          { question: '后面才回答的问题？', start: 99, answer: '第二个答案。' },
+          { question: '开头就回答的问题？', start: 0, answer: '第一个答案。' },
+        ],
+      }),
+    );
+    if (result.task !== 'guide') throw new Error('expected guide');
+    // Allowed cue starts are [0, 2]; 99 snaps to 2 and the pair is sorted chronologically.
+    expect(result.guide.questions).toEqual([
+      { question: '开头就回答的问题？', start: 0, answer: '第一个答案。' },
+      { question: '后面才回答的问题？', start: 2, answer: '第二个答案。' },
+    ]);
+  });
+
   it('covers every long-video chunk and hierarchically reduces bounded evidence', async () => {
     const longCues = Array.from({ length: 5 }, (_, index) => ({
       id: `cue-${index}`,
