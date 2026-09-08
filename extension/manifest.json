@@ -10,7 +10,13 @@
     "https://m.youtube.com/*",
     "https://translate.googleapis.com/*"
   ],
-  "optional_host_permissions": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
+  "optional_host_permissions": [
+    "https://api.openai.com/*",
+    "https://api.deepseek.com/*",
+    "https://api.anthropic.com/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
   "background": { "service_worker": "background.js" },
   "action": {
     "default_title": "打开旁听学习页面",
