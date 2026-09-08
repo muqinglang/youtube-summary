@@ -19,7 +19,7 @@ function escapeMarkdown(value: string): string {
     .replace(/\r?\n/g, ' ');
 }
 
-function sourceUrl(doc: ExportDocument, start?: number): string | undefined {
+export function sourceUrl(doc: ExportDocument, start?: number): string | undefined {
   let id = doc.video.id;
   if (!/^[\w-]{11}$/.test(id)) {
     try {
@@ -41,11 +41,11 @@ function sourceUrl(doc: ExportDocument, start?: number): string | undefined {
   return url.href;
 }
 
-function validTime(time: number | undefined): time is number {
+export function validTime(time: number | undefined): time is number {
   return typeof time === 'number' && Number.isFinite(time) && time >= 0 && time <= 604_800;
 }
 
-function validateDocument(doc: ExportDocument): void {
+export function validateDocument(doc: ExportDocument): void {
   if (
     !doc?.video ||
     !doc.summary ||
@@ -99,7 +99,7 @@ function validateDocument(doc: ExportDocument): void {
     throw new Error('总结内容过大，请缩短后导出。');
 }
 
-function createdLabel(value: string): string {
+export function createdLabel(value: string): string {
   const date = new Date(value);
   return Number.isFinite(date.getTime())
     ? date.toISOString().replace('T', ' ').slice(0, 19) + ' UTC'

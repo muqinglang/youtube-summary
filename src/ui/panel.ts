@@ -1072,6 +1072,15 @@ async function exportNotes(format: string): Promise<void> {
   closeExport();
   const doc = exportDocument();
   if (format === 'pdf') {
+    // The bundled subset font is ~1.5 MB, so it is fetched only when a PDF is actually exported.
+    const [{ buildPdf }, response] = await Promise.all([
+      import('../core/pdf'),
+      fetch(chrome.runtime.getURL('fonts/NotoSansSC-Subset.otf')),
+    ]);
+    if (!response.ok) throw new Error('中文字体加载失败，无法生成 PDF。');
+    const pdf = await buildPdf(doc, { font: new Uint8Array(await response.arrayBuffer()) });
+    downloadFile(`${doc.summary.title}.pdf`, pdf, 'application/pdf');
+  } else if (format === 'print') {
     await send({
       type: 'export:print',
       video: doc.video,

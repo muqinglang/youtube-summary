@@ -1,4 +1,4 @@
-import { build } from 'esbuild';
+import { build, type BuildOptions } from 'esbuild';
 import { cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,23 +11,37 @@ if (dirname(output) !== root || basename(output) !== 'dist') throw new Error('In
 await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
 await cp(join(root, 'extension'), output, { recursive: true });
-await build({
+const shared = {
   absWorkingDir: root,
-  entryPoints: {
-    background: 'src/background/index.ts',
-    content: 'src/content/index.ts',
-    page: 'src/content/page.ts',
-    panel: 'src/ui/panel.ts',
-    learn: 'src/ui/learn.ts',
-    export: 'src/ui/export.ts',
-  },
   outdir: output,
   bundle: true,
-  format: 'iife',
   target: ['chrome130'],
   minify: true,
   legalComments: 'linked',
   logLevel: 'info',
+} satisfies BuildOptions;
+
+// Content scripts cannot be modules, so everything that is not code-split stays an IIFE.
+await build({
+  ...shared,
+  entryPoints: {
+    background: 'src/background/index.ts',
+    content: 'src/content/index.ts',
+    page: 'src/content/page.ts',
+    learn: 'src/ui/learn.ts',
+    export: 'src/ui/export.ts',
+  },
+  format: 'iife',
+});
+
+// The panel is a module so the PDF generator, which is larger than the whole panel, loads only
+// when someone actually exports a PDF instead of on every video.
+await build({
+  ...shared,
+  entryPoints: { panel: 'src/ui/panel.ts' },
+  format: 'esm',
+  splitting: true,
+  chunkNames: 'chunks/[name]-[hash]',
 });
 
 const files: Record<string, Uint8Array> = {};

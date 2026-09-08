@@ -11,10 +11,14 @@
     <div id="export-controls">
       <span>旁听学习笔记</span>
       <div class="export-actions">
-        <button id="download-button">下载 HTML</button
-        ><button id="print-button" class="primary">打印 / 另存为 PDF</button>
+        <button id="print-button">打印</button
+        ><button id="pdf-button" class="primary">下载 PDF</button>
       </div>
     </div>
+    <p id="save-hint" hidden>
+      浏览器不允许网页直接保存 PDF：请在刚打开的打印窗口里，把「目标打印机」改成
+      <b>另存为 PDF</b>，再点保存。
+    </p>
     <main id="document"><p>正在加载学习笔记…</p></main>
   </body>
 </html>

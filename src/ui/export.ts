@@ -1,7 +1,7 @@
 import '../shared/zod-setup';
 import { buildPrintHtml } from '../core/exports';
 import type { ExportDocument } from '../shared/types';
-import { downloadFile, element, errorMessage } from './dom';
+import { element, errorMessage } from './dom';
 
 async function initialize(): Promise<void> {
   const id = new URLSearchParams(location.search).get('id');
@@ -14,15 +14,17 @@ async function initialize(): Promise<void> {
   element('#document').replaceChildren(...html.body.childNodes);
   document.title = doc.summary.title;
   element('#print-button').addEventListener('click', () => window.print());
-  // A silent PDF would need a bundled PDF engine plus an embedded CJK font; this standalone
-  // HTML opens offline anywhere and can still be printed to PDF from the file itself.
-  element('#download-button').addEventListener('click', () => {
-    downloadFile(`${doc.summary.title}.html`, buildPrintHtml(doc), 'text/html;charset=utf-8');
+  // The browser print dialog is the only way to produce a PDF from an extension page: a silent
+  // download would need a bundled PDF engine plus an embedded CJK font. Say so rather than
+  // leaving people waiting for a file that never arrives.
+  element('#pdf-button').addEventListener('click', () => {
+    element('#save-hint').hidden = false;
+    window.print();
   });
 }
 
 void initialize().catch((error: unknown) => {
   element('#document').textContent = errorMessage(error);
   element<HTMLButtonElement>('#print-button').disabled = true;
-  element<HTMLButtonElement>('#download-button').disabled = true;
+  element<HTMLButtonElement>('#pdf-button').disabled = true;
 });

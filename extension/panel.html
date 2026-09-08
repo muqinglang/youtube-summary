@@ -7,7 +7,7 @@
     <title>旁听 Sidenote</title>
     <link rel="icon" href="icons/32.png" />
     <link rel="stylesheet" href="panel.css" />
-    <script defer src="panel.js"></script>
+    <script type="module" src="panel.js"></script>
   </head>
   <body>
     <header class="app-header">
@@ -298,11 +298,13 @@
         <button class="button" id="export-open" disabled aria-expanded="false">导出笔记 ↓</button>
         <div id="export-menu" class="export-menu" hidden>
           <button data-export="pdf">
-            <b>PDF</b><span>排版文档<small>打印并另存为 PDF</small></span></button
+            <b>PDF</b><span>排版文档<small>可搜索、可复制的中文 PDF</small></span></button
           ><button data-export="xmind">
             <b>XM</b><span>XMind<small>可继续编辑的思维导图</small></span></button
           ><button data-export="markdown">
-            <b>MD</b><span>Markdown<small>文本笔记与时间点</small></span>
+            <b>MD</b><span>Markdown<small>文本笔记与时间点</small></span></button
+          ><button data-export="print">
+            <b>⎙</b><span>打印<small>打开排版页并调用打印</small></span>
           </button>
         </div>
       </div>
