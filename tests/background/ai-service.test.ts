@@ -313,6 +313,79 @@ describe('AI workflows', () => {
   });
 });
 
+describe('glossary', () => {
+  const longCues = Array.from({ length: 3 }, (_, index) => ({
+    id: `cue-${index}`,
+    start: index * 10,
+    end: index * 10 + 9,
+    text: `${index} ${'a'.repeat(9000)}`,
+  }));
+
+  it('merges terms across batches, keeping the first sighting and the fullest explanation', async () => {
+    // Batch 2 repeats a term from batch 1 with a longer explanation but a later timestamp.
+    const perBatch = [
+      { terms: [{ term: '贝叶斯定理', kind: 'concept', meaning: '短解释。', start: 0 }] },
+      {
+        terms: [
+          {
+            term: '贝叶斯定理',
+            kind: 'concept',
+            meaning: '更完整的解释，说明它如何更新判断。',
+            start: 10,
+          },
+          { term: 'Fermi', kind: 'term', meaning: '数量级估算。', start: 10 },
+        ],
+      },
+      { terms: [] },
+    ];
+    let batch = 0;
+    const client: JsonClient = {
+      json: async <T>(_system: string, _data: unknown, schema: z.ZodType<T>) =>
+        schema.parse(perBatch[batch++]),
+    };
+    const result = await runAi(
+      { task: 'glossary', video, transcript: transcript(longCues), language: '简体中文' },
+      DEFAULT_SETTINGS,
+      signal(),
+      undefined,
+      client,
+    );
+    if (result.task !== 'glossary') throw new Error('expected glossary');
+    expect(result.glossary.terms).toEqual([
+      // One entry, earliest start, longest meaning — and ordered by first appearance.
+      {
+        term: '贝叶斯定理',
+        kind: 'concept',
+        meaning: '更完整的解释，说明它如何更新判断。',
+        start: 0,
+      },
+      { term: 'Fermi', kind: 'term', meaning: '数量级估算。', start: 10 },
+    ]);
+  });
+
+  it('keeps the terms it did collect when a fragment fails', async () => {
+    let batch = 0;
+    const client: JsonClient = {
+      json: async <T>(_system: string, _data: unknown, schema: z.ZodType<T>) => {
+        if (batch++ === 1) throw new Error('provider glitch');
+        return schema.parse({
+          terms: [{ term: `术语${batch}`, kind: 'term', meaning: '解释。', start: 0 }],
+        });
+      },
+    };
+    const result = await runAi(
+      { task: 'glossary', video, transcript: transcript(longCues), language: '简体中文' },
+      DEFAULT_SETTINGS,
+      signal(),
+      undefined,
+      client,
+    );
+    if (result.task !== 'glossary') throw new Error('expected glossary');
+    expect(result.glossary.terms.length).toBeGreaterThan(0);
+    expect(result.notice).toContain('1 段未能提取');
+  });
+});
+
 describe('long-video resilience', () => {
   const longCues = Array.from({ length: 5 }, (_, index) => ({
     id: `cue-${index}`,

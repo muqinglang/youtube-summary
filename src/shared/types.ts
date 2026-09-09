@@ -88,6 +88,20 @@ export interface Outline {
   verdict?: OutlineVerdict;
 }
 
+/** Something the video assumes you know. English keys keep model output stable across languages. */
+export type TermKind = 'concept' | 'person' | 'tool' | 'work' | 'term';
+
+export interface GlossaryTerm {
+  term: string;
+  kind: TermKind;
+  meaning: string;
+  /** Where it first appears, so the list doubles as navigation. */
+  start: number;
+}
+export interface Glossary {
+  terms: GlossaryTerm[];
+}
+
 /** A question to hold in mind before watching, plus where the video answers it. */
 export interface GuideQuestion {
   question: string;
@@ -158,6 +172,7 @@ export type AiRequest =
     }
   | { task: 'outline'; video: VideoInfo; transcript: Transcript; language: string }
   | { task: 'guide'; video: VideoInfo; transcript: Transcript; language: string }
+  | { task: 'glossary'; video: VideoInfo; transcript: Transcript; language: string }
   | { task: 'translate'; transcript: Transcript; language: string }
   | { task: 'ask'; video: VideoInfo; transcript: Transcript; question: string; language: string };
 
@@ -166,6 +181,7 @@ export type AiResult =
   | { task: 'summarize'; summary: Summary; notice?: string }
   | { task: 'outline'; outline: Outline; notice?: string }
   | { task: 'guide'; guide: Guide; notice?: string }
+  | { task: 'glossary'; glossary: Glossary; notice?: string }
   | { task: 'translate'; translations: Record<string, string>; notice?: string }
   | { task: 'ask'; answer: Answer; notice?: string };
 

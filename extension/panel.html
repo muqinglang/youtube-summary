@@ -59,6 +59,15 @@
       >
         引导提问</button
       ><button
+        id="tab-glossary"
+        role="tab"
+        data-tab="glossary"
+        aria-controls="view-glossary"
+        aria-selected="false"
+        tabindex="-1"
+      >
+        术语</button
+      ><button
         id="tab-summary"
         role="tab"
         data-tab="summary"
@@ -241,6 +250,37 @@
             依据字幕提出几个关键问题。看的时候留意答案，比看完再回想记得牢。答案默认收起，想核对时再展开。
           </p>
           <button class="button" data-generate-guide>生成引导问题</button>
+        </div>
+      </section>
+      <section
+        id="view-glossary"
+        class="view"
+        role="tabpanel"
+        aria-labelledby="tab-glossary"
+        hidden
+      >
+        <div class="view-tools">
+          <span>视频默认你已经知道的东西</span>
+          <span class="chapter-heading-actions"
+            ><button id="glossary-refresh" class="text-button" data-generate-glossary hidden>
+              重新整理</button
+            ><span id="glossary-count"></span
+          ></span>
+        </div>
+        <div
+          id="glossary-list"
+          class="scroll glossary-list"
+          tabindex="0"
+          aria-label="术语表"
+          hidden
+        ></div>
+        <div id="glossary-empty" class="scroll empty" tabindex="0">
+          <div class="empty-mark">词</div>
+          <h2>先认识这些词</h2>
+          <p>
+            把视频里没解释就直接用起来的概念、人物、工具和作品整理成一页，每条都能跳到它首次出现的位置。
+          </p>
+          <button class="button" data-generate-glossary>整理术语表</button>
         </div>
       </section>
       <section id="view-summary" class="view" role="tabpanel" aria-labelledby="tab-summary" hidden>

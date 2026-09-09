@@ -1,5 +1,13 @@
 import { z } from 'zod';
-import type { AiRequest, Guide, MindMapNode, Outline, OutlineVerdict, Summary } from '../shared/types';
+import type {
+  AiRequest,
+  Glossary,
+  Guide,
+  MindMapNode,
+  Outline,
+  OutlineVerdict,
+  Summary,
+} from '../shared/types';
 
 const seconds = z.number().finite().min(0).max(604800);
 export const videoSchema = z.object({
@@ -62,6 +70,12 @@ export const aiRequestSchema: z.ZodType<AiRequest> = z.discriminatedUnion('task'
   }),
   z.object({
     task: z.literal('guide'),
+    video: videoSchema,
+    transcript: transcriptSchema,
+    language,
+  }),
+  z.object({
+    task: z.literal('glossary'),
     video: videoSchema,
     transcript: transcriptSchema,
     language,
@@ -229,6 +243,24 @@ export const guideSchema: z.ZodType<Guide> = z.object({
     }),
     12,
   ).refine((questions) => questions.length > 0, '未生成任何引导问题'),
+});
+
+/** One batch's worth of terms. Merging and de-duplication happen after every batch returns. */
+export const glossarySchema: z.ZodType<Glossary> = z.object({
+  terms: outputArray(
+    z.object({
+      term: outputText(120),
+      kind: z
+        .preprocess(
+          (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value),
+          z.enum(['concept', 'person', 'tool', 'work', 'term']),
+        )
+        .catch('term'),
+      meaning: outputText(400, false),
+      start: outputSeconds,
+    }),
+    60,
+  ),
 });
 
 export const answerSchema = z.object({

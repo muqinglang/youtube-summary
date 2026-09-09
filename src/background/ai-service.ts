@@ -1,11 +1,20 @@
 import { z } from 'zod';
 import { chunkCues } from '../core/transcript';
-import type { AiRequest, AiResult, Cue, JobProgress, MindMapNode, Settings } from '../shared/types';
+import type {
+  AiRequest,
+  AiResult,
+  Cue,
+  GlossaryTerm,
+  JobProgress,
+  MindMapNode,
+  Settings,
+} from '../shared/types';
 import { AiClient, AiError, assertNotAborted, type JsonOptions } from './client';
 import {
   aiRequestSchema,
   answerSchema,
   digestSchema,
+  glossarySchema,
   guideSchema,
   outlineSchema,
   summarySchema,
@@ -30,6 +39,7 @@ const SUMMARY_BUDGET: JsonOptions = { timeoutMs: 90_000, maxTokens: 8000 };
 const OUTLINE_BUDGET: JsonOptions = { timeoutMs: 60_000, maxTokens: 4000 };
 const ANSWER_BUDGET: JsonOptions = { timeoutMs: 60_000, maxTokens: 4000 };
 const GUIDE_BUDGET: JsonOptions = { timeoutMs: 60_000, maxTokens: 4000 };
+const GLOSSARY_BUDGET: JsonOptions = { timeoutMs: 45_000, maxTokens: 4000 };
 const TRANSLATE_BUDGET: JsonOptions = { timeoutMs: 45_000, maxTokens: 6000 };
 
 /**
@@ -64,6 +74,8 @@ const DIGEST_SCHEMA = `Return {"overview":string,"notes":[{"start":number,"text"
 Create a faithful compact digest of the source. Maximum 1200 characters in overview, 12 notes, 500 characters in each note. Retain important claims, examples and decisions with exact source start values. Do not add unsupported knowledge.`;
 const GUIDE_SCHEMA = `Return {"questions":[{"question":string,"start":number,"answer":string}]}.
 Write 5-8 questions a viewer should hold in mind BEFORE watching, ordered by where the video addresses them. Each question must be answerable from the supplied evidence alone, must target this video's specific claims, decisions or examples rather than generic curiosity, and its start MUST equal an evidence timestamp marking where the video answers it. Keep every answer to at most two sentences drawn only from the evidence.`;
+const GLOSSARY_SCHEMA = `Return {"terms":[{"term":string,"kind":string,"meaning":string,"start":number}]}.
+List the named things a viewer must recognise to follow THIS fragment: concepts, people, tools, products, books, papers and domain jargon the speaker uses without defining. "kind" is exactly one of "concept", "person", "tool", "work", "term". "meaning" explains it in one or two sentences as this video uses it, not as a dictionary would. "start" MUST equal the evidence timestamp where it first appears here. Skip ordinary words, and return {"terms":[]} when the fragment introduces nothing worth listing.`;
 const OUTLINE_SCHEMA = `Return {"verdict":{"topic":string,"audience":string,"prerequisites":string,"advice":string},"sections":[{"title":string,"start":number,"density":number,"kind":string}]}.
 "verdict" judges whether this video is worth someone's time: "topic" in one sentence, "audience" who benefits most, "prerequisites" what they should already know (empty string when none), "advice" how to spend the time — watch it through, watch only certain parts, or skip it. Say so plainly when the video is thin; do not praise it out of politeness. Do not estimate a score or a duration in these fields: those are computed from the sections below.
 Produce a table of contents for the entire video in chronological order, like a book's contents. Give 6-30 short, specific section titles that name what each part covers (no full sentences, no summaries, no points). Every start MUST equal a start value from the supplied evidence. Cover the whole source evenly from beginning to end.
@@ -178,6 +190,26 @@ export interface Evidence {
   payload: { sourceCues: SourceCue[] } | { sourceDigests: Digest[] };
   analysed: number;
   total: number;
+}
+
+const MAX_TERMS = 120;
+
+/** One entry per thing, keeping its earliest sighting and the fullest explanation offered. */
+function mergeGlossary(batches: GlossaryTerm[][]): GlossaryTerm[] {
+  const byName = new Map<string, GlossaryTerm>();
+  for (const terms of batches)
+    for (const found of terms) {
+      const key = found.term.trim().toLocaleLowerCase();
+      if (!key) continue;
+      const existing = byName.get(key);
+      if (!existing) {
+        byName.set(key, { ...found });
+        continue;
+      }
+      existing.start = Math.min(existing.start, found.start);
+      if (found.meaning.length > existing.meaning.length) existing.meaning = found.meaning;
+    }
+  return [...byName.values()].sort((a, b) => a.start - b.start).slice(0, MAX_TERMS);
 }
 
 /** Deterministic fallback so hierarchical reduction still shrinks when a merge call fails. */
@@ -411,6 +443,46 @@ Translate each source cue into the requested language. Preserve every cue id exa
       translations,
       ...(failed
         ? { notice: `${batches.length} 段字幕中有 ${failed} 段未能翻译，可重新翻译补齐。` }
+        : {}),
+    };
+  }
+  if (request.task === 'glossary') {
+    // Terms are read from the raw cues, not from digests: a digest compresses a fragment into a
+    // few notes, and proper nouns are the first thing that compression loses.
+    const collected: GlossaryTerm[][] = [];
+    let failedBatches = 0;
+    let lastFailure: unknown;
+    for (let index = 0; index < batches.length; index += 1) {
+      const sourceCues = batches[index]!;
+      progress.begin(`正在提取术语 ${index + 1} / ${batches.length}`);
+      try {
+        const found = await client.json(
+          `${SOURCE_BOUNDARY}
+${GLOSSARY_SCHEMA}`,
+          { language: request.language, videoTitle: request.video.title, sourceCues },
+          glossarySchema,
+          signal,
+          GLOSSARY_BUDGET,
+        );
+        const allowed = sortedStarts(sourceCues.map((cue) => cue.start));
+        for (const term of found.terms) term.start = nearestStart(term.start, allowed);
+        collected.push(found.terms);
+        progress.done(`已提取术语 ${index + 1} / ${batches.length}`);
+      } catch (cause) {
+        if (isCancellation(cause) || signal.aborted) throw cause;
+        failedBatches += 1;
+        lastFailure = cause;
+        progress.done(`第 ${index + 1} 段术语提取失败，继续处理剩余字幕`);
+      }
+    }
+    if (failedBatches === batches.length)
+      throw lastFailure instanceof Error ? lastFailure : new AiError('未能提取任何术语，请重试。');
+    assertNotAborted(signal);
+    return {
+      task: 'glossary',
+      glossary: { terms: mergeGlossary(collected) },
+      ...(failedBatches
+        ? { notice: `${batches.length} 段字幕中有 ${failedBatches} 段未能提取，术语可能不全。` }
         : {}),
     };
   }

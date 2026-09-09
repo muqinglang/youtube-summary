@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   answerSchema,
   digestSchema,
+  glossarySchema,
   guideSchema,
   outlineSchema,
   summarySchema,
@@ -158,6 +159,22 @@ describe('lenient model output schemas', () => {
       start: 90,
       answer: '',
     });
+  });
+
+  it('accepts a fragment that introduces no terms, and labels an unknown kind', () => {
+    // Unlike the outline, an empty glossary batch is a legitimate answer, not a failure.
+    expect(glossarySchema.parse({ terms: [] }).terms).toEqual([]);
+    const parsed = glossarySchema.parse({
+      terms: [
+        { term: '贝叶斯定理', kind: 'CONCEPT', meaning: '用新证据更新判断。', start: '1:30' },
+        { term: '某个东西', kind: '瞎写的', meaning: '', start: 5 },
+      ],
+    });
+    expect(parsed.terms).toEqual([
+      { term: '贝叶斯定理', kind: 'concept', meaning: '用新证据更新判断。', start: 90 },
+      // An unrecognised kind and a blank explanation both fall back rather than drop the entry.
+      { term: '某个东西', kind: 'term', meaning: '', start: 5 },
+    ]);
   });
 
   it('still fails a response with nothing usable so the client can retry', () => {

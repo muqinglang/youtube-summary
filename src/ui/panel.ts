@@ -10,12 +10,14 @@ import type {
   Answer,
   Cue,
   ExportDocument,
+  Glossary,
   Guide,
   JobProgress,
   LearningPreferences,
   Outline,
   PlayerCommand,
   SectionKind,
+  TermKind,
   PublicSettings,
   RunMode,
   RuntimeEvent,
@@ -30,7 +32,7 @@ import { runJob, send } from './runtime';
 import { googleTranslateUrl, resolveTranslationEngine } from './google-translate';
 import { translateCuesCloud } from './cloud-translate';
 
-const TABS = ['transcript', 'chapters', 'guide', 'summary', 'chat'] as const;
+const TABS = ['transcript', 'chapters', 'guide', 'glossary', 'summary', 'chat'] as const;
 type Tab = (typeof TABS)[number];
 type DisplayMode = 'bilingual' | 'original' | 'translated';
 const params = new URLSearchParams(location.search);
@@ -55,6 +57,7 @@ const state: {
   summary?: Summary;
   outline?: Outline;
   guide?: Guide;
+  glossary?: Glossary;
   summaryPrompt: string;
   tab: Tab;
   query: string;
@@ -364,6 +367,63 @@ function toggleGuide(index: number): void {
   row.querySelector('.guide-caret')!.textContent = open ? '收起' : '答案';
 }
 
+const TERM_LABELS: Record<TermKind, string> = {
+  concept: '概念',
+  person: '人物',
+  tool: '工具',
+  work: '作品',
+  term: '术语',
+};
+
+/** A reference list that doubles as navigation: every entry knows where it first appears. */
+function renderGlossary(): void {
+  const terms = state.glossary?.terms ?? [];
+  const list = $('#glossary-list');
+  list.hidden = !terms.length;
+  $('#glossary-empty').hidden = Boolean(terms.length);
+  $('#glossary-refresh').hidden = !terms.length;
+  $('#glossary-count').textContent = terms.length ? `${terms.length} 条` : '';
+  list.replaceChildren(
+    ...terms.map((entry) => {
+      const card = document.createElement('div');
+      card.className = 'term-card';
+
+      const head = document.createElement('div');
+      head.className = 'term-head';
+      const kind = document.createElement('span');
+      kind.className = 'term-kind';
+      kind.textContent = TERM_LABELS[entry.kind];
+      const name = document.createElement('span');
+      name.className = 'term-name';
+      name.textContent = entry.term;
+      head.append(kind, name);
+
+      const jump = document.createElement('button');
+      jump.className = 'term-jump';
+      jump.dataset.seek = String(entry.start);
+      jump.textContent = `${formatTime(entry.start)} ↗`;
+      jump.title = '跳到它首次出现的位置';
+
+      const meaning = document.createElement('p');
+      meaning.className = 'term-meaning';
+      meaning.textContent = entry.meaning || '字幕中没有给出解释。';
+
+      card.append(head, jump, meaning);
+      return card;
+    }),
+  );
+}
+
+async function generateGlossary(): Promise<void> {
+  const context = aiContext();
+  const result = await run({ task: 'glossary', ...context }, Boolean(state.glossary));
+  if (result?.task !== 'glossary') return;
+  state.glossary = result.glossary;
+  renderGlossary();
+  showTab('glossary');
+  toast(`已整理 ${result.glossary.terms.length} 条术语`);
+}
+
 async function generateGuide(): Promise<void> {
   const context = aiContext();
   const result = await run({ task: 'guide', ...context }, Boolean(state.guide));
@@ -498,8 +558,10 @@ function resetResults(): void {
   state.summary = undefined;
   state.outline = undefined;
   state.guide = undefined;
+  state.glossary = undefined;
   renderChapters();
   renderGuide();
+  renderGlossary();
   state.summaryPrompt = '';
   $('#summary-content').className = 'empty';
   $('#summary-content').innerHTML =
@@ -1523,6 +1585,10 @@ function bindEvents(): void {
       void ask(data.question).catch((error: unknown) => notice(errorMessage(error), true));
     }
     if (data.guide !== undefined) toggleGuide(Number(data.guide));
+    if ('generateGlossary' in data) {
+      showTab('glossary');
+      void generateGlossary().catch((error: unknown) => notice(errorMessage(error), true));
+    }
     if ('generateGuide' in data) {
       showTab('guide');
       void generateGuide().catch((error: unknown) => notice(errorMessage(error), true));
