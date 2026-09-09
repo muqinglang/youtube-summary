@@ -184,11 +184,31 @@ export const summarySchema: z.ZodType<Summary> = z.object({
   mindmap: mindMapSchema(6).transform(pruneMindMap).optional(),
 });
 
+/** An unrecognised label must not fail the section; treat it as ordinary content. */
+const outputKind = z
+  .preprocess(
+    (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value),
+    z.enum(['concept', 'example', 'demo', 'filler', 'promo']),
+  )
+  .catch('concept');
+/** Models answer this on a loose scale; clamp rather than reject, and default to the middle. */
+const outputDensity = z
+  .preprocess(
+    (value) => (typeof value === 'string' ? Number(value.trim()) : value),
+    z.number().finite().transform((value) => Math.min(5, Math.max(1, Math.round(value)))),
+  )
+  .catch(3);
+
 export const outlineSchema: z.ZodType<Outline> = z.object({
-  sections: outputArray(z.object({ title: outputText(500), start: outputSeconds }), 80).refine(
-    (sections) => sections.length > 0,
-    '内容目录为空',
-  ),
+  sections: outputArray(
+    z.object({
+      title: outputText(500),
+      start: outputSeconds,
+      density: outputDensity,
+      kind: outputKind,
+    }),
+    80,
+  ).refine((sections) => sections.length > 0, '内容目录为空'),
 });
 
 export const guideSchema: z.ZodType<Guide> = z.object({

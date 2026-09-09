@@ -63,9 +63,15 @@ export interface Summary {
   mindmap?: MindMapNode;
 }
 
+/** What a section is made of. English keys keep the model's output stable across UI languages. */
+export type SectionKind = 'concept' | 'example' | 'demo' | 'filler' | 'promo';
+
 export interface OutlineEntry {
   title: string;
   start: number;
+  /** 1 (skippable) to 5 (dense). Drives the "只看干货" playback filter. */
+  density: number;
+  kind: SectionKind;
 }
 
 export interface Outline {

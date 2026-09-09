@@ -654,6 +654,28 @@ textarea {
 .chapter-card[aria-current='true'] .chapter-title {
   color: var(--accent);
 }
+.chapter-tag {
+  align-self: flex-start;
+  margin-top: 5px;
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 9px;
+  color: var(--muted);
+}
+/* Dimmed rather than hidden: the viewer should still see what 「只看干货」 will skip. */
+.chapter-card[data-filler='true'] .chapter-title,
+.chapter-card[data-filler='true'] time {
+  opacity: 0.55;
+}
+.chapter-card[data-filler='true'] .chapter-tag {
+  color: #8a7f5c;
+  border-color: #4c472f;
+}
+#skip-filler[aria-pressed='true'] {
+  color: var(--accent);
+}
+
 /* ---- Guided questions ----------------------------------------------------
    Answers stay collapsed: hunting for one while watching is the point, so
    revealing it is a separate, deliberate click from jumping to the video. */

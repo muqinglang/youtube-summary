@@ -107,16 +107,16 @@ describe('AI workflows', () => {
       undefined,
       clientReturning({
         sections: [
-          { title: 'Later part', start: 99 },
-          { title: 'Intro', start: 0 },
+          { title: 'Later part', start: 99, density: 5, kind: 'demo' },
+          { title: 'Intro', start: 0, density: 1, kind: 'filler' },
         ],
       }),
     );
     if (result.task !== 'outline') throw new Error('expected outline');
-    // Snapped (99 -> 2) and sorted chronologically.
+    // Snapped (99 -> 2) and sorted chronologically, carrying the judgement for 「只看干货」.
     expect(result.outline.sections).toEqual([
-      { title: 'Intro', start: 0 },
-      { title: 'Later part', start: 2 },
+      { title: 'Intro', start: 0, density: 1, kind: 'filler' },
+      { title: 'Later part', start: 2, density: 5, kind: 'demo' },
     ]);
   });
 

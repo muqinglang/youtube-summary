@@ -15,6 +15,7 @@ import type {
   LearningPreferences,
   Outline,
   PlayerCommand,
+  SectionKind,
   PublicSettings,
   RunMode,
   RuntimeEvent,
@@ -63,6 +64,7 @@ const state: {
   displayMode: DisplayMode;
   loadVersion: number;
   loading: boolean;
+  skipFiller: boolean;
   job?: AbortController;
   jobTask?: AiRequest['task'];
 } = {
@@ -76,6 +78,7 @@ const state: {
   displayMode: 'bilingual',
   loadVersion: 0,
   loading: false,
+  skipFiller: false,
 };
 let toastTimer = 0;
 let lastOverlay = '';
@@ -84,7 +87,22 @@ const attemptedTrackSets = new Set<string>();
 let lastPreferences = '';
 let testingConnection = false;
 let connectionFormVersion = 0;
-let chapters: VideoChapter[] = [];
+interface ChapterEntry extends VideoChapter {
+  density?: number;
+  kind?: SectionKind;
+}
+let chapters: ChapterEntry[] = [];
+/** Sections at or below this are the ones 「只看干货」 skips. */
+const FILLER_DENSITY = 2;
+/** How long an explicit jump protects its destination from the filler skip. */
+const SEEK_GRACE_MS = 2_000;
+const KIND_LABELS: Record<SectionKind, string> = {
+  concept: '概念',
+  example: '案例',
+  demo: '演示',
+  filler: '闲聊',
+  promo: '推广',
+};
 let chapterIdentity = '';
 let activeChapter = -1;
 
@@ -121,7 +139,13 @@ const CHAPTER_LABELS = {
 } as const;
 function chapterSource(): {
   kind: keyof typeof CHAPTER_LABELS;
-  entries: { title: string; start: number; points?: string[] }[];
+  entries: {
+    title: string;
+    start: number;
+    points?: string[];
+    density?: number;
+    kind?: SectionKind;
+  }[];
 } {
   if (state.outline?.sections.length) return { kind: 'outline', entries: state.outline.sections };
   if (state.summary?.sections.length) return { kind: 'summary', entries: state.summary.sections };
@@ -137,6 +161,8 @@ function renderChapters(): void {
       title: entry.title,
       start: entry.start,
       points: (entry.points ?? []).slice(0, 6),
+      density: entry.density,
+      kind: entry.kind,
     }))
     .sort((a, b) => a.start - b.start);
   // The source kind is part of the identity: an AI outline replacing identical native chapters
@@ -147,7 +173,12 @@ function renderChapters(): void {
     const focused = container.contains(document.activeElement)
       ? (document.activeElement as HTMLButtonElement)
       : undefined;
-    chapters = sections.map(({ title, start }) => ({ title, start }));
+    chapters = sections.map(({ title, start, density, kind }) => ({
+      title,
+      start,
+      density,
+      kind,
+    }));
     chapterIdentity = identity;
     activeChapter = -1;
     container.replaceChildren(
@@ -176,6 +207,17 @@ function renderChapters(): void {
           }
           main.append(points);
         }
+        // Only the AI outline judges density, so the badges appear with it and not before.
+        if (section.kind) {
+          const tag = document.createElement('span');
+          tag.className = 'chapter-tag';
+          tag.textContent = KIND_LABELS[section.kind];
+          main.append(tag);
+        }
+        if (section.density !== undefined && section.density <= FILLER_DENSITY) {
+          button.dataset.filler = 'true';
+          button.title = `${section.title}（信息密度低，「只看干货」会跳过）`;
+        }
         const time = document.createElement('time');
         time.textContent = formatTime(section.start);
         button.append(number, main, time);
@@ -189,6 +231,11 @@ function renderChapters(): void {
     $('#chapter-source').textContent = sections.length ? CHAPTER_LABELS[kind] : '内容目录';
     // Native chapters hide the empty state, so keep the AI outline reachable from the heading.
     $('#chapter-outline-btn').hidden = kind !== 'native' || !sections.length;
+    // Skipping needs a density judgement, which only the AI outline supplies.
+    const rated = sections.some((section) => section.density !== undefined);
+    $('#skip-filler').hidden = !rated;
+    if (!rated) state.skipFiller = false;
+    $('#skip-filler').setAttribute('aria-pressed', String(state.skipFiller));
     if (focused) {
       const replacement = [...container.querySelectorAll<HTMLButtonElement>('.chapter-card')].find(
         (button) => button.dataset.seek === focused.dataset.seek && button.title === focused.title,
@@ -271,14 +318,45 @@ async function generateGuide(): Promise<void> {
   toast(`已生成 ${result.guide.questions.length} 个引导问题`);
 }
 
+/** An explicit jump is honoured even into filler: the viewer asked to be there. */
+let honourSeekUntil = 0;
+
+/** The next section worth watching, or undefined if the rest of the video is filler. */
+function nextWorthWatching(from: number): number | undefined {
+  for (let index = from; index < chapters.length; index += 1) {
+    const density = chapters[index]?.density;
+    if (density === undefined || density > FILLER_DENSITY) return index;
+  }
+  return undefined;
+}
+
 function updateChapterPlayback(restoreCurrent = false): void {
   const container = $('#chapter-list');
   let index = chapters.length - 1;
   while (index >= 0 && chapters[index]!.start > (state.video?.currentTime || 0)) index--;
   if (index !== activeChapter) {
+    const entered = chapters[index];
     container.querySelector('[aria-current]')?.removeAttribute('aria-current');
     activeChapter = index;
     container.querySelector(`[data-chapter="${index}"]`)?.setAttribute('aria-current', 'true');
+    // Only skip a section playback drifted into by itself. Skipping while paused, or right after
+    // the viewer jumped somewhere on purpose, would fight whoever is holding the timeline.
+    if (
+      state.skipFiller &&
+      entered &&
+      !state.video?.paused &&
+      Date.now() > honourSeekUntil &&
+      entered.density !== undefined &&
+      entered.density <= FILLER_DENSITY
+    ) {
+      const target = nextWorthWatching(index + 1);
+      const destination = target === undefined ? undefined : chapters[target];
+      if (destination) {
+        void seek(destination.start).catch((error: unknown) => notice(errorMessage(error), true));
+        toast(`已跳过「${entered.title}」`);
+        return;
+      }
+    }
   }
   if (!restoreCurrent || state.tab !== 'chapters') return;
   const current = container.querySelector<HTMLElement>(`[data-chapter="${index}"]`);
@@ -728,7 +806,8 @@ async function run(request: AiRequest, force = false): Promise<AiResult | undefi
       model: settings.model,
       baseUrl: settings.baseUrl,
       temperature: settings.temperature,
-      version: 1,
+      // 2: outline sections gained density and kind, so version 1 entries render blank badges.
+      version: 2,
     });
     const cached = force ? undefined : await readCache<AiResult>(key);
     if (cached && !controller.signal.aborted && version === state.loadVersion) {
@@ -1372,9 +1451,12 @@ function bindEvents(): void {
     if (data.tab) showTab(data.tab as Tab);
     if (data.goto) showTab(data.goto as Tab);
     if (data.close) $<HTMLDialogElement>(`#${data.close}`).close();
-    if (data.seek !== undefined)
+    if (data.seek !== undefined) {
+      honourSeekUntil = Date.now() + SEEK_GRACE_MS;
       void seek(Number(data.seek)).catch((error: unknown) => notice(errorMessage(error), true));
+    }
     if (data.cue !== undefined) {
+      honourSeekUntil = Date.now() + SEEK_GRACE_MS;
       const cue = state.transcript?.cues[Number(data.cue)];
       if (cue) void seek(cue.start).catch((error: unknown) => notice(errorMessage(error), true));
     }
@@ -1429,6 +1511,11 @@ function bindEvents(): void {
       translationHalted = false;
       maybeTranslate();
     }
+  });
+  on('#skip-filler', 'click', () => {
+    state.skipFiller = !state.skipFiller;
+    $('#skip-filler').setAttribute('aria-pressed', String(state.skipFiller));
+    toast(state.skipFiller ? '只看干货：低密度段落会自动跳过' : '已恢复完整播放');
   });
   on('#engine-google', 'click', () => setEngine('google'));
   on('#engine-ai', 'click', () => setEngine('ai'));

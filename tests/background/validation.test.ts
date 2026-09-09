@@ -79,7 +79,26 @@ describe('lenient model output schemas', () => {
     const outline = outlineSchema.parse({
       sections: [{ title: 'Kept', start: 0 }, { title: '', start: 5 }, 'nonsense', null],
     });
-    expect(outline.sections).toEqual([{ title: 'Kept', start: 0 }]);
+    // A section that says nothing about density is still usable; it lands in the middle.
+    expect(outline.sections).toEqual([{ title: 'Kept', start: 0, density: 3, kind: 'concept' }]);
+  });
+
+  it('clamps section density and falls back on an unknown kind', () => {
+    const outline = outlineSchema.parse({
+      sections: [
+        { title: '开场', start: 0, density: '1', kind: 'FILLER' },
+        { title: '推导', start: 10, density: 9, kind: 'concept' },
+        { title: '闲聊', start: 20, density: -3, kind: '瞎写的' },
+        { title: '演示', start: 30, density: 3.6, kind: 'demo' },
+      ],
+    });
+    expect(outline.sections.map((section) => [section.density, section.kind])).toEqual([
+      // Strings and casing are tolerated; out-of-range values clamp instead of failing.
+      [1, 'filler'],
+      [5, 'concept'],
+      [1, 'concept'],
+      [4, 'demo'],
+    ]);
   });
 
   it('keeps a chapter that came back without points', () => {
