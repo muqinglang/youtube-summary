@@ -4,7 +4,8 @@ Chrome / Edge Manifest V3 扩展，把 YouTube 视频变成可检索、可复习
 
 打开独立学习页：左侧是视频与双语字幕，右侧按「字幕｜章节｜引导提问｜AI 总结｜AI 问答」切换。双语字幕默认免 Key 直接可用；AI 总结、内容目录和问答使用你自己的 OpenAI、DeepSeek 或 Claude API Key。
 
-> 尚未上架浏览器商店，需要手动加载。也没有登录、订阅和云端同步：所有数据留在本机。
+> 尚未上架浏览器商店，需要手动加载。扩展本身不依赖任何服务器，所有数据留在本机。
+> 仓库另含一个可选的[托管服务端](server/README.md)：登录 + 按视频共享的 AI 结果缓存，让同一个视频只需付一次模型费用。扩展尚未接入它。
 
 ## 安装（普通用户）
 
@@ -110,6 +111,8 @@ node --import tsx tests/compatibility/verify-xmind.ts
 ```
 
 开发时加载 `dist` 文件夹；改动源码后重新构建，在扩展管理页点「重新加载」，关闭旧学习标签并刷新 YouTube。
+
+服务端与扩展共用同一份 `tsconfig` 和 AI 流水线源码，因此 `npm run typecheck` 一次覆盖两边，契约无法漂移。启动方式与设计说明见 [服务端说明](server/README.md)。
 
 源码分层、测试边界和数据说明见 [架构说明](docs/architecture.md)、[测试记录](docs/testing.md)、[数据与权限](docs/privacy.md)。
 

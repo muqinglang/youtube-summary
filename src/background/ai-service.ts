@@ -32,6 +32,22 @@ const ANSWER_BUDGET: JsonOptions = { timeoutMs: 60_000, maxTokens: 4000 };
 const GUIDE_BUDGET: JsonOptions = { timeoutMs: 60_000, maxTokens: 4000 };
 const TRANSLATE_BUDGET: JsonOptions = { timeoutMs: 45_000, maxTokens: 6000 };
 
+/**
+ * Lets a caller reuse fragment digests. The extension passes nothing and behaves as before; a
+ * server passes a shared store so the same video is only ever digested once, across every user
+ * and across the outline/guide/summarize tasks that feed on identical evidence.
+ */
+export interface DigestStore {
+  get(key: string): Promise<Digest | undefined>;
+  set(key: string, digest: Digest): Promise<void>;
+}
+
+async function digestKey(parts: unknown): Promise<string> {
+  const bytes = new TextEncoder().encode(JSON.stringify(parts));
+  const hash = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
 /** Cancellation must always win over the per-batch tolerance below. */
 function isCancellation(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError';
@@ -182,6 +198,8 @@ async function prepareEvidence(
   client: JsonClient,
   signal: AbortSignal,
   progress: Progress,
+  store: DigestStore | undefined,
+  model: string,
 ): Promise<Evidence> {
   const sources = sourceBatches(request.transcript.cues);
   if (sources.length === 1) return { payload: { sourceCues: sources[0]! }, analysed: 1, total: 1 };
@@ -195,6 +213,25 @@ async function prepareEvidence(
     assertNotAborted(signal);
     progress.begin(`正在分析字幕 ${index + 1} / ${sources.length}`);
     const sourceCues = sources[index]!;
+    const key = store
+      ? await digestKey({
+          kind: 'batch',
+          videoId: request.transcript.videoId,
+          language: request.language,
+          model,
+          instruction: taskInstruction,
+          context: evidenceContext(request),
+          sourceCues,
+        })
+      : undefined;
+    if (key) {
+      const hit = await store!.get(key);
+      if (hit) {
+        digests.push(hit);
+        progress.done(`已复用第 ${index + 1} 段分析`);
+        continue;
+      }
+    }
     try {
       const digest = await client.json(
         `${SOURCE_BOUNDARY}
@@ -211,6 +248,8 @@ ${taskInstruction}`,
       );
       const allowedNoteStarts = sortedStarts(sourceCues.map((cue) => cue.start));
       for (const note of digest.notes) note.start = nearestStart(note.start, allowedNoteStarts);
+      // Stored after snapping so a cache hit is identical to a fresh call.
+      if (key) await store!.set(key, digest);
       digests.push(digest);
       progress.done(`已分析字幕 ${index + 1} / ${sources.length}`);
     } catch (cause) {
@@ -235,6 +274,22 @@ ${taskInstruction}`,
       const group = groups[index]!;
       progress.begin(`正在合并章节 ${index + 1} / ${groups.length}`);
       let digest: Digest;
+      const groupKey = store
+        ? await digestKey({
+            kind: 'merge',
+            language: request.language,
+            model,
+            instruction: taskInstruction,
+            context: evidenceContext(request),
+            group,
+          })
+        : undefined;
+      const merged = groupKey ? await store!.get(groupKey) : undefined;
+      if (merged) {
+        reduced.push(merged);
+        progress.done('已复用章节合并');
+        continue;
+      }
       try {
         digest = await client.json(
           `${SOURCE_BOUNDARY}
@@ -253,6 +308,7 @@ ${taskInstruction}`,
           group.flatMap((item) => item.notes.map((note) => note.start)),
         );
         for (const note of digest.notes) note.start = nearestStart(note.start, allowedGroupStarts);
+        if (groupKey) await store!.set(groupKey, digest);
       } catch (cause) {
         if (isCancellation(cause) || signal.aborted) throw cause;
         digest = mergeLocally(group);
@@ -285,6 +341,7 @@ export async function runAi(
   signal: AbortSignal,
   onProgress: ProgressCallback = () => undefined,
   client: JsonClient = new AiClient(settings),
+  options: { digests?: DigestStore } = {},
 ): Promise<AiResult> {
   const parsed = aiRequestSchema.safeParse(input);
   if (!parsed.success)
@@ -353,7 +410,14 @@ Translate each source cue into the requested language. Preserve every cue id exa
         : {}),
     };
   }
-  const evidence = await prepareEvidence(request, client, signal, progress);
+  const evidence = await prepareEvidence(
+    request,
+    client,
+    signal,
+    progress,
+    options.digests,
+    settings.model,
+  );
   const source = evidence.payload;
   const allowedTimes = sortedStarts(
     'sourceCues' in source
