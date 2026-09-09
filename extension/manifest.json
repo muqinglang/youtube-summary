@@ -1,10 +1,14 @@
 {
   "manifest_version": 3,
   "name": "旁听 Sidenote - YouTube AI 学习助手",
-  "description": "YouTube 双语字幕、视频总结、思维导图与 AI 问答。支持自定义提示词和 XMind / PDF 导出。",
-  "version": "0.6.0",
+  "description": "YouTube 双语字幕、引导提问、视频总结与 AI 问答。支持自定义提示词，可导出可搜索的 PDF、XMind 与 Markdown。",
+  "version": "0.7.0",
   "minimum_chrome_version": "130",
-  "permissions": ["storage", "activeTab", "declarativeNetRequestWithHostAccess"],
+  "permissions": [
+    "storage",
+    "activeTab",
+    "declarativeNetRequestWithHostAccess"
+  ],
   "host_permissions": [
     "https://www.youtube.com/*",
     "https://m.youtube.com/*",
@@ -40,14 +44,24 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://www.youtube.com/*", "https://m.youtube.com/*"],
-      "js": ["page.js"],
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://m.youtube.com/*"
+      ],
+      "js": [
+        "page.js"
+      ],
       "run_at": "document_start",
       "world": "MAIN"
     },
     {
-      "matches": ["https://www.youtube.com/*", "https://m.youtube.com/*"],
-      "js": ["content.js"],
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://m.youtube.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ],

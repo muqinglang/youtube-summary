@@ -1,6 +1,6 @@
 # 旁听 Sidenote · YouTube AI 学习插件
 
-Chrome / Edge Manifest V3 扩展，把 YouTube 视频变成可检索、可复习的学习笔记。当前版本 `0.6.0`。
+Chrome / Edge Manifest V3 扩展，把 YouTube 视频变成可检索、可复习的学习笔记。当前版本 `0.7.0`。
 
 打开独立学习页：左侧是视频与双语字幕，右侧按「字幕｜章节｜引导提问｜AI 总结｜AI 问答」切换。双语字幕默认免 Key 直接可用；AI 总结、内容目录和问答使用你自己的 OpenAI、DeepSeek 或 Claude API Key。
 
@@ -9,7 +9,7 @@ Chrome / Edge Manifest V3 扩展，把 YouTube 视频变成可检索、可复习
 
 ## 安装（普通用户）
 
-1. 在 [Releases](../../releases) 下载 `sidenote-0.6.0.zip` 并解压。
+1. 在 [Releases](../../releases) 下载 `sidenote-0.7.0.zip` 并解压。
 2. 用 Chrome / Edge 130 或更新版本打开 `chrome://extensions` / `edge://extensions`。
 3. 打开右上角「开发者模式」，点击「加载已解压的扩展程序」，选择解压后**包含 `manifest.json` 的那一层文件夹**。
 
@@ -116,7 +116,7 @@ node --import tsx tests/compatibility/verify-xmind.ts
 
 服务端与扩展共用同一份 `tsconfig` 和 AI 流水线源码，因此 `npm run typecheck` 一次覆盖两边，契约无法漂移。启动方式与设计说明见 [服务端说明](server/README.md)。
 
-源码分层、测试边界和数据说明见 [架构说明](docs/architecture.md)、[测试记录](docs/testing.md)、[数据与权限](docs/privacy.md)。
+源码分层、测试边界和数据说明见 [架构说明](docs/architecture.md)、[测试记录](docs/testing.md)、[数据与权限](docs/privacy.md)。发布扩展与部署服务端见 [部署文档](DEPLOY.md)。
 
 ## 已确认的 UI 原型
 

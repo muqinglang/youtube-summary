@@ -32,19 +32,26 @@
 
 `npm run check` 执行严格 TypeScript、ESLint、Vitest 单元测试及 esbuild 生产构建。0.3.0 严格检查和构建通过，**284 项单元测试**全部通过。Google 模块包含 52 项测试，覆盖语言映射、默认引擎、逐句顺序、空结果拒绝、超时、取消和迟到会话清理。学习页测试另覆盖 Chrome 隐藏标签 URL 时，通过自身扩展上下文安全复用学习标签。
 
-单元测试覆盖字幕多格式解析、长视频分段、签名 URL 保留、被动 fetch / XHR 字幕读取、当前视频隔离、原生转录时间戳、缓存边界、学习标签复用、嵌入播放器换片后的身份锁定、密钥存储、AI 超时取消、引用时间验证及导出结构。
+单元测试覆盖字幕多格式解析、长视频分段、签名 URL 保留、被动 fetch / XHR 字幕读取、当前视频隔离、原生转录时间戳、缓存边界、学习标签复用、嵌入播放器换片后的身份锁定、密钥存储、AI 超时取消、引用时间验证及导出结构，另含 PDF 结构（可搜索 CID 文本、分页、链接注解）、清单权限防漂移、托管客户端与服务端（账号、共享缓存、额度）。
 
-`npm run test:e2e` 的七项集成测试使用真实 Chromium 持久上下文加载 `dist`。运行实际 content scripts、独立学习标签、面板 iframe 和 service worker，不替换 `chrome.*` API。测试中的 YouTube 页面和字幕采用受控夹具；嵌入播放器夹具使用真实 HTMLVideoElement，通过 postMessage 传递状态和执行播放命令。AI 服务是本地 HTTP 服务器，可检查请求正文、鉴权和连接取消。Google 的浏览器原生 Translator API 使用受控测试替身，以验证接入逻辑、增量显示和取消；不将该结果称为真实 Google 译文。
+`server/store/postgres.ts` 只有一处覆盖，且默认跳过——其余测试都用内存存储。部署前请带上数据库跑一次：
 
-已通过的集成测试覆盖：
+```bash
+docker run -d --name sidenote-pg -e POSTGRES_PASSWORD=devpass -e POSTGRES_DB=sidenote   -p 5433:5432 postgres:16-alpine
+DATABASE_URL=postgres://postgres:devpass@127.0.0.1:5433/sidenote npm test
+```
+
+`npm run test:e2e` 的九项集成测试使用真实 Chromium 持久上下文加载 `dist`。运行实际 content scripts、独立学习标签、面板 iframe 和 service worker，不替换 `chrome.*` API。测试中的 YouTube 页面和字幕采用受控夹具；嵌入播放器夹具使用真实 HTMLVideoElement，通过 postMessage 传递状态和执行播放命令。AI 服务是本地 HTTP 服务器，可检查请求正文、鉴权和连接取消。Google 的浏览器原生 Translator API 使用受控测试替身，以验证接入逻辑、增量显示和取消；不将该结果称为真实 Google 译文。
+
+集成测试覆盖：
 
 1. 点赞旁入口打开独立页、重复点击复用页面、原 YouTube 布局和播放器保持独立；嵌入播放器播放、暂停、倍速和点击字幕跳转。
-2. API 设置保存和连接测试；自定义 Prompt 进入实际 HTTP 请求；章节总结、思维导图、翻译、搜索、问答和双语字幕显示。
-3. 实际下载 `.xmind` 并解包校验；打开打印页、生成 PDF、保留来源和 Prompt。
+2. API 设置保存和连接测试；自定义 Prompt 进入实际 HTTP 请求；章节、总结、翻译、搜索、问答和双语字幕显示。视频自带章节在未生成 AI 内容前即可用。
+3. 实际下载 `.xmind` 并解包校验；实际下载扩展自己生成的 PDF，读回后确认中文以可搜索的 CID 文本嵌入；排版打印页单独作为一个导出项，保留来源和 Prompt。
 4. 401 错误恢复、主动取消后 HTTP 连接终止、导入字幕标明覆盖范围未验证；关闭独立学习标签取消正在进行的 AI 请求。
 5. 源页面单页导航和操作栏替换不会替换独立页的视频或中断其 AI 任务；源页切换后仍能使用已读取的本次字幕。
 6. 字幕轨延迟出现、字幕接口返回空正文时，通过现代 YouTube 转录 DOM 读取字幕，并正确跳转嵌入播放器。
-7. 清除 AI Key 后默认使用 Google，逐句译文出现在右侧和播放器下方，AI HTTP 请求数保持不变；取消后销毁本地会话并保留已完成译文。浏览器缺少 Translator 时明确报错；主动选择 AI 且未配置 Key 时才打开设置。
+7. ⚠️ **当前失败**：这项覆盖的是浏览器内置 Translator 的接入路径，而该路径在现有界面上**不可达**（默认翻译走的是云端接口）。测试没有变坏，是它验证的代码没有入口。等「删除还是接回这条实现」的决定落定后再一并处理，见 [架构说明](architecture.md) 中的「本机翻译（未接入）」。
 
 `npm run test:ads` 的两项独立浏览器测试验证源页面前贴和中插广告不会污染正片元数据或播放时间，广告期间禁止正片跳转，广告结束恢复。
 

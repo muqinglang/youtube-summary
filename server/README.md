@@ -76,55 +76,11 @@ npm run server                        # 或 npm run server:dev 热重载
 
 ## 部署
 
-### 一个决定托管位置的硬约束
+完整步骤、环境变量清单、托管位置的取舍与运维须知见 [DEPLOY.md](../DEPLOY.md)。三条必须知道的：
 
-服务端要向模型服务商发出站请求。**中国大陆机房访问不了 `api.openai.com` 和 `api.anthropic.com`** —— 如果托管模型选这两家，服务端就必须放在境外。DeepSeek 的 `api.deepseek.com` 是境内可达的，选它则大陆机房可行。
-
-另外用户本来就得能访问 YouTube，所以受众基本在境外。**综合建议放新加坡 / 香港 / 日本**，离用户近，出站也通。
-
-### 不能用 Serverless
-
-任务要跑 1.5~7 分钟，进度走 SSE 长连接。Vercel / Netlify Functions、Lambda 都撑不住这种时长的响应流。**必须是常驻进程**。
-
-### 平台
-
-| 平台                                  | 适合         | 说明                                                         |
-| ------------------------------------- | ------------ | ------------------------------------------------------------ |
-| **Fly.io**（推荐）                    | 现在         | 常驻进程、SSE 无碍、自带 Postgres、单机配置已写进 `fly.toml` |
-| Railway / Render                      | 想少配点东西 | 同类，控制面更简单                                           |
-| VPS（Hetzner / Vultr / 腾讯云新加坡） | 量大之后     | 最省钱，但监控、证书、发布都要自己搭                         |
-
-### Fly.io 上线
-
-```bash
-fly launch --no-deploy                    # 用仓库里的 fly.toml
-fly postgres create --region sin          # 或改用 Neon / Supabase
-fly postgres attach <数据库名>            # 自动注入 DATABASE_URL
-
-fly secrets set   SIDENOTE_SESSION_SECRET="$(openssl rand -base64 48)"   SIDENOTE_PROVIDER=deepseek   SIDENOTE_MODEL=deepseek-v4-flash   SIDENOTE_API_KEY=sk-...   SIDENOTE_CORS_ORIGINS=chrome-extension://<扩展ID>
-
-fly deploy
-```
-
-自建同理：`docker build -t sidenote-server .`，把上面这些作为环境变量注入。
-
-### ⚠️ 目前只能单实例
-
-任务状态和登录限流都在**进程内存**里（`server/jobs/queue.ts` 与 `app.ts` 的 `loginAttempts`）。开第二个实例会出现：
-
-- 用户轮询 `/v1/jobs/:id`，请求打到不认识这个任务的实例 → 404
-- 登录限流按实例各算一份，N 个实例等于放宽 N 倍
-
-`fly.toml` 里已经把 `max_machines_running` 锁成 1，把约束写进部署配置而不是只写在文档里。
-
-**这不是短期瓶颈** —— 真正的上限是模型服务商的速率，不是 Node 进程。要横向扩展时，先把这两处状态搬进 Postgres 或 Redis，再解锁实例数。
-
-### 发布与数据
-
-- **滚动发布不会丢任务**：`app.close()` 会等进行中的任务跑完，最多 90 秒；超时才中断并记警告。这条很重要 —— 额度是启动任务时就扣的，丢任务等于用户白付。
-- **`/health` 与 `/ready` 分工不同**：`/health` 不碰数据库（数据库不可达时重启帮不上忙，只会变成崩溃循环）；`/ready` 会查一次数据库，负载均衡应该看它。
-- **建表有并发锁**：多实例同时启动时用 `pg_advisory_lock` 串行化。但 `CREATE TABLE IF NOT EXISTS` **不是迁移系统** —— 一旦要改已有列，请先引入正式的迁移工具，不要在 `schema.sql` 上改。
-- 密钥只走环境变量，镜像以非 root 用户运行。
+- 服务端要直连模型服务商，**大陆机房访问不了 OpenAI / Anthropic**，DeepSeek 可达。
+- 任务长达数分钟且走 SSE，**不能用 Serverless**，必须常驻进程。
+- 任务状态与登录限流在进程内存里，**目前只能单实例**；`fly.toml` 已锁 `max_machines_running = 1`。
 
 ## 验证
 

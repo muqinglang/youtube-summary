@@ -1,6 +1,6 @@
 {
   "name": "sidenote-youtube",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "description": "旁听：YouTube 双语字幕与 AI 学习扩展",

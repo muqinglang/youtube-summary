@@ -924,8 +924,12 @@ test('empty timedtext and delayed tracks recover through the native modern trans
   expect(browserErrors).toEqual([]);
 });
 
+// Skipped, not broken: this covers the browser Translator integration in
+// src/ui/google-translate.ts, which no UI path currently reaches — the default engine goes to the
+// cloud endpoint instead. Re-enable it if that implementation is wired up as a third engine, or
+// delete both together if it is removed. See docs/architecture.md, "本机翻译（未接入）".
 // eslint-disable-next-line no-empty-pattern
-test('automatic translation without an API key uses the browser Translator incrementally and shows both subtitle panes', async ({}, testInfo) => {
+test.skip('automatic translation without an API key uses the browser Translator incrementally and shows both subtitle panes', async ({}, testInfo) => {
   await learning.close();
   source = await context.newPage();
   await source.goto(VIDEO_URL);
@@ -982,7 +986,9 @@ test('automatic translation without an API key uses the browser Translator incre
   expect(browserErrors).toEqual([]);
 });
 
-test('cancelling browser translation destroys its session and does not translate later cues', async () => {
+// Skipped for the same reason as the test above: it exercises the browser Translator session,
+// which no UI path reaches today.
+test.skip('cancelling browser translation destroys its session and does not translate later cues', async () => {
   await openSubtitleSettings();
   await panel.locator('#target-language').selectOption('日本語');
   await expect(panel.locator('#target-language')).toHaveValue('日本語');
@@ -1005,7 +1011,8 @@ test('cancelling browser translation destroys its session and does not translate
   expect(browserErrors).toEqual([]);
 });
 
-test('missing browser translation reports an error without AI fallback; explicit AI without a key opens settings', async () => {
+// Skipped with the two tests above: reaching this error requires the browser Translator path.
+test.skip('missing browser translation reports an error without AI fallback', async () => {
   await openSubtitleSettings();
   await panel.locator('#target-language').selectOption('한국어');
   await panel.locator('body').evaluate(() => {
@@ -1019,9 +1026,33 @@ test('missing browser translation reports an error without AI fallback; explicit
   await expect(panel.locator('#settings-dialog')).not.toBeVisible();
   await expect(panel.locator('#translate-btn')).toBeEnabled();
   expect(provider.calls).toHaveLength(beforeCalls);
+});
 
-  // Choosing AI without a configured key opens settings straight away and keeps the engine on
-  // Google, so nothing is ever sent to a provider that cannot answer.
+// The reachable half of the old combined test. It clears the key itself rather than inheriting
+// that from a neighbour, so skipping the Translator tests cannot silently disarm it.
+test('choosing AI without a configured key opens settings and sends nothing', async () => {
+  // Opens its own learning page: the setup this used to inherit lives in a skipped test above.
+  await learning.close();
+  source = await context.newPage();
+  await source.goto(VIDEO_URL);
+  await openLearning();
+  await expect(panel.locator('.cue')).toHaveCount(4);
+
+  // The panel's own header is hidden inside the learning page; its toolbar owns the entry.
+  await learning.locator('#settings').click();
+  await panel.locator('#clear-key').click();
+  await expect(panel.locator('#key-status')).toContainText('密钥已清除');
+  await panel.getByRole('button', { name: '关闭设置', exact: true }).click();
+  await expect(panel.locator('#settings-dialog')).not.toBeVisible();
+
+  await openSubtitleSettings();
+  // The engine preference persists across tests, and switching to the engine already selected is
+  // a no-op, so start from Google explicitly rather than assuming where a neighbour left it.
+  await panel.locator('#engine-google').click();
+  await expect(panel.locator('#engine-google')).toHaveAttribute('aria-selected', 'true');
+  const beforeCalls = provider.calls.length;
+  // Settings open immediately and the engine stays on Google, so nothing is ever sent to a
+  // provider that cannot answer.
   await panel.locator('#engine-ai').click();
   await expect(panel.locator('#settings-dialog')).toBeVisible();
   await expect(panel.locator('#notice')).toContainText('Key');
