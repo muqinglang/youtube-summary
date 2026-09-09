@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   answerSchema,
   digestSchema,
+  explanationSchema,
   glossarySchema,
   guideSchema,
   outlineSchema,
@@ -175,6 +176,20 @@ describe('lenient model output schemas', () => {
       // An unrecognised kind and a blank explanation both fall back rather than drop the entry.
       { term: '某个东西', kind: 'term', meaning: '', start: 5 },
     ]);
+  });
+
+  it('normalises an explanation and refuses one with nothing in it', () => {
+    expect(
+      explanationSchema.parse({
+        term: 'Akrasia',
+        kind: 'TERM',
+        meaning: '明知何为更优却仍不去做的状态。',
+      }),
+    ).toEqual({ term: 'Akrasia', kind: 'term', meaning: '明知何为更优却仍不去做的状态。' });
+    // An explanation with no text is not an explanation; the client retries instead.
+    expect(explanationSchema.safeParse({ term: 'x', kind: 'term', meaning: '' }).success).toBe(
+      false,
+    );
   });
 
   it('still fails a response with nothing usable so the client can retry', () => {

@@ -102,6 +102,13 @@ export interface Glossary {
   terms: GlossaryTerm[];
 }
 
+/** One term explained on demand, from the cues around where the viewer selected it. */
+export interface Explanation {
+  term: string;
+  kind: TermKind;
+  meaning: string;
+}
+
 /** A question to hold in mind before watching, plus where the video answers it. */
 export interface GuideQuestion {
   question: string;
@@ -173,6 +180,14 @@ export type AiRequest =
   | { task: 'outline'; video: VideoInfo; transcript: Transcript; language: string }
   | { task: 'guide'; video: VideoInfo; transcript: Transcript; language: string }
   | { task: 'glossary'; video: VideoInfo; transcript: Transcript; language: string }
+  | {
+      task: 'explain';
+      video: VideoInfo;
+      /** Only the cues around the selection: an explanation does not need the whole video. */
+      transcript: Transcript;
+      term: string;
+      language: string;
+    }
   | { task: 'translate'; transcript: Transcript; language: string }
   | { task: 'ask'; video: VideoInfo; transcript: Transcript; question: string; language: string };
 
@@ -182,6 +197,7 @@ export type AiResult =
   | { task: 'outline'; outline: Outline; notice?: string }
   | { task: 'guide'; guide: Guide; notice?: string }
   | { task: 'glossary'; glossary: Glossary; notice?: string }
+  | { task: 'explain'; explanation: Explanation; notice?: string }
   | { task: 'translate'; translations: Record<string, string>; notice?: string }
   | { task: 'ask'; answer: Answer; notice?: string };
 

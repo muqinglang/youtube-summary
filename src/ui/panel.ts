@@ -10,7 +10,9 @@ import type {
   Answer,
   Cue,
   ExportDocument,
+  Explanation,
   Glossary,
+  GlossaryTerm,
   Guide,
   JobProgress,
   LearningPreferences,
@@ -689,6 +691,153 @@ function setFollow(follow: boolean): void {
   $('#follow-btn').textContent = follow ? '跟随播放' : '恢复跟随';
 }
 
+/**
+ * Where each glossary term first shows up, so marking costs one lookup per term instead of
+ * scanning every rendered cue against every term.
+ */
+function glossaryMarks(cues: Cue[]): Map<number, GlossaryTerm[]> {
+  const marks = new Map<number, GlossaryTerm[]>();
+  for (const term of state.glossary?.terms ?? []) {
+    const index = findCueIndex(cues, term.start);
+    if (index < 0) continue;
+    const at = marks.get(index);
+    if (at) at.push(term);
+    else marks.set(index, [term]);
+  }
+  return marks;
+}
+
+/**
+ * Ranges are collected against the clean text and spliced in one pass. Wrapping them one at a
+ * time would let a later term match inside an earlier term's title attribute.
+ */
+function markTerms(escaped: string, terms: GlossaryTerm[]): string {
+  const haystack = escaped.toLocaleLowerCase();
+  const ranges: { at: number; end: number; term: GlossaryTerm }[] = [];
+  for (const term of terms) {
+    const needle = esc(term.term).toLocaleLowerCase();
+    if (!needle) continue;
+    const at = haystack.indexOf(needle);
+    if (at < 0) continue;
+    const end = at + needle.length;
+    // A term already covered by an earlier mark is skipped rather than nested.
+    if (ranges.some((range) => at < range.end && range.at < end)) continue;
+    ranges.push({ at, end, term });
+  }
+  ranges.sort((a, b) => a.at - b.at);
+  let output = '';
+  let cursor = 0;
+  for (const { at, end, term } of ranges) {
+    const hint = `${TERM_LABELS[term.kind]} · ${term.meaning || '字幕中没有给出解释。'}`;
+    output += `${escaped.slice(cursor, at)}<span class="term-mark" title="${esc(hint)}">${escaped.slice(at, end)}</span>`;
+    cursor = end;
+  }
+  return output + escaped.slice(cursor);
+}
+
+let selectedTerm = '';
+let selectedCue = -1;
+
+function hideExplain(): void {
+  $('#explain-bubble').hidden = true;
+}
+
+/** Anchors the bubble to the selection, kept inside the panel's own viewport. */
+function placeExplain(rect: DOMRect): void {
+  const bubble = $('#explain-bubble');
+  bubble.hidden = false;
+  const width = bubble.offsetWidth;
+  const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+  const above = rect.top > bubble.offsetHeight + 16;
+  bubble.style.left = `${left}px`;
+  bubble.style.top = `${above ? rect.top - bubble.offsetHeight - 8 : rect.bottom + 8}px`;
+}
+
+function offerExplain(): void {
+  const selection = window.getSelection();
+  const text = selection?.toString().trim() ?? '';
+  // Long selections are sentences, not terms; explaining them is what AI 问答 is for.
+  if (!selection || selection.isCollapsed || !text || text.length > 80) return hideExplain();
+  const node = selection.anchorNode;
+  const element = node?.nodeType === Node.ELEMENT_NODE ? (node as Element) : node?.parentElement;
+  const cue = element?.closest<HTMLElement>('[data-cue]');
+  if (!cue || !$('#transcript-list').contains(cue)) return hideExplain();
+  selectedTerm = text;
+  selectedCue = Number(cue.dataset.cue);
+  const trigger = document.createElement('button');
+  trigger.className = 'explain-trigger';
+  trigger.dataset.explain = 'true';
+  trigger.textContent = `解释「${text.length > 14 ? text.slice(0, 14) + '…' : text}」`;
+  $('#explain-bubble').replaceChildren(trigger);
+  placeExplain(selection.getRangeAt(0).getBoundingClientRect());
+}
+
+/** Occurrences are found locally: an exact search is both cheaper and more honest than asking. */
+function occurrences(term: string): number[] {
+  const cues = state.transcript?.cues ?? [];
+  const needle = term.toLocaleLowerCase();
+  const found: number[] = [];
+  for (const cue of cues) {
+    if (cue.text.toLocaleLowerCase().includes(needle)) found.push(cue.start);
+    if (found.length >= 8) break;
+  }
+  return found;
+}
+
+function renderExplanation(explanation: Explanation): void {
+  const bubble = $('#explain-bubble');
+  const head = document.createElement('div');
+  head.className = 'explain-head';
+  const kind = document.createElement('span');
+  kind.className = 'term-kind';
+  kind.textContent = TERM_LABELS[explanation.kind];
+  const name = document.createElement('span');
+  name.className = 'term-name';
+  name.textContent = explanation.term;
+  head.append(kind, name);
+  const meaning = document.createElement('p');
+  meaning.className = 'explain-meaning';
+  meaning.textContent = explanation.meaning;
+  bubble.replaceChildren(head, meaning);
+  const spots = occurrences(explanation.term);
+  if (spots.length > 1) {
+    const row = document.createElement('div');
+    row.className = 'explain-spots';
+    const label = document.createElement('span');
+    label.textContent = `全片提到 ${spots.length}${spots.length >= 8 ? '+' : ''} 次`;
+    row.append(label);
+    for (const start of spots) {
+      const jump = document.createElement('button');
+      jump.className = 'term-jump';
+      jump.dataset.seek = String(start);
+      jump.textContent = formatTime(start);
+      row.append(jump);
+    }
+    bubble.append(row);
+  }
+}
+
+async function explainSelection(): Promise<void> {
+  const cues = state.transcript?.cues;
+  if (!cues || !state.video || !state.transcript || !selectedTerm) return;
+  const centre = selectedCue >= 0 ? selectedCue : 0;
+  const bubble = $('#explain-bubble');
+  const pending = document.createElement('p');
+  pending.className = 'explain-meaning';
+  pending.textContent = '正在解释…';
+  bubble.replaceChildren(pending);
+  const result = await run({
+    task: 'explain',
+    video: state.video,
+    // A window around the selection: enough context to be specific, small enough to be quick.
+    transcript: { ...state.transcript, cues: cues.slice(Math.max(0, centre - 8), centre + 9) },
+    term: selectedTerm,
+    language: $<HTMLSelectElement>('#target-language').value,
+  });
+  if (result?.task !== 'explain') return hideExplain();
+  renderExplanation(result.explanation);
+}
+
 function renderTranscript(): void {
   const cues = state.transcript?.cues;
   if (!cues) return;
@@ -700,14 +849,17 @@ function renderTranscript(): void {
   );
   state.windowStart = Math.max(0, Math.min(state.windowStart, Math.max(0, indices.length - 1)));
   const visible = indices.slice(state.windowStart, state.windowStart + WINDOW_SIZE);
+  const marks = glossaryMarks(cues);
   const parts: string[] = [];
   if (state.windowStart > 0)
     parts.push('<button class="button wide" data-page="previous">查看更早的字幕 ↑</button>');
   for (const index of visible) {
     const cue = cues[index];
     if (!cue) continue;
+    const marked = marks.get(index);
+    const source = marked ? markTerms(esc(cue.text), marked) : esc(cue.text);
     const original =
-      state.displayMode !== 'translated' ? `<span class="original">${esc(cue.text)}</span>` : '';
+      state.displayMode !== 'translated' ? `<span class="original">${source}</span>` : '';
     const translated =
       state.displayMode !== 'original' && state.translations[cue.id]
         ? `<span class="translation">${esc(state.translations[cue.id] || '')}</span>`
@@ -826,8 +978,10 @@ function updateActions(): void {
   $<HTMLSelectElement>('#target-language').disabled = Boolean(state.job);
   $<HTMLButtonElement>('#prompt-open').disabled = Boolean(state.job);
   $<HTMLButtonElement>('#settings-open').disabled = Boolean(state.job);
-  // Translation paints subtitles as it goes, so it must not be hidden behind the waiting card.
-  $('#job-status').hidden = !state.job || state.jobTask === 'translate';
+  // Translation paints subtitles as it goes, and an explanation is a two-second aside; neither
+  // should be hidden behind the full-panel waiting card.
+  $('#job-status').hidden =
+    !state.job || state.jobTask === 'translate' || state.jobTask === 'explain';
   publishPreferences();
 }
 
@@ -1573,7 +1727,13 @@ function bindEvents(): void {
       honourSeekUntil = Date.now() + SEEK_GRACE_MS;
       void seek(Number(data.seek)).catch((error: unknown) => notice(errorMessage(error), true));
     }
-    if (data.cue !== undefined) {
+    if ('explain' in data) {
+      void explainSelection().catch((error: unknown) => {
+        hideExplain();
+        notice(errorMessage(error), true);
+      });
+    }
+    if (data.cue !== undefined && (window.getSelection()?.isCollapsed ?? true)) {
       honourSeekUntil = Date.now() + SEEK_GRACE_MS;
       const cue = state.transcript?.cues[Number(data.cue)];
       if (cue) void seek(cue.start).catch((error: unknown) => notice(errorMessage(error), true));
@@ -1633,6 +1793,16 @@ function bindEvents(): void {
       translationHalted = false;
       maybeTranslate();
     }
+  });
+  // A pointer release is when a selection is finished; selectionchange fires mid-drag.
+  $('#transcript-list').addEventListener('mouseup', () => window.setTimeout(offerExplain, 0));
+  $('#transcript-list').addEventListener('scroll', hideExplain, { passive: true });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') hideExplain();
+  });
+  document.addEventListener('mousedown', (event) => {
+    const target = event.target as Element | null;
+    if (!target?.closest('#explain-bubble')) hideExplain();
   });
   on('#skip-filler', 'click', () => {
     state.skipFiller = !state.skipFiller;

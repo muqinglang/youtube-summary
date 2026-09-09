@@ -654,6 +654,62 @@ textarea {
 .chapter-card[aria-current='true'] .chapter-title {
   color: var(--accent);
 }
+.explain-bubble {
+  position: fixed;
+  z-index: 40;
+  width: min(300px, calc(100vw - 16px));
+  padding: 10px 12px;
+  border: 1px solid #4c472f;
+  border-radius: 10px;
+  background: #24241d;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
+}
+.explain-bubble[hidden] {
+  display: none;
+}
+.explain-trigger {
+  width: 100%;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.explain-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.explain-meaning {
+  font-size: 11.5px;
+  line-height: 1.85;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.explain-spots {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  font-size: 10px;
+  color: var(--muted);
+}
+
+/* Marked where the term first appears, so the list is not a wall of underlines. */
+.term-mark {
+  border-bottom: 1px dashed #6f6540;
+  cursor: help;
+}
+.cue.active .term-mark {
+  border-bottom-color: var(--accent);
+}
+
 .glossary-list {
   padding: 10px 14px 20px;
   display: flex;

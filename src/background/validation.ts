@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type {
   AiRequest,
+  Explanation,
   Glossary,
   Guide,
   MindMapNode,
@@ -78,6 +79,13 @@ export const aiRequestSchema: z.ZodType<AiRequest> = z.discriminatedUnion('task'
     task: z.literal('glossary'),
     video: videoSchema,
     transcript: transcriptSchema,
+    language,
+  }),
+  z.object({
+    task: z.literal('explain'),
+    video: videoSchema,
+    transcript: transcriptSchema,
+    term: z.string().trim().min(1).max(200),
     language,
   }),
   z.object({ task: z.literal('translate'), transcript: transcriptSchema, language }),
@@ -261,6 +269,17 @@ export const glossarySchema: z.ZodType<Glossary> = z.object({
     }),
     60,
   ),
+});
+
+export const explanationSchema: z.ZodType<Explanation> = z.object({
+  term: outputText(200),
+  kind: z
+    .preprocess(
+      (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value),
+      z.enum(['concept', 'person', 'tool', 'work', 'term']),
+    )
+    .catch('term'),
+  meaning: outputText(1200),
 });
 
 export const answerSchema = z.object({

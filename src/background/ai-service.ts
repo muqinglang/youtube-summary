@@ -14,6 +14,7 @@ import {
   aiRequestSchema,
   answerSchema,
   digestSchema,
+  explanationSchema,
   glossarySchema,
   guideSchema,
   outlineSchema,
@@ -40,6 +41,7 @@ const OUTLINE_BUDGET: JsonOptions = { timeoutMs: 60_000, maxTokens: 4000 };
 const ANSWER_BUDGET: JsonOptions = { timeoutMs: 60_000, maxTokens: 4000 };
 const GUIDE_BUDGET: JsonOptions = { timeoutMs: 60_000, maxTokens: 4000 };
 const GLOSSARY_BUDGET: JsonOptions = { timeoutMs: 45_000, maxTokens: 4000 };
+const EXPLAIN_BUDGET: JsonOptions = { timeoutMs: 30_000, maxTokens: 1200 };
 const TRANSLATE_BUDGET: JsonOptions = { timeoutMs: 45_000, maxTokens: 6000 };
 
 /**
@@ -74,6 +76,8 @@ const DIGEST_SCHEMA = `Return {"overview":string,"notes":[{"start":number,"text"
 Create a faithful compact digest of the source. Maximum 1200 characters in overview, 12 notes, 500 characters in each note. Retain important claims, examples and decisions with exact source start values. Do not add unsupported knowledge.`;
 const GUIDE_SCHEMA = `Return {"questions":[{"question":string,"start":number,"answer":string}]}.
 Write 5-8 questions a viewer should hold in mind BEFORE watching, ordered by where the video addresses them. Each question must be answerable from the supplied evidence alone, must target this video's specific claims, decisions or examples rather than generic curiosity, and its start MUST equal an evidence timestamp marking where the video answers it. Keep every answer to at most two sentences drawn only from the evidence.`;
+const EXPLAIN_SCHEMA = `Return {"term":string,"kind":string,"meaning":string}.
+Explain the supplied "term" as THIS video uses it, using only the surrounding cues: what it means here and why the speaker raised it. Two to four sentences. "kind" is exactly one of "concept", "person", "tool", "work", "term". If the cues only mention it without explaining it, say exactly that and do not fill the gap from outside knowledge.`;
 const GLOSSARY_SCHEMA = `Return {"terms":[{"term":string,"kind":string,"meaning":string,"start":number}]}.
 List the named things a viewer must recognise to follow THIS fragment: concepts, people, tools, products, books, papers and domain jargon the speaker uses without defining. "kind" is exactly one of "concept", "person", "tool", "work", "term". "meaning" explains it in one or two sentences as this video uses it, not as a dictionary would. "start" MUST equal the evidence timestamp where it first appears here. Skip ordinary words, and return {"terms":[]} when the fragment introduces nothing worth listing.`;
 const OUTLINE_SCHEMA = `Return {"verdict":{"topic":string,"audience":string,"prerequisites":string,"advice":string},"sections":[{"title":string,"start":number,"density":number,"kind":string}]}.
@@ -445,6 +449,26 @@ Translate each source cue into the requested language. Preserve every cue id exa
         ? { notice: `${batches.length} 段字幕中有 ${failed} 段未能翻译，可重新翻译补齐。` }
         : {}),
     };
+  }
+  if (request.task === 'explain') {
+    // The panel sends only the cues around the selection, so this is one small call.
+    progress.begin('正在解释所选内容');
+    const explanation = await client.json(
+      `${SOURCE_BOUNDARY}
+${EXPLAIN_SCHEMA}`,
+      {
+        language: request.language,
+        videoTitle: request.video.title,
+        term: request.term,
+        sourceCues: batches.flat().slice(0, 200),
+      },
+      explanationSchema,
+      signal,
+      EXPLAIN_BUDGET,
+    );
+    assertNotAborted(signal);
+    progress.done('解释完成');
+    return { task: 'explain', explanation };
   }
   if (request.task === 'glossary') {
     // Terms are read from the raw cues, not from digests: a digest compresses a fragment into a
