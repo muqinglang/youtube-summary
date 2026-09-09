@@ -12,6 +12,8 @@ import type { Store } from './store/types';
 // A 5-hour transcript is a few hundred kilobytes of JSON; the 1 MB default would reject it.
 const BODY_LIMIT = 8 * 1024 * 1024;
 const LOGIN_WINDOW_MS = 15 * 60_000;
+/** A rolling deploy should finish the work a user already paid for, not drop it. */
+const SHUTDOWN_DRAIN_MS = 90_000;
 const LOGIN_ATTEMPTS = 10;
 
 const credentials = z.object({
@@ -33,7 +35,7 @@ export interface AppOptions {
 }
 
 export function createApp({ config, store, gateway }: AppOptions): FastifyInstance {
-  const app = Fastify({ bodyLimit: BODY_LIMIT, logger: false });
+  const app = Fastify({ bodyLimit: BODY_LIMIT, logger: config.logging });
   const settings: Settings = {
     provider: config.provider,
     baseUrl: '',
@@ -49,6 +51,11 @@ export function createApp({ config, store, gateway }: AppOptions): FastifyInstan
   const ai = gateway ?? createGateway(store, settings);
   const queue = new JobQueue(ai);
   const loginAttempts = new Map<string, { count: number; until: number }>();
+
+  app.addHook('onClose', async () => {
+    const abandoned = await queue.drain(SHUTDOWN_DRAIN_MS);
+    if (abandoned) app.log.warn({ abandoned }, '关闭时仍有任务未完成，已中断。');
+  });
 
   const allowed = new Set(config.corsOrigins);
   app.addHook('onRequest', async (request, reply) => {
@@ -84,7 +91,19 @@ export function createApp({ config, store, gateway }: AppOptions): FastifyInstan
     return userId;
   }
 
+  // Liveness: the process is up. Kept dependency-free so a database blip does not trigger
+  // a restart loop that cannot possibly help.
   app.get('/health', async () => ({ ok: true }));
+  // Readiness: safe to send traffic to. A load balancer must not route here until the store
+  // answers, or the first request after a deploy fails for the user instead of the probe.
+  app.get('/ready', async (_request, reply) => {
+    try {
+      await store.ping();
+      return reply.send({ ready: true });
+    } catch {
+      return reply.code(503).send({ ready: false });
+    }
+  });
 
   app.post('/v1/auth/register', async (request, reply) => {
     const parsed = credentials.safeParse(request.body);
@@ -171,12 +190,10 @@ export function createApp({ config, store, gateway }: AppOptions): FastifyInstan
 
     const used = await store.usage.jobsToday(userId, today());
     if (used >= config.dailyJobLimit)
-      return reply
-        .code(402)
-        .send({
-          error: '今日额度已用完，可在设置中改用自己的 API Key 继续。',
-          quotaExhausted: true,
-        });
+      return reply.code(402).send({
+        error: '今日额度已用完，可在设置中改用自己的 API Key 继续。',
+        quotaExhausted: true,
+      });
     await store.usage.recordJob(userId, today());
     try {
       const job = queue.start(userId, aiRequest);

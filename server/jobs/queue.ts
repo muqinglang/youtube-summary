@@ -161,6 +161,24 @@ export class JobQueue {
     return true;
   }
 
+  /** Lets a shutdown wait for work the user already paid for, up to a deadline. */
+  async drain(timeoutMs: number): Promise<number> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      let running = 0;
+      for (const job of this.jobs.values()) if (job.status === 'running') running += 1;
+      if (running === 0) return 0;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    let abandoned = 0;
+    for (const job of this.jobs.values())
+      if (job.status === 'running') {
+        job.controller.abort();
+        abandoned += 1;
+      }
+    return abandoned;
+  }
+
   private sweep(): void {
     const cutoff = Date.now() - this.retentionMs;
     for (const [id, job] of this.jobs)

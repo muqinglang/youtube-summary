@@ -1,0 +1,16 @@
+node_modules
+dist
+dist-server
+release
+test-results
+playwright-report
+qa-downloads
+.git
+.github
+extension
+tests
+*.png
+*.pdf
+sidenote-demo.html
+preview-server.cjs
+build-demo.cjs

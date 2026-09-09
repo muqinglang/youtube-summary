@@ -68,5 +68,7 @@ export interface Store {
     add(userId: string, videoId: string): Promise<void>;
     list(userId: string): Promise<string[]>;
   };
+  /** Proves the backing store is reachable; a readiness probe must not pass without it. */
+  ping(): Promise<void>;
   close(): Promise<void>;
 }

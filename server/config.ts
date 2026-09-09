@@ -14,6 +14,8 @@ export interface ServerConfig {
   /** Hosted jobs a single account may start per day before it must fall back to its own key. */
   dailyJobLimit: number;
   corsOrigins: string[];
+  /** Fastify's logger option: on in production, off under test. */
+  logging: boolean;
 }
 
 class ConfigError extends Error {}
@@ -49,6 +51,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     apiKey: required('SIDENOTE_API_KEY', env.SIDENOTE_API_KEY),
     databaseUrl: env.DATABASE_URL?.trim() || undefined,
     dailyJobLimit: number('SIDENOTE_DAILY_JOB_LIMIT', env.SIDENOTE_DAILY_JOB_LIMIT, 20),
+    logging: env.SIDENOTE_LOG !== 'off',
     corsOrigins: (env.SIDENOTE_CORS_ORIGINS ?? '')
       .split(',')
       .map((origin) => origin.trim())

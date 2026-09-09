@@ -1,0 +1,30 @@
+# Single instance on purpose. Job state and the login throttle live in this process, so a second
+# machine would answer job polls it knows nothing about. Raising this requires moving both into
+# Postgres or Redis first — see server/README.md.
+app = "sidenote"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8787"
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 1
+  max_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "/ready"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

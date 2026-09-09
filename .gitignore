@@ -11,3 +11,4 @@ playwright-report/
 **/.cache/
 qa-downloads/
 tests/compatibility/artifacts/
+dist-server/

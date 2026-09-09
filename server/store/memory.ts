@@ -75,6 +75,7 @@ export function createMemoryStore(): Store {
       },
       list: async (userId) => [...(library.get(userId) ?? [])],
     },
+    ping: async () => undefined,
     close: async () => undefined,
   };
 }

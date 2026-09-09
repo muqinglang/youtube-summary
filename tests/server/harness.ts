@@ -15,6 +15,7 @@ export const CONFIG: ServerConfig = {
   model: 'gpt-4.1-mini',
   apiKey: 'server-side-key-never-sent-to-clients',
   dailyJobLimit: 3,
+  logging: false,
   corsOrigins: ['chrome-extension://abcdefghijklmnopabcdefghijklmnop'],
 };
 

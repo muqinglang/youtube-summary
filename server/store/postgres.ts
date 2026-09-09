@@ -6,6 +6,9 @@ import { Pool } from 'pg';
 import type { Digest } from '../../src/background/validation';
 import type { ArtifactRecord, Store, TranscriptRecord, UserRecord, VideoRecord } from './types';
 
+/** Arbitrary but fixed: any process applying this schema takes the same lock. */
+const SCHEMA_LOCK = 8_027_314_155_001;
+
 interface UserRow {
   id: string;
   email: string;
@@ -28,7 +31,17 @@ export async function createPostgresStore(connectionString: string): Promise<Sto
     join(dirname(fileURLToPath(import.meta.url)), 'schema.sql'),
     'utf8',
   );
-  await pool.query(schema);
+  // Two instances booting together would otherwise race on CREATE TABLE; the advisory lock
+  // serialises them. It is not a migration system — see the deployment notes before evolving
+  // the schema in place.
+  const migration = await pool.connect();
+  try {
+    await migration.query('SELECT pg_advisory_lock($1)', [SCHEMA_LOCK]);
+    await migration.query(schema);
+  } finally {
+    await migration.query('SELECT pg_advisory_unlock($1)', [SCHEMA_LOCK]);
+    migration.release();
+  }
 
   return {
     users: {
@@ -199,6 +212,9 @@ export async function createPostgresStore(connectionString: string): Promise<Sto
         );
         return rows.map((row) => row.video_id);
       },
+    },
+    ping: async () => {
+      await pool.query('SELECT 1');
     },
     close: async () => {
       await pool.end();
