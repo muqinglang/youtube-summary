@@ -41,8 +41,11 @@ describe('private settings', () => {
   it('starts with empty credentials and a selectable default model', async () => {
     expect(await getPublicSettings()).toEqual({
       ...DEFAULT_SETTINGS,
+      // Both secrets are stripped for the panel and replaced by a boolean.
       apiKey: undefined,
       hasApiKey: false,
+      sessionToken: undefined,
+      hasSession: false,
     });
     expect(await getPrivateSettings()).toEqual(DEFAULT_SETTINGS);
     expect((await getPublicSettings()).translationEngine).toBe('auto');

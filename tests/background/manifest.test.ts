@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { PROVIDERS } from '../../src/shared/providers';
 import { getOriginPattern } from '../../src/shared/endpoint';
+import { HOSTED_ORIGINS } from '../../src/shared/hosted';
 
 const manifest = JSON.parse(readFileSync('extension/manifest.json', 'utf8')) as {
   permissions: string[];
@@ -18,12 +19,25 @@ describe('extension permissions', () => {
     }
   });
 
+  it('can request every hosted service origin it is allowed to talk to', () => {
+    // The allow-list and the manifest are the two halves of one decision; drift makes hosted mode
+    // fail at runtime with an opaque authorization error.
+    for (const origin of HOSTED_ORIGINS)
+      expect(manifest.optional_host_permissions).toContain(getOriginPattern(origin));
+  });
+
   it('asks for no broader host access than those endpoints and the local test server', () => {
     // "https://*/*" reads as "every site you visit" during store review, and nothing reachable
     // through the settings UI needs it: the provider list is fixed.
     expect(manifest.optional_host_permissions).not.toContain('https://*/*');
     const providerOrigins = PROVIDERS.map((provider) => getOriginPattern(provider.baseUrl));
-    const allowed = new Set([...providerOrigins, 'http://localhost/*', 'http://127.0.0.1/*']);
+    const hostedOrigins = HOSTED_ORIGINS.map((origin) => getOriginPattern(origin));
+    const allowed = new Set([
+      ...providerOrigins,
+      ...hostedOrigins,
+      'http://localhost/*',
+      'http://127.0.0.1/*',
+    ]);
     for (const origin of manifest.optional_host_permissions) expect(allowed).toContain(origin);
   });
 

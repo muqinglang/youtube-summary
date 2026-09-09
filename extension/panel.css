@@ -1260,6 +1260,26 @@ dialog .hint {
   font-size: 11px;
   overflow-wrap: anywhere;
 }
+.mode-toggle {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.mode-toggle .engine-tab {
+  flex: 1;
+}
+/* A fieldset is used so the inactive half can be disabled, not just hidden: a hidden required
+   control blocks submission and cannot be focused to show why. */
+.settings-group {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  display: contents;
+}
+#account-summary {
+  margin: 6px 0 2px;
+}
 .settings-cache {
   border-top: 1px solid var(--border);
   display: flex;

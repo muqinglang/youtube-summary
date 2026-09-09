@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { aiRequestSchema } from '../src/background/validation';
+import { DEFAULT_HOSTED_URL } from '../src/shared/hosted';
 import type { AiRequest, Settings } from '../src/shared/types';
 import { createGateway, type Gateway } from './ai/gateway';
 import { hashPassword, verifyPassword } from './auth/passwords';
@@ -37,6 +38,11 @@ export interface AppOptions {
 export function createApp({ config, store, gateway }: AppOptions): FastifyInstance {
   const app = Fastify({ bodyLimit: BODY_LIMIT, logger: config.logging });
   const settings: Settings = {
+    // The server is the host; it never runs in hosted mode itself.
+    mode: 'byok',
+    serverUrl: DEFAULT_HOSTED_URL,
+    sessionToken: '',
+    accountEmail: '',
     provider: config.provider,
     baseUrl: '',
     model: config.model,

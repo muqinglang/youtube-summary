@@ -2,10 +2,12 @@ import { z } from 'zod';
 import type { PublicSettings, Settings } from '../shared/types';
 import { validateBaseUrl } from '../shared/endpoint';
 import { getProvider, inferProvider } from '../shared/providers';
+import { DEFAULT_HOSTED_URL, isAllowedHostedUrl } from '../shared/hosted';
 export { getOriginPattern, validateBaseUrl } from '../shared/endpoint';
 
 const SETTINGS_KEY = 'sidenote:settings';
 const API_KEY = 'sidenote:apiKey';
+const SESSION_KEY = 'sidenote:session';
 let pendingSettings = Promise.resolve();
 const DEFAULT_PROVIDER = getProvider('openai')!;
 
@@ -20,6 +22,10 @@ function serialize<T>(operation: () => Promise<T>): Promise<T> {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
+  mode: 'byok',
+  serverUrl: DEFAULT_HOSTED_URL,
+  sessionToken: '',
+  accountEmail: '',
   provider: 'openai',
   baseUrl: DEFAULT_PROVIDER.baseUrl,
   model: DEFAULT_PROVIDER.defaultModel,
@@ -34,6 +40,10 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 const settingsSchema = z.object({
+  mode: z.enum(['byok', 'hosted']),
+  serverUrl: z.string().max(2000).refine(isAllowedHostedUrl, '托管服务地址不在允许列表中。'),
+  sessionToken: z.string().trim().max(4096),
+  accountEmail: z.string().trim().max(320),
   provider: z.enum(['openai', 'deepseek', 'anthropic', 'custom']),
   baseUrl: z.string().max(2000),
   model: z.string().trim().max(200),
@@ -56,10 +66,13 @@ export async function restrictStorageAccess(): Promise<void> {
 
 async function readSettings(): Promise<Settings> {
   const [local, session] = await Promise.all([
-    chrome.storage.local.get([SETTINGS_KEY, API_KEY]),
+    chrome.storage.local.get([SETTINGS_KEY, API_KEY, SESSION_KEY]),
     chrome.storage.session.get(API_KEY),
   ]);
-  const saved = settingsSchema.omit({ apiKey: true }).partial().safeParse(local[SETTINGS_KEY]);
+  const saved = settingsSchema
+    .omit({ apiKey: true, sessionToken: true })
+    .partial()
+    .safeParse(local[SETTINGS_KEY]);
   const result = { ...DEFAULT_SETTINGS, ...(saved.success ? saved.data : {}) };
   try {
     result.baseUrl = validateBaseUrl(result.baseUrl);
@@ -75,14 +88,23 @@ async function readSettings(): Promise<Settings> {
     result.model = (saved.success ? saved.data.model : '') || provider.defaultModel;
     if (!provider.models.some((model) => model.id === result.model)) result.provider = 'custom';
   } else result.model = saved.success ? (saved.data.model ?? '') : '';
+  if (!isAllowedHostedUrl(result.serverUrl)) result.serverUrl = DEFAULT_SETTINGS.serverUrl;
+  const bound = z.object({ value: z.string().max(8192), origin: z.string() });
   const key: unknown = result.rememberKey ? local[API_KEY] : session[API_KEY];
-  const secret = z.object({ value: z.string().max(8192), origin: z.string() }).safeParse(key);
+  const secret = bound.safeParse(key);
   // Origin binding remains safe even if the worker stops between storage writes.
   const apiKey =
     secret.success && secret.data.origin === new URL(result.baseUrl).origin
       ? secret.data.value
       : '';
-  return { ...result, apiKey };
+  // The session is a bearer token with a server-side expiry, so staying signed in across restarts
+  // is the expected behaviour; it is still pinned to the server it was issued by.
+  const stored = bound.safeParse(local[SESSION_KEY]);
+  const sessionToken =
+    stored.success && stored.data.origin === new URL(result.serverUrl).origin
+      ? stored.data.value
+      : '';
+  return { ...result, apiKey, sessionToken };
 }
 
 export async function getPrivateSettings(): Promise<Settings> {
@@ -90,8 +112,8 @@ export async function getPrivateSettings(): Promise<Settings> {
 }
 
 function toPublic(settings: Settings): PublicSettings {
-  const { apiKey, ...rest } = settings;
-  return { ...rest, hasApiKey: Boolean(apiKey) };
+  const { apiKey, sessionToken, ...rest } = settings;
+  return { ...rest, hasApiKey: Boolean(apiKey), hasSession: Boolean(sessionToken) };
 }
 
 export async function getPublicSettings(): Promise<PublicSettings> {
@@ -151,6 +173,33 @@ async function updateSettings(patch: Partial<Settings>): Promise<PublicSettings>
     await chrome.storage.local.remove(API_KEY);
   }
   return toPublic(settings);
+}
+
+/** Stores the hosted session pinned to the server that issued it. */
+export async function saveSession(token: string, email: string): Promise<PublicSettings> {
+  return serialize(async () => {
+    const current = await readSettings();
+    const { apiKey, sessionToken, ...publicFields } = { ...current, accountEmail: email };
+    void apiKey;
+    void sessionToken;
+    await chrome.storage.local.set({
+      [SETTINGS_KEY]: publicFields,
+      [SESSION_KEY]: { value: token, origin: new URL(current.serverUrl).origin },
+    });
+    return toPublic({ ...current, accountEmail: email, sessionToken: token });
+  });
+}
+
+export async function clearSession(): Promise<PublicSettings> {
+  return serialize(async () => {
+    await chrome.storage.local.remove(SESSION_KEY);
+    const current = await readSettings();
+    const { apiKey, sessionToken, ...publicFields } = { ...current, accountEmail: '' };
+    void apiKey;
+    void sessionToken;
+    await chrome.storage.local.set({ [SETTINGS_KEY]: publicFields });
+    return toPublic({ ...current, accountEmail: '', sessionToken: '' });
+  });
 }
 
 export async function clearKey(): Promise<PublicSettings> {

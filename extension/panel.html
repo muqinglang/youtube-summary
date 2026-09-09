@@ -352,29 +352,68 @@
         <button class="icon-button" data-close="settings-dialog" aria-label="关闭设置">×</button>
       </header>
       <form id="settings-form">
-        <label for="provider">AI 服务商</label
-        ><select id="provider" required></select>
-        <p class="hint" id="provider-hint">选择服务商后，自动使用官方服务地址。</p>
-        <label for="model">模型</label
-        ><select id="model" required></select
-        ><label for="api-key">API Key</label
-        ><input
-          id="api-key"
-          type="password"
-          autocomplete="off"
-          spellcheck="false"
-          placeholder="输入 API Key"
-        />
-        <p class="hint" id="key-status">密钥不会显示在视频页面。</p>
-        <label class="inline-check"
-          ><input id="remember-key" type="checkbox" /> 在本机记住密钥</label
-        >
-        <p class="hint">
-          不勾选时，密钥仅保留到浏览器关闭。AI 功能会将所需字幕和提问发送给此服务；Google
-          内置翻译在本机处理。
-        </p>
+        <div class="mode-toggle" role="group" aria-label="运行方式">
+          <button type="button" id="mode-byok" class="engine-tab" aria-selected="true">
+            用自己的 Key</button
+          ><button type="button" id="mode-hosted" class="engine-tab" aria-selected="false">
+            登录用额度
+          </button>
+        </div>
+        <p class="hint" id="mode-hint"></p>
+        <fieldset id="hosted-fields" class="settings-group" hidden disabled>
+          <div id="account-out">
+            <label for="account-email">邮箱</label
+            ><input
+              id="account-email"
+              type="email"
+              autocomplete="username"
+              placeholder="you@example.com"
+            />
+            <label for="account-password">密码</label
+            ><input
+              id="account-password"
+              type="password"
+              autocomplete="current-password"
+              placeholder="至少 10 位"
+            />
+            <div class="dialog-actions">
+              <button type="button" class="text-button" id="account-register">注册并登录</button
+              ><button type="button" class="button primary" id="account-login">登录</button>
+            </div>
+          </div>
+          <div id="account-in" hidden>
+            <p class="hint" id="account-summary"></p>
+            <div class="dialog-actions">
+              <button type="button" class="text-button" id="account-signout">退出登录</button
+              ><button type="button" class="button" id="account-refresh">刷新额度</button>
+            </div>
+          </div>
+        </fieldset>
+        <fieldset id="byok-fields" class="settings-group">
+          <label for="provider">AI 服务商</label
+          ><select id="provider" required></select>
+          <p class="hint" id="provider-hint">选择服务商后，自动使用官方服务地址。</p>
+          <label for="model">模型</label
+          ><select id="model" required></select
+          ><label for="api-key">API Key</label
+          ><input
+            id="api-key"
+            type="password"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="输入 API Key"
+          />
+          <p class="hint" id="key-status">密钥不会显示在视频页面。</p>
+          <label class="inline-check"
+            ><input id="remember-key" type="checkbox" /> 在本机记住密钥</label
+          >
+          <p class="hint">
+            不勾选时，密钥仅保留到浏览器关闭。AI 功能会将所需字幕和提问发送给此服务；Google
+            内置翻译在本机处理。
+          </p>
+        </fieldset>
         <div id="settings-error" class="form-error" role="alert" hidden></div>
-        <div class="dialog-actions">
+        <div class="dialog-actions" id="byok-actions">
           <button type="button" class="text-button" id="clear-key">清除密钥</button
           ><button type="submit" class="button primary" id="save-settings">保存设置</button>
         </div>

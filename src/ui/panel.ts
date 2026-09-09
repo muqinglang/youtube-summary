@@ -16,6 +16,7 @@ import type {
   Outline,
   PlayerCommand,
   PublicSettings,
+  RunMode,
   RuntimeEvent,
   Summary,
   Transcript,
@@ -697,9 +698,13 @@ async function run(request: AiRequest, force = false): Promise<AiResult | undefi
     return;
   const settings = state.settings;
   const google = request.task === 'translate' && resolveTranslationEngine(settings) === 'google';
-  if (!google && (!settings.hasApiKey || !settings.model)) {
+  if (!google && !aiReady(settings)) {
     openSettings();
-    notice('请先配置 API 服务、模型和密钥，再使用 AI 功能。');
+    notice(
+      settings.mode === 'hosted'
+        ? '请先登录托管服务，再使用 AI 功能。'
+        : '请先配置 API 服务、模型和密钥，再使用 AI 功能。',
+    );
     return;
   }
   const controller = new AbortController();
@@ -854,7 +859,7 @@ function currentEngine(): 'google' | 'ai' {
 }
 
 function engineReady(engine: 'google' | 'ai'): boolean {
-  return engine === 'google' || Boolean(state.settings?.hasApiKey && state.settings.model.trim());
+  return engine === 'google' || aiReady(state.settings);
 }
 
 function setTranslateStatus(message: string, error = false): void {
@@ -1195,8 +1200,79 @@ function openSettings(): void {
     ? '密钥已配置，仅 AI 后台使用。更换服务商后需填写对应的 Key。'
     : '密钥不会显示在视频页面。';
   $('#settings-error').hidden = true;
+  renderSettingsMode(settings.mode);
   $<HTMLDialogElement>('#settings-dialog').showModal();
+}
+
+/**
+ * Hidden required controls block form submission and cannot be focused to report the error, so
+ * the inactive half is disabled as well as hidden.
+ */
+function renderSettingsMode(mode: RunMode): void {
+  const hosted = mode === 'hosted';
+  $('#mode-byok').setAttribute('aria-selected', String(!hosted));
+  $('#mode-hosted').setAttribute('aria-selected', String(hosted));
+  const hostedFields = $<HTMLFieldSetElement>('#hosted-fields');
+  const byokFields = $<HTMLFieldSetElement>('#byok-fields');
+  hostedFields.hidden = !hosted;
+  hostedFields.disabled = !hosted;
+  byokFields.hidden = hosted;
+  byokFields.disabled = hosted;
+  $('#byok-actions').hidden = hosted;
+  const signedIn = Boolean(state.settings?.hasSession);
+  $('#account-out').hidden = signedIn;
+  $('#account-in').hidden = !signedIn;
+  $('#account-summary').textContent = signedIn
+    ? `已登录 ${state.settings?.accountEmail || ''}。点「刷新额度」查看今日剩余。`
+    : '';
+  $('#mode-hint').textContent = hosted
+    ? '任务在旁听服务端运行，消耗账号额度。同一个视频别人处理过就直接复用，不重复计费。'
+    : '任务在本机运行，直连你自己的 API Key，不经过任何服务器。';
   updateConnectionTest();
+}
+
+async function switchMode(mode: RunMode): Promise<void> {
+  if (state.job) throw new Error('请先等待当前任务完成，或取消任务后再切换运行方式。');
+  if (state.settings?.mode === mode) return;
+  if (mode === 'hosted' && state.settings) {
+    // Requesting host access needs the user gesture this click already provides.
+    const origin = getOriginPattern(state.settings.serverUrl);
+    if (!(await chrome.permissions.request({ origins: [origin] })))
+      throw new Error('未获得访问托管服务的授权，无法切换。');
+  }
+  state.settings = await send<PublicSettings>({ type: 'settings:save', settings: { mode } });
+  renderSettingsMode(mode);
+  updateActions();
+}
+
+async function signIn(create: boolean): Promise<void> {
+  const email = $<HTMLInputElement>('#account-email').value.trim();
+  const password = $<HTMLInputElement>('#account-password').value;
+  $('#settings-error').hidden = true;
+  try {
+    state.settings = await send<PublicSettings>({
+      type: 'account:signIn',
+      email,
+      password,
+      create,
+    });
+    // The password is never kept in the DOM once it has been exchanged for a session.
+    $<HTMLInputElement>('#account-password').value = '';
+    renderSettingsMode('hosted');
+    updateActions();
+    toast(create ? '注册成功，已登录' : '登录成功');
+  } catch (error) {
+    $('#settings-error').hidden = false;
+    $('#settings-error').textContent = errorMessage(error);
+  }
+}
+
+/** Hosted mode has no key or model of its own; a signed-in session is what makes it usable. */
+function aiReady(settings: PublicSettings | undefined): boolean {
+  if (!settings) return false;
+  return settings.mode === 'hosted'
+    ? settings.hasSession
+    : Boolean(settings.hasApiKey && settings.model.trim());
 }
 
 function selectedProvider() {
@@ -1223,6 +1299,15 @@ function renderProviderModels(savedModel?: string): void {
 
 function updateConnectionTest(): void {
   const saved = state.settings;
+  if (saved?.mode === 'hosted') {
+    $<HTMLButtonElement>('#test-connection').disabled = testingConnection || !saved.hasSession;
+    $('#test-connection').textContent = testingConnection
+      ? '正在检查账号…'
+      : saved.hasSession
+        ? '检查账号与额度'
+        : '登录后可检查';
+    return;
+  }
   const unchanged =
     saved?.provider === $<HTMLSelectElement>('#provider').value &&
     saved?.model === $<HTMLSelectElement>('#model').value &&
@@ -1470,6 +1555,24 @@ function bindEvents(): void {
   $('#settings-form').addEventListener('submit', (event) => {
     event.preventDefault();
     void saveSettings();
+  });
+  on('#mode-byok', 'click', () => switchMode('byok'));
+  on('#mode-hosted', 'click', () => switchMode('hosted'));
+  on('#account-login', 'click', () => signIn(false));
+  on('#account-register', 'click', () => signIn(true));
+  on('#account-signout', 'click', async () => {
+    state.settings = await send<PublicSettings>({ type: 'account:signOut' });
+    renderSettingsMode('hosted');
+    updateActions();
+    toast('已退出登录');
+  });
+  on('#account-refresh', 'click', async () => {
+    const status = await send<{ usage: { jobsToday: number; dailyJobLimit: number } }>({
+      type: 'account:status',
+    });
+    const left = Math.max(0, status.usage.dailyJobLimit - status.usage.jobsToday);
+    $('#account-summary').textContent =
+      `已登录 ${state.settings?.accountEmail || ''}。今日还可发起 ${left} 个任务。`;
   });
   on('#test-connection', 'click', async () => {
     if (testingConnection) return;

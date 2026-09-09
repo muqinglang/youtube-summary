@@ -89,7 +89,16 @@ export interface Answer {
 
 export type AiProvider = 'openai' | 'deepseek' | 'anthropic' | 'custom';
 
+/** Where jobs run: `byok` calls the provider from this browser, `hosted` calls our server. */
+export type RunMode = 'byok' | 'hosted';
+
 export interface Settings {
+  mode: RunMode;
+  /** Hosted service origin. Restricted to the manifest's allow-list, never a free-form URL. */
+  serverUrl: string;
+  /** Bearer session for the hosted service. Secret, and never handed to the panel. */
+  sessionToken: string;
+  accountEmail: string;
   provider: AiProvider;
   baseUrl: string;
   model: string;
@@ -102,8 +111,11 @@ export interface Settings {
   temperature: number;
 }
 
-/** API keys never leave the extension service worker for the panel. */
-export type PublicSettings = Omit<Settings, 'apiKey'> & { hasApiKey: boolean };
+/** Credentials never leave the extension service worker for the panel. */
+export type PublicSettings = Omit<Settings, 'apiKey' | 'sessionToken'> & {
+  hasApiKey: boolean;
+  hasSession: boolean;
+};
 
 export type PlayerCommand =
   | { action: 'seek'; time: number }
@@ -141,6 +153,12 @@ export type AiResult =
   | { task: 'translate'; translations: Record<string, string>; notice?: string }
   | { task: 'ask'; answer: Answer; notice?: string };
 
+export interface AccountSummary {
+  email: string;
+  jobsToday: number;
+  dailyJobLimit: number;
+}
+
 export type RuntimeRequest =
   | { type: 'learning:open' }
   | { type: 'tab:id' }
@@ -148,6 +166,9 @@ export type RuntimeRequest =
   | { type: 'settings:save'; settings: Partial<Settings> }
   | { type: 'settings:clearKey' }
   | { type: 'ai:test' }
+  | { type: 'account:signIn'; email: string; password: string; create: boolean }
+  | { type: 'account:signOut' }
+  | { type: 'account:status' }
   | { type: 'ai:run'; jobId: string; request: AiRequest }
   | { type: 'ai:cancel'; jobId: string }
   | { type: 'video:get'; tabId: number }

@@ -5,6 +5,7 @@ import type { ServerConfig } from '../../server/config';
 import { createMemoryStore } from '../../server/store/memory';
 import type { Store } from '../../server/store/types';
 import type { JsonClient } from '../../src/background/ai-service';
+import { DEFAULT_HOSTED_URL } from '../../src/shared/hosted';
 import type { Cue, Settings } from '../../src/shared/types';
 
 export const CONFIG: ServerConfig = {
@@ -20,6 +21,10 @@ export const CONFIG: ServerConfig = {
 };
 
 const SETTINGS: Settings = {
+  mode: 'byok',
+  serverUrl: DEFAULT_HOSTED_URL,
+  sessionToken: '',
+  accountEmail: '',
   provider: 'openai',
   baseUrl: '',
   model: CONFIG.model,

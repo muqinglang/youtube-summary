@@ -1,11 +1,15 @@
 import '../shared/zod-setup';
-import { runAi, testConnection, type ProgressCallback } from './ai-service';
+import { type ProgressCallback } from './ai-service';
+import { createRunner } from './runner';
+import { HostedClient } from './hosted';
 import { AiError, safeError } from './client';
 import {
   clearKey,
+  clearSession,
   getPrivateSettings,
   getPublicSettings,
   restrictStorageAccess,
+  saveSession,
   saveSettings,
 } from './settings';
 import { summarySchema, videoSchema } from './validation';
@@ -55,7 +59,8 @@ async function executeJob(
   const timer = setTimeout(() => controller.abort(), JOB_TIMEOUT_MS);
   try {
     await ready;
-    return await runAi(request, await getPrivateSettings(), controller.signal, onProgress);
+    const settings = await getPrivateSettings();
+    return await createRunner(settings).run(request, controller.signal, onProgress);
   } finally {
     clearTimeout(timer);
     jobs.delete(jobId);
@@ -165,7 +170,27 @@ async function dispatch(
       return clearKey();
     case 'ai:test': {
       const controller = new AbortController();
-      return testConnection(await getPrivateSettings(), controller.signal);
+      return createRunner(await getPrivateSettings()).test(controller.signal);
+    }
+    case 'account:signIn': {
+      const email = typeof request.email === 'string' ? request.email.trim() : '';
+      const password = typeof request.password === 'string' ? request.password : '';
+      if (!email || password.length < 10) throw new AiError('请填写邮箱，密码至少 10 位。');
+      const settings = await getPrivateSettings();
+      const controller = new AbortController();
+      const client = new HostedClient(settings.serverUrl, '', {});
+      const account = request.create
+        ? await client.register(email, password, controller.signal)
+        : await client.login(email, password, controller.signal);
+      return saveSession(account.token, account.user.email);
+    }
+    case 'account:signOut':
+      return clearSession();
+    case 'account:status': {
+      const settings = await getPrivateSettings();
+      if (!settings.sessionToken) throw new AiError('尚未登录托管服务。');
+      const controller = new AbortController();
+      return new HostedClient(settings.serverUrl, settings.sessionToken, {}).me(controller.signal);
     }
     case 'ai:run':
       return executeJob(request.jobId, request.request, sender, (progress) => {
