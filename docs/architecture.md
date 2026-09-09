@@ -4,21 +4,20 @@
 
 仓库另含一个可选的托管服务端（`server/`），与扩展**共用同一份** AI 流水线源码，见 [服务端说明](../server/README.md)。
 
-| 层                 | 文件                                                                 | 职责                                                                                   |
-| ------------------ | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| 公共协议           | `src/shared`                                                         | 消息与领域类型、纯 API 地址校验                                                        |
-| 纯数据处理         | `src/core`                                                           | 字幕解析、时间定位、分段；Markdown / XMind / 打印 HTML                                 |
-| YouTube 页面桥     | `src/content/page.ts`、`caption-capture.ts`、`native-transcript.ts`  | 在 MAIN world 读取元数据和字幕；被动读取原生字幕响应；转录面板后备读取                 |
-| 隔离内容脚本       | `src/content/index.ts`、`protocol.ts`、`surface.ts`                  | 校验桥接消息、挂载点赞旁的独立学习页入口                                               |
-| AI 后台            | `src/background`                                                     | 私有设置、权限校验、AI HTTP 客户端、分段任务、取消和导出页入口                         |
-| 学习会话           | `src/background/learning.ts`、`src/ui/learn.ts`、`youtube-player.ts` | 创建与复用学习标签、来源绑定、嵌入播放器、独立播放时钟                                 |
-| 扩展界面           | `src/ui`                                                             | 学习工作流和渲染、连接后台、缓存、浏览器下载及打印页                                   |
-| 云端翻译           | `src/ui/cloud-translate.ts`                                          | 「默认字幕」实际使用的实现：把字幕逐条发往 Google 公共网页翻译接口                     |
-| 本机翻译（未接入） | `src/ui/google-translate.ts`                                         | 基于浏览器内置 Translator 的实现。**当前界面没有任何入口会走到它**，属待决策的保留实现 |
-| PDF 生成           | `src/core/pdf.ts`                                                    | 用 pdf-lib 和内置中文子集字体在本机排版，文字可搜索、时间点可点击                      |
-| 运行方式抽象       | `src/background/runner.ts`、`hosted.ts`                              | 自带 Key 走本机流水线，托管走服务端；接缝在任务级而非 HTTP 客户端                      |
-| 托管服务端         | `server/`                                                            | 账号、按视频共享的结果缓存、任务编排；复用 `ai-service` / `client` / `validation`      |
-| 静态资源           | `extension`                                                          | MV3 清单、HTML、CSS、图标；不包含原型数据                                              |
+| 层             | 文件                                                                 | 职责                                                                              |
+| -------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| 公共协议       | `src/shared`                                                         | 消息与领域类型、纯 API 地址校验                                                   |
+| 纯数据处理     | `src/core`                                                           | 字幕解析、时间定位、分段；Markdown / XMind / 打印 HTML                            |
+| YouTube 页面桥 | `src/content/page.ts`、`caption-capture.ts`、`native-transcript.ts`  | 在 MAIN world 读取元数据和字幕；被动读取原生字幕响应；转录面板后备读取            |
+| 隔离内容脚本   | `src/content/index.ts`、`protocol.ts`、`surface.ts`                  | 校验桥接消息、挂载点赞旁的独立学习页入口                                          |
+| AI 后台        | `src/background`                                                     | 私有设置、权限校验、AI HTTP 客户端、分段任务、取消和导出页入口                    |
+| 学习会话       | `src/background/learning.ts`、`src/ui/learn.ts`、`youtube-player.ts` | 创建与复用学习标签、来源绑定、嵌入播放器、独立播放时钟                            |
+| 扩展界面       | `src/ui`                                                             | 学习工作流和渲染、连接后台、缓存、浏览器下载及打印页                              |
+| 云端翻译       | `src/ui/cloud-translate.ts`                                          | 「默认字幕」实际使用的实现：把字幕逐条发往 Google 公共网页翻译接口                |
+| PDF 生成       | `src/core/pdf.ts`                                                    | 用 pdf-lib 和内置中文子集字体在本机排版，文字可搜索、时间点可点击                 |
+| 运行方式抽象   | `src/background/runner.ts`、`hosted.ts`                              | 自带 Key 走本机流水线，托管走服务端；接缝在任务级而非 HTTP 客户端                 |
+| 托管服务端     | `server/`                                                            | 账号、按视频共享的结果缓存、任务编排；复用 `ai-service` / `client` / `validation` |
+| 静态资源       | `extension`                                                          | MV3 清单、HTML、CSS、图标；不包含原型数据                                         |
 
 ## 数据如何流动
 

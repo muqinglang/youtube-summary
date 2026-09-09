@@ -26,11 +26,7 @@ import type {
 import { cacheKey, clearCache, readCache, writeCache } from './cache';
 import { downloadFile, element as $, errorMessage, escapeHtml as esc } from './dom';
 import { runJob, send } from './runtime';
-import {
-  googleTranslateUrl,
-  resolveTranslationEngine,
-  translateWithGoogle,
-} from './google-translate';
+import { googleTranslateUrl, resolveTranslationEngine } from './google-translate';
 import { translateCuesCloud } from './cloud-translate';
 
 const TABS = ['transcript', 'chapters', 'guide', 'summary', 'chat'] as const;
@@ -697,8 +693,7 @@ async function run(request: AiRequest, force = false): Promise<AiResult | undefi
   if (state.job || state.loading || savingTranslationEngine || version !== state.loadVersion)
     return;
   const settings = state.settings;
-  const google = request.task === 'translate' && resolveTranslationEngine(settings) === 'google';
-  if (!google && !aiReady(settings)) {
+  if (!aiReady(settings)) {
     openSettings();
     notice(
       settings.mode === 'hosted'
@@ -728,17 +723,13 @@ async function run(request: AiRequest, force = false): Promise<AiResult | undefi
             },
           }
         : request;
-    const key = await cacheKey(
-      google
-        ? { request: identity, engine: 'google-chrome', version: 1 }
-        : {
-            request: identity,
-            model: settings.model,
-            baseUrl: settings.baseUrl,
-            temperature: settings.temperature,
-            version: 1,
-          },
-    );
+    const key = await cacheKey({
+      request: identity,
+      model: settings.model,
+      baseUrl: settings.baseUrl,
+      temperature: settings.temperature,
+      version: 1,
+    });
     const cached = force ? undefined : await readCache<AiResult>(key);
     if (cached && !controller.signal.aborted && version === state.loadVersion) {
       toast('已使用本地缓存，无需重复处理');
@@ -746,39 +737,13 @@ async function run(request: AiRequest, force = false): Promise<AiResult | undefi
       return cached;
     }
     if (controller.signal.aborted || version !== state.loadVersion) return;
-    let result: AiResult;
-    if (google && request.task === 'translate') {
-      state.translations = {};
-      renderTranscript();
-      updatePlayback();
-      let lastPaint = 0;
-      const translations = await translateWithGoogle(
-        request.transcript,
-        request.language,
-        controller.signal,
-        (completed, total, label) => {
-          if (!controller.signal.aborted && version === state.loadVersion)
-            updateProgress({ jobId: '', completed, total, label });
-        },
-        (id, text) => {
-          if (controller.signal.aborted || version !== state.loadVersion) return;
-          state.translations[id] = text;
-          if (performance.now() - lastPaint >= 100) {
-            lastPaint = performance.now();
-            renderTranscript();
-            updatePlayback();
-          }
-        },
-      );
-      result = { task: 'translate', translations };
-    } else result = await runJob(request, controller.signal, updateProgress);
+    const result = await runJob(request, controller.signal, updateProgress);
     if (controller.signal.aborted || version !== state.loadVersion) return;
     const currentSettings = await send<PublicSettings>({ type: 'settings:get' });
     const sameProvider =
-      google ||
-      (currentSettings.baseUrl === settings.baseUrl &&
-        currentSettings.model === settings.model &&
-        currentSettings.temperature === settings.temperature);
+      currentSettings.baseUrl === settings.baseUrl &&
+      currentSettings.model === settings.model &&
+      currentSettings.temperature === settings.temperature;
     if (sameProvider && !controller.signal.aborted && version === state.loadVersion) {
       try {
         await writeCache(key, result);
@@ -793,7 +758,6 @@ async function run(request: AiRequest, force = false): Promise<AiResult | undefi
   } catch (error) {
     if (!controller.signal.aborted && version === state.loadVersion) {
       notice(errorMessage(error), true);
-      if (google) $('#google-web-fallback').hidden = false;
     } else toast('已取消处理');
     return;
   } finally {
@@ -801,10 +765,6 @@ async function run(request: AiRequest, force = false): Promise<AiResult | undefi
       state.job = undefined;
       state.jobTask = undefined;
       stopJobTicker();
-    }
-    if (google && version === state.loadVersion) {
-      renderTranscript();
-      updatePlayback();
     }
     updateActions();
   }

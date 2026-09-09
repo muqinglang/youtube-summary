@@ -41,7 +41,7 @@ docker run -d --name sidenote-pg -e POSTGRES_PASSWORD=devpass -e POSTGRES_DB=sid
 DATABASE_URL=postgres://postgres:devpass@127.0.0.1:5433/sidenote npm test
 ```
 
-`npm run test:e2e` 的九项集成测试使用真实 Chromium 持久上下文加载 `dist`。运行实际 content scripts、独立学习标签、面板 iframe 和 service worker，不替换 `chrome.*` API。测试中的 YouTube 页面和字幕采用受控夹具；嵌入播放器夹具使用真实 HTMLVideoElement，通过 postMessage 传递状态和执行播放命令。AI 服务是本地 HTTP 服务器，可检查请求正文、鉴权和连接取消。Google 的浏览器原生 Translator API 使用受控测试替身，以验证接入逻辑、增量显示和取消；不将该结果称为真实 Google 译文。
+`npm run test:e2e` 的七项集成测试使用真实 Chromium 持久上下文加载 `dist`。运行实际 content scripts、独立学习标签、面板 iframe 和 service worker，不替换 `chrome.*` API。测试中的 YouTube 页面和字幕采用受控夹具；嵌入播放器夹具使用真实 HTMLVideoElement，通过 postMessage 传递状态和执行播放命令。AI 服务是本地 HTTP 服务器，可检查请求正文、鉴权和连接取消。
 
 集成测试覆盖：
 
@@ -51,13 +51,13 @@ DATABASE_URL=postgres://postgres:devpass@127.0.0.1:5433/sidenote npm test
 4. 401 错误恢复、主动取消后 HTTP 连接终止、导入字幕标明覆盖范围未验证；关闭独立学习标签取消正在进行的 AI 请求。
 5. 源页面单页导航和操作栏替换不会替换独立页的视频或中断其 AI 任务；源页切换后仍能使用已读取的本次字幕。
 6. 字幕轨延迟出现、字幕接口返回空正文时，通过现代 YouTube 转录 DOM 读取字幕，并正确跳转嵌入播放器。
-7. ⚠️ **当前失败**：这项覆盖的是浏览器内置 Translator 的接入路径，而该路径在现有界面上**不可达**（默认翻译走的是云端接口）。测试没有变坏，是它验证的代码没有入口。等「删除还是接回这条实现」的决定落定后再一并处理，见 [架构说明](architecture.md) 中的「本机翻译（未接入）」。
+7. 未配置 Key 时选择「AI 字幕」立即打开设置、引擎保持 Google、不向服务商发出任何请求。该项自行打开学习页、清除密钥并重置引擎，不依赖相邻测试留下的状态。
 
 `npm run test:ads` 的两项独立浏览器测试验证源页面前贴和中插广告不会污染正片元数据或播放时间，广告期间禁止正片跳转，广告结束恢复。
 
 测试副本额外预授权本地测试服务，以避开浏览器原生权限对话框自动化；生产清单仍为按需授权。E2E 不声称覆盖原生权限弹窗的人工点击流程，也不以测试翻译文本冒充外部模型结果。
 
-最终 `npm run test:e2e` 七项全部通过（25 秒），`npm run test:ads` 两项通过。Google 流程没有新增 AI HTTP 请求；浏览器页面异常列表为空。
+最终 `npm run test:e2e` 七项全部通过，`npm run test:ads` 两项通过；浏览器页面异常列表为空。
 
 ## Google 原生模型验证边界
 
