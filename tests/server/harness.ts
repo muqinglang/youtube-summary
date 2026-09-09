@@ -13,6 +13,7 @@ export const CONFIG: ServerConfig = {
   sessionSecret: 'test-secret-that-is-long-enough-for-the-check',
   sessionTtlMs: 3_600_000,
   provider: 'openai',
+  baseUrl: 'https://api.openai.com/v1',
   model: 'gpt-4.1-mini',
   apiKey: 'server-side-key-never-sent-to-clients',
   dailyJobLimit: 3,

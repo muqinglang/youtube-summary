@@ -27,12 +27,6 @@
     "pg": "^8.23.0",
     "zod": "^4.1.0"
   },
-  "comments": {
-    "overrides": "@humanfs/node (a transitive eslint dependency) requires @humanwhocodes/retry ^0.5.0, which is not published yet, so any `npm install` fails to resolve. Pin the newest published version. Remove this once 0.5.x exists upstream."
-  },
-  "overrides": {
-    "@humanwhocodes/retry": "0.4.3"
-  },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
     "@playwright/test": "^1.55.0",

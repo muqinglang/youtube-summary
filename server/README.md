@@ -126,6 +126,29 @@ fly deploy
 - **建表有并发锁**：多实例同时启动时用 `pg_advisory_lock` 串行化。但 `CREATE TABLE IF NOT EXISTS` **不是迁移系统** —— 一旦要改已有列，请先引入正式的迁移工具，不要在 `schema.sql` 上改。
 - 密钥只走环境变量，镜像以非 root 用户运行。
 
+## 验证
+
+单元测试默认用内存存储，所以 **Postgres 实现只有一处覆盖**，部署前请跑一次：
+
+```bash
+docker run -d --name sidenote-pg -e POSTGRES_PASSWORD=devpass -e POSTGRES_DB=sidenote   -p 5433:5432 postgres:16-alpine
+DATABASE_URL=postgres://postgres:devpass@127.0.0.1:5433/sidenote npm test
+```
+
+没设 `DATABASE_URL` 时这组测试自动跳过，不影响其他机器。
+
+镜像本身也建议实跑一次再部署：
+
+```bash
+npm run server:build && docker build -t sidenote-server:local .
+docker run --rm -p 8787:8787 -e DATABASE_URL=... -e SIDENOTE_SESSION_SECRET=...   -e SIDENOTE_PROVIDER=... -e SIDENOTE_MODEL=... -e SIDENOTE_API_KEY=... sidenote-server:local
+curl localhost:8787/ready   # 通了才说明数据库连得上
+```
+
+### 一个不是 bug 的差异
+
+Postgres 的 `jsonb` 会把对象键名排序存储，所以产物读回来时**键序和写入时不同**，内容完全等价。没有任何代码按位置读这些结构，但不要用逐字节比较来断言缓存一致性。
+
 ## 还没做
 
 - 计费与订阅（现在只有每日任务数上限，超出后引导用户改用自己的 Key）

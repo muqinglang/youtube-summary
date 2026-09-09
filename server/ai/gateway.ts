@@ -76,7 +76,9 @@ export function createGateway(store: Store, settings: Settings, client?: JsonCli
         settings,
         signal,
         onProgress,
-        client ?? new AiClient(settings),
+        // The server is not an extension: it has no permission model to consult, and the default
+        // check calls chrome.permissions, which does not exist in Node.
+        client ?? new AiClient(settings, { permissionCheck: async () => true }),
         {
           // Fragment digests outlive a single task: outline and guide read identical evidence, so
           // the second of them costs one call instead of thirty.

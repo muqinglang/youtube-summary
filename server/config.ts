@@ -1,3 +1,5 @@
+import { getProvider } from '../src/shared/providers';
+import { validateBaseUrl } from '../src/shared/endpoint';
 import type { AiProvider } from '../src/shared/types';
 
 export interface ServerConfig {
@@ -7,6 +9,8 @@ export interface ServerConfig {
   sessionTtlMs: number;
   /** The provider credentials the hosted mode spends. They never leave this process. */
   provider: AiProvider;
+  /** Defaults to the provider's official endpoint; override only for a proxy or a mock. */
+  baseUrl: string;
   model: string;
   apiKey: string;
   /** Postgres connection string; omitted runs the in-memory store, for tests and local work. */
@@ -35,6 +39,13 @@ function number(name: string, value: string | undefined, fallback: number): numb
 
 const PROVIDERS = new Set<AiProvider>(['openai', 'deepseek', 'anthropic', 'custom']);
 
+function resolveBaseUrl(provider: AiProvider, override: string | undefined): string {
+  if (override?.trim()) return validateBaseUrl(override);
+  const official = getProvider(provider)?.baseUrl;
+  if (!official) throw new ConfigError('自定义服务商必须同时设置 SIDENOTE_BASE_URL。');
+  return official;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   const provider = required('SIDENOTE_PROVIDER', env.SIDENOTE_PROVIDER) as AiProvider;
   if (!PROVIDERS.has(provider)) throw new ConfigError('SIDENOTE_PROVIDER 不是受支持的服务商。');
@@ -47,6 +58,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     sessionTtlMs:
       number('SIDENOTE_SESSION_TTL_HOURS', env.SIDENOTE_SESSION_TTL_HOURS, 720) * 3_600_000,
     provider,
+    baseUrl: resolveBaseUrl(provider, env.SIDENOTE_BASE_URL),
     model: required('SIDENOTE_MODEL', env.SIDENOTE_MODEL),
     apiKey: required('SIDENOTE_API_KEY', env.SIDENOTE_API_KEY),
     databaseUrl: env.DATABASE_URL?.trim() || undefined,

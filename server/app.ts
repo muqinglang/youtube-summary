@@ -44,7 +44,7 @@ export function createApp({ config, store, gateway }: AppOptions): FastifyInstan
     sessionToken: '',
     accountEmail: '',
     provider: config.provider,
-    baseUrl: '',
+    baseUrl: config.baseUrl,
     model: config.model,
     apiKey: config.apiKey,
     rememberKey: false,
