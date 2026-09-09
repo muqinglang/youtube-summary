@@ -8,6 +8,7 @@ import type {
   AiProvider,
   AiResult,
   Answer,
+  Clip,
   Cue,
   ExportDocument,
   Explanation,
@@ -29,12 +30,13 @@ import type {
   VideoInfo,
 } from '../shared/types';
 import { cacheKey, clearCache, readCache, writeCache } from './cache';
+import { readClips, writeClips } from './notes';
 import { downloadFile, element as $, errorMessage, escapeHtml as esc } from './dom';
 import { runJob, send } from './runtime';
 import { googleTranslateUrl, resolveTranslationEngine } from './google-translate';
 import { translateCuesCloud } from './cloud-translate';
 
-const TABS = ['transcript', 'chapters', 'guide', 'glossary', 'summary', 'chat'] as const;
+const TABS = ['transcript', 'chapters', 'guide', 'glossary', 'notes', 'summary', 'chat'] as const;
 type Tab = (typeof TABS)[number];
 type DisplayMode = 'bilingual' | 'original' | 'translated';
 const params = new URLSearchParams(location.search);
@@ -60,6 +62,7 @@ const state: {
   outline?: Outline;
   guide?: Guide;
   glossary?: Glossary;
+  clips: Clip[];
   summaryPrompt: string;
   tab: Tab;
   query: string;
@@ -84,8 +87,10 @@ const state: {
   loadVersion: 0,
   loading: false,
   skipFiller: false,
+  clips: [],
 };
 let toastTimer = 0;
+let commentSaveTimer = 0;
 let lastOverlay = '';
 let savingTranslationEngine = false;
 const attemptedTrackSets = new Set<string>();
@@ -416,6 +421,107 @@ function renderGlossary(): void {
   );
 }
 
+function renderClips(): void {
+  const list = $('#notes-list');
+  const clips = state.clips;
+  list.hidden = !clips.length;
+  $('#notes-empty').hidden = Boolean(clips.length);
+  $('#notes-count').textContent = clips.length ? `${clips.length} 条` : '';
+  $<HTMLButtonElement>('#notes-clear').hidden = !clips.length;
+  list.replaceChildren(
+    ...clips.map((clip) => {
+      const card = document.createElement('div');
+      card.className = 'clip-card';
+
+      const head = document.createElement('div');
+      head.className = 'clip-head';
+      const jump = document.createElement('button');
+      jump.className = 'term-jump';
+      jump.dataset.seek = String(clip.start);
+      jump.textContent = `${formatTime(clip.start)} ↗`;
+      const remove = document.createElement('button');
+      remove.className = 'text-button clip-remove';
+      remove.dataset.unclip = clip.id;
+      remove.textContent = '删除';
+      head.append(jump, remove);
+
+      const text = document.createElement('p');
+      text.className = 'clip-text';
+      text.textContent = clip.text;
+      card.append(head, text);
+      if (clip.translation) {
+        const translation = document.createElement('p');
+        translation.className = 'clip-translation';
+        translation.textContent = clip.translation;
+        card.append(translation);
+      }
+
+      const comment = document.createElement('textarea');
+      comment.className = 'clip-comment';
+      comment.rows = 2;
+      comment.maxLength = 2000;
+      comment.placeholder = '写下你的想法…';
+      comment.value = clip.comment;
+      comment.dataset.comment = clip.id;
+      card.append(comment);
+      return card;
+    }),
+  );
+}
+
+/** Clips belong to the video, not to a session, so they are reloaded whenever it changes. */
+async function loadClips(videoId: string): Promise<void> {
+  const version = state.loadVersion;
+  const clips = await readClips(videoId);
+  if (version !== state.loadVersion || state.video?.id !== videoId) return;
+  state.clips = clips;
+  renderClips();
+}
+
+async function persistClips(): Promise<void> {
+  if (!state.video) return;
+  await writeClips(state.video.id, state.clips);
+}
+
+/** Keeps the line, its translation and where it came from, so a note stands on its own later. */
+async function addClip(start: number, text: string, translation: string): Promise<void> {
+  if (!state.video || !text.trim()) return;
+  if (state.clips.some((clip) => clip.start === start && clip.text === text)) {
+    toast('这一条已经剪藏过了');
+    return;
+  }
+  state.clips = [
+    ...state.clips,
+    {
+      id: crypto.randomUUID(),
+      start,
+      text: text.trim(),
+      translation: translation.trim(),
+      comment: '',
+      createdAt: new Date().toISOString(),
+    },
+  ].sort((a, b) => a.start - b.start);
+  renderClips();
+  await persistClips();
+  toast('已剪藏');
+}
+
+async function clipActiveCue(): Promise<void> {
+  const cue = state.transcript?.cues[state.activeCue];
+  if (!cue) {
+    notice('还没有正在播放的字幕可以剪藏。');
+    return;
+  }
+  await addClip(cue.start, cue.text, state.translations[cue.id] ?? '');
+}
+
+async function clipSelection(): Promise<void> {
+  const cue = state.transcript?.cues[selectedCue];
+  if (!cue || !selectedTerm) return;
+  hideExplain();
+  await addClip(cue.start, selectedTerm, state.translations[cue.id] ?? '');
+}
+
 async function generateGlossary(): Promise<void> {
   const context = aiContext();
   const result = await run({ task: 'glossary', ...context }, Boolean(state.glossary));
@@ -597,6 +703,11 @@ function updateVideo(video: VideoInfo): void {
   if (changed) resetVideo();
   const tracksChanged = JSON.stringify(state.video?.tracks) !== JSON.stringify(video.tracks);
   state.video = video;
+  if (changed) {
+    state.clips = [];
+    renderClips();
+    void loadClips(video.id).catch(() => undefined);
+  }
   renderChapters();
   $('#video-title').textContent = video.title;
   $('#video-author').textContent = video.author || 'YouTube';
@@ -768,7 +879,11 @@ function offerExplain(): void {
   trigger.className = 'explain-trigger';
   trigger.dataset.explain = 'true';
   trigger.textContent = `解释「${text.length > 14 ? text.slice(0, 14) + '…' : text}」`;
-  $('#explain-bubble').replaceChildren(trigger);
+  const clip = document.createElement('button');
+  clip.className = 'explain-trigger';
+  clip.dataset.clipSelection = 'true';
+  clip.textContent = '剪藏这段';
+  $('#explain-bubble').replaceChildren(trigger, clip);
   placeExplain(selection.getRangeAt(0).getBoundingClientRect());
 }
 
@@ -1458,8 +1573,30 @@ function exportDocument(): ExportDocument {
   };
 }
 
+/** Stands on its own: every clip keeps its timestamp, its source line and what you wrote. */
+function clipsMarkdown(): string {
+  const video = state.video;
+  const lines = [`# ${video?.title ?? '视频'} · 笔记`, ''];
+  if (video?.url) lines.push(`来源：${video.url}`, '');
+  for (const clip of state.clips) {
+    lines.push(`## ${formatTime(clip.start)}`, '', clip.text, '');
+    if (clip.translation) lines.push(`> ${clip.translation}`, '');
+    if (clip.comment.trim()) lines.push(clip.comment.trim(), '');
+  }
+  return lines.join('\n');
+}
+
 async function exportNotes(format: string): Promise<void> {
   closeExport();
+  if (format === 'clips') {
+    if (!state.clips.length) throw new Error('还没有剪藏任何内容。');
+    downloadFile(
+      `${state.video?.title ?? '视频'} 笔记.md`,
+      clipsMarkdown(),
+      'text/markdown;charset=utf-8',
+    );
+    return;
+  }
   const doc = exportDocument();
   if (format === 'pdf') {
     // The bundled subset font is ~1.5 MB, so it is fetched only when a PDF is actually exported.
@@ -1727,6 +1864,13 @@ function bindEvents(): void {
       honourSeekUntil = Date.now() + SEEK_GRACE_MS;
       void seek(Number(data.seek)).catch((error: unknown) => notice(errorMessage(error), true));
     }
+    if ('clipSelection' in data)
+      void clipSelection().catch((error: unknown) => notice(errorMessage(error), true));
+    if (data.unclip) {
+      state.clips = state.clips.filter((clip) => clip.id !== data.unclip);
+      renderClips();
+      void persistClips().catch((error: unknown) => notice(errorMessage(error), true));
+    }
     if ('explain' in data) {
       void explainSelection().catch((error: unknown) => {
         hideExplain();
@@ -1803,6 +1947,26 @@ function bindEvents(): void {
   document.addEventListener('mousedown', (event) => {
     const target = event.target as Element | null;
     if (!target?.closest('#explain-bubble')) hideExplain();
+  });
+  on('#clip-current', 'click', () => clipActiveCue());
+  on('#notes-clear', 'click', async () => {
+    state.clips = [];
+    renderClips();
+    await persistClips();
+    toast('笔记已清空');
+  });
+  $('#notes-list').addEventListener('input', (event) => {
+    const target = event.target as HTMLTextAreaElement;
+    const id = target.dataset.comment;
+    if (!id) return;
+    const clip = state.clips.find((item) => item.id === id);
+    if (!clip) return;
+    clip.comment = target.value;
+    // Typing should not write on every keystroke; the save rides the next idle callback.
+    clearTimeout(commentSaveTimer);
+    commentSaveTimer = window.setTimeout(() => {
+      void persistClips().catch((error: unknown) => notice(errorMessage(error), true));
+    }, 600);
   });
   on('#skip-filler', 'click', () => {
     state.skipFiller = !state.skipFiller;

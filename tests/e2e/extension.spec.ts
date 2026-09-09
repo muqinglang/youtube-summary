@@ -274,6 +274,7 @@ test('independent learning page: source untouched, embedded playback, real API, 
     'tab-chapters',
     'tab-guide',
     'tab-glossary',
+    'tab-notes',
     'tab-summary',
     'tab-chat',
   ]);

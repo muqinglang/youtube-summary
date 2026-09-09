@@ -102,6 +102,16 @@ export interface Glossary {
   terms: GlossaryTerm[];
 }
 
+/** A line the viewer kept, with whatever they wanted to say about it. */
+export interface Clip {
+  id: string;
+  start: number;
+  text: string;
+  translation: string;
+  comment: string;
+  createdAt: string;
+}
+
 /** One term explained on demand, from the cues around where the viewer selected it. */
 export interface Explanation {
   term: string;
