@@ -83,6 +83,32 @@ describe('lenient model output schemas', () => {
     expect(outline.sections).toEqual([{ title: 'Kept', start: 0, density: 3, kind: 'concept' }]);
   });
 
+  it('carries a verdict when offered and stays usable without one', () => {
+    const section = { title: '开场', start: 0, density: 4, kind: 'concept' };
+    const rated = outlineSchema.parse({
+      verdict: {
+        topic: '五小时的清晰思考课程。',
+        audience: '想系统补决策方法的人。',
+        prerequisites: '',
+        advice: '只看第 3 到第 7 节。',
+      },
+      sections: [section],
+    });
+    expect(rated.verdict?.advice).toBe('只看第 3 到第 7 节。');
+    // Blank is a legitimate answer to "what should you already know".
+    expect(rated.verdict?.prerequisites).toBe('');
+    expect(outlineSchema.parse({ sections: [section] }).verdict).toBeUndefined();
+  });
+
+  it('drops a malformed verdict rather than losing the whole outline', () => {
+    const parsed = outlineSchema.parse({
+      verdict: 'the model wrote a sentence instead of an object',
+      sections: [{ title: '开场', start: 0, density: 4, kind: 'concept' }],
+    });
+    expect(parsed.verdict).toBeUndefined();
+    expect(parsed.sections).toHaveLength(1);
+  });
+
   it('clamps section density and falls back on an unknown kind', () => {
     const outline = outlineSchema.parse({
       sections: [

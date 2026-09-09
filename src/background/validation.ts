@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { AiRequest, Guide, MindMapNode, Outline, Summary } from '../shared/types';
+import type { AiRequest, Guide, MindMapNode, Outline, OutlineVerdict, Summary } from '../shared/types';
 
 const seconds = z.number().finite().min(0).max(604800);
 export const videoSchema = z.object({
@@ -199,7 +199,16 @@ const outputDensity = z
   )
   .catch(3);
 
+/** Optional: a model that skips the verdict still produces a usable outline. */
+const verdictSchema: z.ZodType<OutlineVerdict> = z.object({
+  topic: outputText(600, false),
+  audience: outputText(400, false),
+  prerequisites: outputText(400, false),
+  advice: outputText(600, false),
+});
+
 export const outlineSchema: z.ZodType<Outline> = z.object({
+  verdict: verdictSchema.optional().catch(undefined),
   sections: outputArray(
     z.object({
       title: outputText(500),

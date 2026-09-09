@@ -74,8 +74,18 @@ export interface OutlineEntry {
   kind: SectionKind;
 }
 
+/** Whether this video is worth someone's time, and how to spend it. */
+export interface OutlineVerdict {
+  topic: string;
+  audience: string;
+  /** What a viewer should already know; empty when none is needed. */
+  prerequisites: string;
+  advice: string;
+}
+
 export interface Outline {
   sections: OutlineEntry[];
+  verdict?: OutlineVerdict;
 }
 
 /** A question to hold in mind before watching, plus where the video answers it. */

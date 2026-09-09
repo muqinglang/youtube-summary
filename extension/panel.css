@@ -654,6 +654,37 @@ textarea {
 .chapter-card[aria-current='true'] .chapter-title {
   color: var(--accent);
 }
+.verdict {
+  flex: none;
+  margin: 12px 14px 4px;
+  padding: 12px 14px;
+  border: 1px solid #4c472f;
+  border-radius: 10px;
+  background: #24241d;
+}
+.verdict-density {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+/* Flex rather than an inline label, so a wrapped value hangs beside its label instead of
+   sliding back underneath it. */
+.verdict-row {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 1.9;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.verdict-row > span {
+  flex: none;
+  width: 4.4em;
+  color: var(--muted);
+}
+
 .chapter-tag {
   align-self: flex-start;
   margin-top: 5px;

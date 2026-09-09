@@ -152,7 +152,63 @@ function chapterSource(): {
   return { kind: 'native', entries: state.video?.chapters ?? [] };
 }
 
+let verdictIdentity = '';
+
+/**
+ * The share of the video worth watching is derived from the section densities rather than asked
+ * for a second time, so the headline number cannot contradict the sections it summarises.
+ */
+function renderVerdict(): void {
+  const verdict = state.outline?.verdict;
+  const sections = state.outline?.sections ?? [];
+  const duration = state.video?.duration ?? 0;
+  const identity = JSON.stringify([verdict, sections.length, duration]);
+  if (identity === verdictIdentity) return;
+  verdictIdentity = identity;
+  const card = $('#chapter-verdict');
+  if (!verdict || !sections.length) {
+    card.hidden = true;
+    return;
+  }
+  let worthwhile = 0;
+  let covered = 0;
+  sections.forEach((section, index) => {
+    const end = sections[index + 1]?.start ?? duration;
+    const span = Math.max(0, end - section.start);
+    covered += span;
+    if (section.density > FILLER_DENSITY) worthwhile += span;
+  });
+  const rows: [string, string][] = [
+    ['讲什么', verdict.topic],
+    ['适合谁', verdict.audience],
+    ['前置知识', verdict.prerequisites],
+    ['怎么看', verdict.advice],
+  ];
+  const share = covered > 0 ? Math.round((worthwhile / covered) * 100) : 0;
+  const body = document.createElement('div');
+  body.className = 'verdict-body';
+  if (covered > 0) {
+    const density = document.createElement('p');
+    density.className = 'verdict-density';
+    density.textContent = `${formatTime(covered)} 中约 ${formatTime(worthwhile)} 为高密度内容（${share}%）`;
+    body.append(density);
+  }
+  for (const [label, value] of rows) {
+    // A model that leaves a field blank should not leave an empty row behind.
+    if (!value.trim()) continue;
+    const row = document.createElement('p');
+    row.className = 'verdict-row';
+    const name = document.createElement('span');
+    name.textContent = label;
+    row.append(name, document.createTextNode(value));
+    body.append(row);
+  }
+  card.replaceChildren(body);
+  card.hidden = false;
+}
+
 function renderChapters(): void {
+  renderVerdict();
   const { kind, entries: source } = chapterSource();
   const sections = source
     .filter(({ start }) => !state.video?.duration || start < state.video.duration)
@@ -807,7 +863,7 @@ async function run(request: AiRequest, force = false): Promise<AiResult | undefi
       baseUrl: settings.baseUrl,
       temperature: settings.temperature,
       // 2: outline sections gained density and kind, so version 1 entries render blank badges.
-      version: 2,
+      version: 3,
     });
     const cached = force ? undefined : await readCache<AiResult>(key);
     if (cached && !controller.signal.aborted && version === state.loadVersion) {
