@@ -30,6 +30,7 @@ import type {
   VideoChapter,
   VideoInfo,
   LibraryMatch,
+  DisplayMode,
 } from '../shared/types';
 import { cacheKey, clearCache, readCache, writeCache } from './cache';
 import { readClips, writeClips } from './notes';
@@ -52,7 +53,7 @@ const TABS = [
   'summary',
   'chat',
 ] as const satisfies readonly Tab[];
-type DisplayMode = 'bilingual' | 'original' | 'translated';
+
 const params = new URLSearchParams(location.search);
 const workspace = params.has('workspace') && window.parent !== window;
 if (workspace) document.body.classList.add('workspace-panel');
@@ -743,7 +744,14 @@ function resetVideo(): void {
     '<div class="empty chat-welcome"><div class="empty-mark">AI</div><h2>关于这段视频，你想了解什么？</h2><p>AI 会参考当前字幕，并附上回看时间点。</p></div>';
   resetResults();
   lastOverlay = '';
-  void command({ action: 'overlay', original: '', translated: '', visible: false }).catch(() => {});
+  void command({
+    action: 'overlay',
+    original: '',
+    translated: '',
+    visible: false,
+    mode: state.displayMode,
+    enabled: false,
+  }).catch(() => {});
 }
 
 function updateVideo(video: VideoInfo): void {
@@ -830,9 +838,10 @@ function installTranscript(transcript: Transcript): void {
   const last = transcript.cues.at(-1);
   $('#caption-range').textContent =
     first && last ? `${formatTime(first.start)} - ${formatTime(last.end)}` : '';
-  notice(
-    transcript.coverage === 'unknown' ? '字幕覆盖范围未验证；AI 将只处理当前已载入的内容。' : '',
-  );
+  // Partial coverage is not worth a banner: it is jargon at the moment the viewer just wants to
+  // read, and the fact is already stated where it changes a decision — the summary carries a
+  // 「当前字幕范围总结」 badge, and export stays disabled.
+  notice('');
   renderTranscript();
   updatePlayback();
   updateActions();
@@ -913,6 +922,29 @@ function placeExplain(rect: DOMRect): void {
   bubble.style.top = `${above ? rect.top - bubble.offsetHeight - 8 : rect.bottom + 8}px`;
 }
 
+/** True when the current selection lies inside this element, which means a drag ended here. */
+function selectionInside(element: Element): boolean {
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed || !selection.toString().trim()) return false;
+  const node = selection.anchorNode;
+  const anchor = node?.nodeType === Node.ELEMENT_NODE ? (node as Element) : node?.parentElement;
+  return Boolean(anchor && element.contains(anchor));
+}
+
+async function copyText(text: string, label: string): Promise<void> {
+  if (!text.trim()) throw new Error('没有可复制的内容。');
+  await navigator.clipboard.writeText(text);
+  toast(label);
+}
+
+/** Both languages, because the pair is what makes the line worth keeping. */
+async function copyCue(index: number): Promise<void> {
+  const cue = state.transcript?.cues[index];
+  if (!cue) throw new Error('这一句已经不在当前字幕里了。');
+  const translation = state.translations[cue.id];
+  await copyText([cue.text, translation].filter(Boolean).join('\n'), '已复制整句');
+}
+
 function offerExplain(): void {
   const selection = window.getSelection();
   const text = selection?.toString().trim() ?? '';
@@ -928,11 +960,18 @@ function offerExplain(): void {
   trigger.className = 'explain-trigger';
   trigger.dataset.explain = 'true';
   trigger.textContent = `解释「${text.length > 14 ? text.slice(0, 14) + '…' : text}」`;
+  const copy = document.createElement('button');
+  copy.className = 'explain-trigger';
+  copy.textContent = '复制';
+  copy.addEventListener('click', () => {
+    void copyText(text, '已复制').catch((error: unknown) => notice(errorMessage(error), true));
+    hideExplain();
+  });
   const clip = document.createElement('button');
   clip.className = 'explain-trigger';
   clip.dataset.clipSelection = 'true';
   clip.textContent = '存为笔记';
-  $('#explain-bubble').replaceChildren(trigger, clip);
+  $('#explain-bubble').replaceChildren(trigger, copy, clip);
   placeExplain(selection.getRangeAt(0).getBoundingClientRect());
 }
 
@@ -1033,7 +1072,7 @@ function renderTranscript(): void {
         ? '<span class="translation">尚未翻译，请点击上方「翻译」。</span>'
         : '';
     parts.push(
-      `<button class="cue${index === state.activeCue ? ' active' : ''}" data-cue="${index}"${index === state.activeCue ? ' aria-current="true"' : ''}><time>${formatTime(cue.start)}</time>${original}${translated}${pending}</button>`,
+      `<div class="cue-row"><button class="cue${index === state.activeCue ? ' active' : ''}" data-cue="${index}" data-seek="${cue.start}"${index === state.activeCue ? ' aria-current="true"' : ''}><time>${formatTime(cue.start)}</time>${original}${translated}${pending}</button><button class="cue-copy" data-copy-cue="${index}" title="复制整句" aria-label="复制这一句">⧉</button></div>`,
     );
   }
   if (state.windowStart + WINDOW_SIZE < indices.length)
@@ -1079,10 +1118,15 @@ function updatePlayback(): void {
     followCurrent();
   }
   const cue = cues[index];
+  const enabled = $<HTMLInputElement>('#overlay-enabled').checked;
   const overlay = {
     original: state.displayMode === 'translated' ? '' : cue?.text || '',
     translated: state.displayMode === 'original' ? '' : state.translations[cue?.id || ''] || '',
-    visible: $<HTMLInputElement>('#overlay-enabled').checked && Boolean(cue),
+    visible: enabled && Boolean(cue),
+    // Sent even when there is nothing to show: the overlay sizes itself from the mode, not from
+    // the text, which is what keeps the video still.
+    mode: state.displayMode,
+    enabled,
   };
   const identity = JSON.stringify(overlay);
   if (identity !== lastOverlay) {
@@ -2013,8 +2057,17 @@ function bindEvents(): void {
     if (data.goto) showTab(data.goto as Tab);
     if (data.close) $<HTMLDialogElement>(`#${data.close}`).close();
     if (data.seek !== undefined) {
+      // A click that finished a text selection inside this element was a drag to select, not a
+      // request to jump; seeking there would fight the viewer trying to copy a line.
+      if (selectionInside(target)) return;
       honourSeekUntil = Date.now() + SEEK_GRACE_MS;
       void seek(Number(data.seek)).catch((error: unknown) => notice(errorMessage(error), true));
+    }
+    if (data.copyCue !== undefined) {
+      void copyCue(Number(data.copyCue)).catch((error: unknown) =>
+        notice(errorMessage(error), true),
+      );
+      return;
     }
     if ('clipSelection' in data)
       void clipSelection().catch((error: unknown) => notice(errorMessage(error), true));

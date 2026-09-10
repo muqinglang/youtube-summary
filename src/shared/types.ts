@@ -177,12 +177,28 @@ export type PublicSettings = Omit<Settings, 'apiKey' | 'sessionToken'> & {
   hasSession: boolean;
 };
 
+export type DisplayMode = 'bilingual' | 'original' | 'translated';
+
 export type PlayerCommand =
   | { action: 'seek'; time: number }
   | { action: 'togglePlay' }
   | { action: 'pause' }
   | { action: 'speed'; speed: number }
-  | { action: 'overlay'; original: string; translated: string; visible: boolean }
+  | {
+      action: 'overlay';
+      original: string;
+      translated: string;
+      visible: boolean;
+      /**
+       * Which rows this mode uses at all. The overlay reserves their height from this rather
+       * than from whether text happens to be present, so the block keeps a constant height
+       * between cues and while a translation is still being fetched — otherwise the player
+       * directly above it moves on almost every cue.
+       */
+      mode: DisplayMode;
+      /** False when the viewer turned captions off, which collapses the block entirely. */
+      enabled: boolean;
+    }
   | { action: 'close' };
 
 export interface JobProgress {

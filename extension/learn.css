@@ -177,15 +177,15 @@ h1 {
   width: 100%;
   height: 100%;
 }
+/* Height is reserved, never negotiated. The player sits directly above, so a block that grew
+   and shrank as each cue wrapped to one line or two moved the video on almost every cue. Each
+   line box below is a fixed two lines tall whether or not both are used, which makes the total
+   constant; an unusually long cue scrolls inside its own box rather than pushing the video. */
 .subtitles {
-  flex: 0 1 auto;
-  min-height: 104px;
-  max-height: 30%;
+  flex: none;
   padding: 16px 40px 22px;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  justify-content: safe center;
   align-items: center;
   gap: 7px;
   text-align: center;
@@ -193,9 +193,23 @@ h1 {
 .subtitles p {
   margin: 0;
   max-width: 1100px;
-  line-height: 1.55;
+  line-height: var(--caption-line);
   overflow-wrap: anywhere;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+  /* em, so the reserved box tracks the clamped font size at every viewport width. */
+  height: calc(2 * var(--caption-line) * 1em);
+  overflow-y: auto;
+  scrollbar-width: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+.subtitles p::-webkit-scrollbar {
+  display: none;
+}
+:root {
+  --caption-line: 1.55;
 }
 #original {
   font-size: clamp(19px, 1.42vw, 27px);
@@ -208,7 +222,14 @@ h1 {
   font-weight: 500;
   color: #f3f4f6;
 }
-.subtitles p:empty {
+/* Which rows exist is a property of the display mode, never of whether text is present. Hiding
+   an empty row was the larger half of the jumping: the block lost a whole line between cues and
+   again whenever a translation had not arrived yet. */
+.subtitles[data-mode='original'] #translated,
+.subtitles[data-mode='translated'] #original {
+  display: none;
+}
+.subtitles[data-enabled='false'] {
   display: none;
 }
 .playback {

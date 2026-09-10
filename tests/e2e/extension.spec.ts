@@ -679,7 +679,6 @@ test('API errors and cancellation recover; imported captions remain honest; clos
   });
   await expect(panel.locator('#source-state')).toHaveText('已导入字幕');
   await expect(panel.locator('.cue')).toHaveCount(2);
-  await expect(panel.locator('#notice')).toContainText('字幕覆盖范围未验证');
   await expect(panel.locator('#export-open')).toBeDisabled();
   await panel.locator('#tab-summary').click();
   await panel.locator('#summarize-btn').click();

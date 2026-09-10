@@ -487,6 +487,11 @@ textarea {
 .transcript-list {
   padding: 2px 11px 18px;
 }
+/* The copy control is a sibling, not a child: a button cannot nest inside another button, and
+   the cue itself has to stay a button so it keeps keyboard activation. */
+.cue-row {
+  position: relative;
+}
 .cue {
   width: 100%;
   display: block;
@@ -496,6 +501,30 @@ textarea {
   border-radius: 8px;
   margin-bottom: 5px;
   overflow-wrap: anywhere;
+  /* Buttons resist selection by default, which made a URL inside a line impossible to copy. */
+  user-select: text;
+  cursor: pointer;
+}
+.cue-copy {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 3px 7px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.cue-row:hover .cue-copy,
+.cue-copy:focus-visible {
+  opacity: 1;
+}
+.cue-copy:hover {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 .cue:hover {
   background: var(--surface);

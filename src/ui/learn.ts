@@ -110,6 +110,11 @@ async function request(request: RuntimeRequest): Promise<unknown> {
   else if (command.action === 'speed') player.speed(command.speed);
   else if (command.action === 'overlay') {
     const visible = command.visible && player.matchesVideo;
+    // The rows are reserved by mode, not by content: an empty row still holds its height, so a
+    // pending translation or a gap between cues cannot resize the block under the player.
+    const box = $('#subtitles');
+    box.dataset.mode = command.mode;
+    box.dataset.enabled = String(command.enabled && player.matchesVideo);
     $('#original').textContent = visible ? command.original : '';
     $('#translated').textContent = visible ? command.translated : '';
   } else if (command.action === 'close') window.close();
