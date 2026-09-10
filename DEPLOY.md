@@ -35,11 +35,19 @@
 
 ### 2. 部署前必须改的两处代码
 
-上线域名定下来后，`src/shared/hosted.ts` 里的占位符 `https://api.sidenote.app` 要换成真实域名，**并同步修改 `extension/manifest.json` 的 `optional_host_permissions`**。两处不一致会被 `tests/background/manifest.test.ts` 拦下——这是故意的。
+扩展只会连白名单里的来源，而这个来源写在两个地方：`src/shared/hosted.ts` 的 `HOSTED_ORIGINS`（扩展愿不愿意连）和 `extension/manifest.json` 的 `optional_host_permissions`（Chrome 允不允许连）。两处不一致会在运行时报一个看不出所以然的授权错误，所以 `tests/background/manifest.test.ts` 会拦下——这是故意的。
+
+一条命令同时改两处：
 
 ```bash
-npm test   # 改完跑一次，确认没漏
+npm run set-hosted-origin -- https://<你的应用>.fly.dev
+npm test        # 确认两处没漂移
+npm run build   # 重新打包扩展
 ```
+
+当前已指向 `https://sidenote.fly.dev`。**Fly 的应用名全球唯一**，如果 `fly launch` 提示这个名字被占了，用它实际给你的名字重跑一次上面的命令即可，不需要改代码。
+
+不用买域名：`fly deploy` 会免费给一个 `<应用名>.fly.dev` 的 HTTPS 地址，白名单直接能用。以后换自有域名，也是再跑一次这条命令。
 
 ### 3. 上线前跑一次带数据库的测试
 

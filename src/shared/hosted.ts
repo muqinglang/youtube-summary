@@ -4,10 +4,11 @@
  * for "access to every site you visit", which is the permission reviewers push back on hardest.
  *
  * Deploying your own server means changing this list and the manifest together; the manifest test
- * fails if they drift apart.
+ * fails if they drift apart. `npm run set-hosted-origin -- https://your-app.example` edits both,
+ * which matters when the platform hands you a different app name than you asked for.
  */
 export const HOSTED_ORIGINS = [
-  'https://api.sidenote.app',
+  'https://sidenote.fly.dev',
   'http://localhost:8787',
   'http://127.0.0.1:8787',
 ] as const;

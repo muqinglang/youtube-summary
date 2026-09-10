@@ -18,7 +18,7 @@
     "https://api.openai.com/*",
     "https://api.deepseek.com/*",
     "https://api.anthropic.com/*",
-    "https://api.sidenote.app/*",
+    "https://sidenote.fly.dev/*",
     "http://localhost/*",
     "http://127.0.0.1/*"
   ],
