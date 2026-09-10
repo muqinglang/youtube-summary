@@ -11,7 +11,7 @@ import {
   MAX_SEARCH_RESULTS,
   type LibraryService,
 } from './ai/library';
-import { hashPassword, verifyPassword } from './auth/passwords';
+import { createGoogleVerifier, GoogleAuthError, type GoogleVerifier } from './auth/google';
 import { issueToken, readToken } from './auth/tokens';
 import type { ServerConfig } from './config';
 import { JobQueue } from './jobs/queue';
@@ -19,15 +19,15 @@ import type { Store } from './store/types';
 
 // A 5-hour transcript is a few hundred kilobytes of JSON; the 1 MB default would reject it.
 const BODY_LIMIT = 8 * 1024 * 1024;
-const LOGIN_WINDOW_MS = 15 * 60_000;
+const SIGN_IN_WINDOW_MS = 15 * 60_000;
 /** A rolling deploy should finish the work a user already paid for, not drop it. */
 const SHUTDOWN_DRAIN_MS = 90_000;
-const LOGIN_ATTEMPTS = 10;
+const SIGN_IN_ATTEMPTS = 10;
 
-const credentials = z.object({
-  email: z.string().trim().toLowerCase().email().max(320),
-  // Long enough to resist guessing, and capped so scrypt cannot be turned into a CPU attack.
-  password: z.string().min(10).max(200),
+const googleSignIn = z.object({
+  // A Google ID token; anything longer than this is not one.
+  idToken: z.string().min(20).max(8192),
+  nonce: z.string().min(1).max(500).optional(),
 });
 const jobBody = z.object({ request: aiRequestSchema });
 const searchBody = z.object({
@@ -47,6 +47,8 @@ export interface AppOptions {
   gateway?: Gateway;
   /** Overridden in tests to supply a deterministic embedder; absent disables cross-video search. */
   library?: LibraryService;
+  /** Overridden in tests so no real Google keys are fetched. */
+  google?: GoogleVerifier;
 }
 
 export function createApp(options: AppOptions): FastifyInstance {
@@ -78,7 +80,8 @@ export function createApp(options: AppOptions): FastifyInstance {
         )
       : undefined);
   const queue = new JobQueue(ai);
-  const loginAttempts = new Map<string, { count: number; until: number }>();
+  const google = options.google ?? createGoogleVerifier(config.googleClientId);
+  const signInAttempts = new Map<string, { count: number; until: number }>();
 
   app.addHook('onClose', async () => {
     const abandoned = await queue.drain(SHUTDOWN_DRAIN_MS);
@@ -133,45 +136,31 @@ export function createApp(options: AppOptions): FastifyInstance {
     }
   });
 
-  app.post('/v1/auth/register', async (request, reply) => {
-    const parsed = credentials.safeParse(request.body);
-    if (!parsed.success)
-      return reply.code(400).send({ error: '邮箱或密码格式不正确，密码至少 10 位。' });
-    const { email, password } = parsed.data;
-    if (await store.users.byEmail(email))
-      return reply.code(409).send({ error: '该邮箱已注册，请直接登录。' });
-    const user = await store.users.create(email, await hashPassword(password));
-    return reply.code(201).send({
-      token: issueToken(user.id, config.sessionSecret, config.sessionTtlMs),
-      user: { id: user.id, email: user.email },
-    });
-  });
-
-  app.post('/v1/auth/login', async (request, reply) => {
-    const parsed = credentials.safeParse(request.body);
-    // The same message for a bad address and a bad password: no account enumeration.
-    const rejection = { error: '邮箱或密码不正确。' };
-    if (!parsed.success) return reply.code(401).send(rejection);
-    const { email, password } = parsed.data;
-    const throttleKey = `${request.ip}::${email}`;
-    const attempt = loginAttempts.get(throttleKey);
-    if (attempt && attempt.until > Date.now() && attempt.count >= LOGIN_ATTEMPTS)
+  app.post('/v1/auth/google', async (request, reply) => {
+    const parsed = googleSignIn.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: '登录请求格式不正确。' });
+    // Verification is signature work against a remote key set; a caller replaying junk at it
+    // should not be able to spend that repeatedly.
+    const attempt = signInAttempts.get(request.ip);
+    if (attempt && attempt.until > Date.now() && attempt.count >= SIGN_IN_ATTEMPTS)
       return reply.code(429).send({ error: '尝试次数过多，请稍后再试。' });
-    const user = await store.users.byEmail(email);
-    const ok = user ? await verifyPassword(password, user.passwordHash) : false;
-    if (!ok || !user) {
+    try {
+      const identity = await google.verify(parsed.data.idToken, parsed.data.nonce);
+      signInAttempts.delete(request.ip);
+      const user = await store.users.fromGoogle(identity.subject, identity.email);
+      return reply.send({
+        token: issueToken(user.id, config.sessionSecret, config.sessionTtlMs),
+        user: { id: user.id, email: user.email },
+      });
+    } catch (error) {
+      if (!(error instanceof GoogleAuthError)) throw error;
       const next =
         attempt && attempt.until > Date.now()
           ? { count: attempt.count + 1, until: attempt.until }
-          : { count: 1, until: Date.now() + LOGIN_WINDOW_MS };
-      loginAttempts.set(throttleKey, next);
-      return reply.code(401).send(rejection);
+          : { count: 1, until: Date.now() + SIGN_IN_WINDOW_MS };
+      signInAttempts.set(request.ip, next);
+      return reply.code(401).send({ error: error.message });
     }
-    loginAttempts.delete(throttleKey);
-    return reply.send({
-      token: issueToken(user.id, config.sessionSecret, config.sessionTtlMs),
-      user: { id: user.id, email: user.email },
-    });
   });
 
   app.get('/v1/me', async (request, reply) => {

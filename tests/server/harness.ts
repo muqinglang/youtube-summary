@@ -2,6 +2,7 @@ import type { z } from 'zod';
 import { createApp } from '../../server/app';
 import type { Embedder } from '../../server/ai/embeddings';
 import { createGateway } from '../../server/ai/gateway';
+import { GoogleAuthError, type GoogleVerifier } from '../../server/auth/google';
 import { createLibraryService, type LibraryService } from '../../server/ai/library';
 import type { ServerConfig } from '../../server/config';
 import { createMemoryStore } from '../../server/store/memory';
@@ -18,6 +19,7 @@ export const CONFIG: ServerConfig = {
   baseUrl: 'https://api.openai.com/v1',
   model: 'gpt-4.1-mini',
   apiKey: 'server-side-key-never-sent-to-clients',
+  googleClientId: 'test-client.apps.googleusercontent.com',
   dailyJobLimit: 3,
   logging: false,
   corsOrigins: ['chrome-extension://abcdefghijklmnopabcdefghijklmnop'],
@@ -139,6 +141,28 @@ export function countingClient(): CountingClient {
   return client;
 }
 
+/**
+ * Stands in for Google. A test token is `subject|email`; anything else is rejected the way a
+ * real bad token is, so the routes around it are exercised without any network or crypto.
+ */
+export function stubGoogle(): GoogleVerifier {
+  return {
+    verify: async (idToken, nonce) => {
+      if (nonce !== undefined && !idToken.endsWith(`#${nonce}`))
+        throw new GoogleAuthError('登录请求已失效，请重新登录。');
+      const [subject, rest] = idToken.split('|');
+      const email = rest?.split('#')[0];
+      if (!subject || !email) throw new GoogleAuthError('登录凭证格式不正确。');
+      return { subject, email: email.toLowerCase() };
+    },
+  };
+}
+
+/** The token a stubbed sign-in accepts for one address. */
+export function googleToken(email: string, nonce?: string): string {
+  return `sub-${email}|${email}${nonce ? `#${nonce}` : ''}`;
+}
+
 export interface HarnessOptions {
   config?: Partial<ServerConfig>;
   /** False builds the app without a library service, the shape of a deployment with no key. */
@@ -162,23 +186,23 @@ export function createHarness({
     config,
     store,
     gateway: createGateway(store, SETTINGS, client),
+    google: stubGoogle(),
     ...(library ? { library } : {}),
   });
   return { app, store, client, config, embedder, library };
 }
 
+/** Signs in through the Google route and returns the session token. */
 export async function register(
   app: ReturnType<typeof createHarness>['app'],
   email: string,
-  password = 'a-long-enough-password',
 ): Promise<string> {
   const response = await app.inject({
     method: 'POST',
-    url: '/v1/auth/register',
-    payload: { email, password },
+    url: '/v1/auth/google',
+    payload: { idToken: googleToken(email) },
   });
-  const body = response.json<{ token: string }>();
-  return body.token;
+  return response.json<{ token: string }>().token;
 }
 
 /** Starts a job and waits for it to leave the running state. */

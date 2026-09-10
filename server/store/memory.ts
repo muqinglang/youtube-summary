@@ -14,7 +14,7 @@ import type {
 /** Backs tests and local development so the whole service runs without a database. */
 export function createMemoryStore(): Store {
   const users = new Map<string, UserRecord>();
-  const byEmail = new Map<string, string>();
+  const byGoogle = new Map<string, string>();
   const videos = new Map<string, VideoRecord>();
   const transcripts = new Map<string, TranscriptRecord>();
   const artifacts = new Map<string, ArtifactRecord>();
@@ -25,22 +25,22 @@ export function createMemoryStore(): Store {
 
   return {
     users: {
-      create: async (email, passwordHash) => {
-        const normalized = email.toLowerCase();
-        if (byEmail.has(normalized)) throw new Error('该邮箱已注册。');
+      fromGoogle: async (subject, email) => {
+        const existing = byGoogle.get(subject);
+        if (existing) {
+          const user = { ...users.get(existing)!, email: email.toLowerCase() };
+          users.set(user.id, user);
+          return user;
+        }
         const user: UserRecord = {
           id: randomUUID(),
-          email: normalized,
-          passwordHash,
+          email: email.toLowerCase(),
+          googleSub: subject,
           createdAt: new Date().toISOString(),
         };
         users.set(user.id, user);
-        byEmail.set(normalized, user.id);
+        byGoogle.set(subject, user.id);
         return user;
-      },
-      byEmail: async (email) => {
-        const id = byEmail.get(email.toLowerCase());
-        return id ? users.get(id) : undefined;
       },
       byId: async (id) => users.get(id),
     },

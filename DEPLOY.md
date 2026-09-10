@@ -12,6 +12,7 @@
 | 申请模型服务商 API Key                 | 是你的凭据     |
 | 购买并解析域名                         | 需要账号与付款 |
 | 注册 Chrome 开发者账号（一次性 $5）    | 同上           |
+| 创建 Google OAuth 客户端 ID            | 登录的唯一入口 |
 
 下面每一处需要你填的地方都用 `<尖括号>` 标出。
 
@@ -48,6 +49,23 @@ npm run build   # 重新打包扩展
 当前已指向 `https://sidenote.fly.dev`。**Fly 的应用名全球唯一**，如果 `fly launch` 提示这个名字被占了，用它实际给你的名字重跑一次上面的命令即可，不需要改代码。
 
 不用买域名：`fly deploy` 会免费给一个 `<应用名>.fly.dev` 的 HTTPS 地址，白名单直接能用。以后换自有域名，也是再跑一次这条命令。
+
+### 2.5 配置 Google 登录
+
+托管模式**只支持 Google 登录**，没有邮箱密码。服务端不保存任何密码，只保存 Google 的账号标识和邮箱。
+
+这一步必须你来做：
+
+1. **先固定扩展 ID。** 未打包加载时扩展 ID 会变，而 OAuth 的重定向地址里包含它。在 `extension/manifest.json` 加一个 `"key"` 字段固定住（或先发布到应用商店拿正式 ID）。
+2. Google Cloud Console → APIs & Services → **Credentials** → Create credentials → **OAuth client ID** → 类型选 **Web application**。
+3. Authorized redirect URIs 填：`https://<扩展ID>.chromiumapp.org/`
+4. 拿到客户端 ID 后填两处，**必须一致**：
+   - `src/shared/google.ts` 的 `GOOGLE_CLIENT_ID`
+   - 服务端的 `SIDENOTE_GOOGLE_CLIENT_ID`
+
+服务端会校验每个凭证的 `aud` 等于这个客户端 ID —— 不一致的话，别的应用签发的凭证就能登进来，所以两处对不上时登录会直接失败，这是故意的。
+
+登录流程用的是 **ID token**（本地验签），不是 access token。凭证只走请求体，不会出现在 URL 查询串里进日志。
 
 ### 3. 上线前跑一次带数据库的测试
 
@@ -92,6 +110,7 @@ fly secrets set \
   SIDENOTE_PROVIDER=deepseek \
   SIDENOTE_MODEL=deepseek-v4-flash \
   SIDENOTE_API_KEY=<你的 Key> \
+  SIDENOTE_GOOGLE_CLIENT_ID=<你的 OAuth 客户端 ID> \
   SIDENOTE_EMBEDDING_API_KEY=<向量服务 Key，不需要跨视频检索就省略> \
   SIDENOTE_CORS_ORIGINS=chrome-extension://<扩展ID>
 
@@ -127,18 +146,19 @@ curl https://<你的域名>/v1/me -H "Authorization: Bearer <token>"
 
 ### 5. 环境变量
 
-| 变量                       | 必填     | 说明                                                     |
-| -------------------------- | -------- | -------------------------------------------------------- |
-| `SIDENOTE_SESSION_SECRET`  | ✅       | 会话签名密钥，**至少 32 位**。泄露等同于所有账号可被冒用 |
-| `SIDENOTE_PROVIDER`        | ✅       | `openai` / `deepseek` / `anthropic` / `custom`           |
-| `SIDENOTE_MODEL`           | ✅       | 模型 id                                                  |
-| `SIDENOTE_API_KEY`         | ✅       | 运营方自己的 Key，只存在于服务端进程                     |
-| `SIDENOTE_BASE_URL`        | 选填     | 覆盖服务商官方地址；`custom` 时必填                      |
-| `DATABASE_URL`             | 强烈建议 | **不设则使用内存存储，重启后账号与缓存全部丢失**         |
-| `SIDENOTE_DAILY_JOB_LIMIT` | 选填     | 单账号每日任务数，默认 20                                |
-| `SIDENOTE_CORS_ORIGINS`    | 选填     | 逗号分隔。扩展来源形如 `chrome-extension://<扩展ID>`     |
-| `SIDENOTE_LOG`             | 选填     | 设为 `off` 关闭日志                                      |
-| `PORT`                     | 选填     | 默认 8787                                                |
+| 变量                        | 必填     | 说明                                                     |
+| --------------------------- | -------- | -------------------------------------------------------- |
+| `SIDENOTE_SESSION_SECRET`   | ✅       | 会话签名密钥，**至少 32 位**。泄露等同于所有账号可被冒用 |
+| `SIDENOTE_PROVIDER`         | ✅       | `openai` / `deepseek` / `anthropic` / `custom`           |
+| `SIDENOTE_MODEL`            | ✅       | 模型 id                                                  |
+| `SIDENOTE_API_KEY`          | ✅       | 运营方自己的 Key，只存在于服务端进程                     |
+| `SIDENOTE_GOOGLE_CLIENT_ID` | ✅       | OAuth 客户端 ID，必须与扩展里那份完全一致                |
+| `SIDENOTE_BASE_URL`         | 选填     | 覆盖服务商官方地址；`custom` 时必填                      |
+| `DATABASE_URL`              | 强烈建议 | **不设则使用内存存储，重启后账号与缓存全部丢失**         |
+| `SIDENOTE_DAILY_JOB_LIMIT`  | 选填     | 单账号每日任务数，默认 20                                |
+| `SIDENOTE_CORS_ORIGINS`     | 选填     | 逗号分隔。扩展来源形如 `chrome-extension://<扩展ID>`     |
+| `SIDENOTE_LOG`              | 选填     | 设为 `off` 关闭日志                                      |
+| `PORT`                      | 选填     | 默认 8787                                                |
 
 跨视频知识库需要另一组变量，**全部选填**，不设就只是这一个功能关闭：
 

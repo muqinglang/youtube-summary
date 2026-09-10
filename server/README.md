@@ -47,8 +47,7 @@ summarize  → digest 8, final 3   ← 带用户 Prompt，证据确实不同，�
 
 | 方法   | 路径                  | 说明                                                                                      |
 | ------ | --------------------- | ----------------------------------------------------------------------------------------- |
-| `POST` | `/v1/auth/register`   | `{email, password}` → `{token, user}`，密码至少 10 位                                     |
-| `POST` | `/v1/auth/login`      | 同上。邮箱不存在和密码错误返回**完全相同**的响应                                          |
+| `POST` | `/v1/auth/google`     | `{idToken, nonce?}` → `{token, user}`。首次登录即建号                                     |
 | `GET`  | `/v1/me`              | 账号、今日用量、视频库、`features.librarySearch`                                          |
 | `POST` | `/v1/library/search`  | `{query, limit?}` → 跨视频检索命中片段；未配置向量服务时 `501`                            |
 | `POST` | `/v1/jobs`            | `{request}`（一个 `AiRequest`）。命中缓存 `200 {cached:true, result}`；否则 `202 {jobId}` |
@@ -96,9 +95,12 @@ pgvector 是扩展，不少托管 Postgres 没装或不给应用角色 `CREATE E
 ## 安全
 
 - 服务商 API Key 只存在于服务端进程，任何路径都不下发给客户端
-- 密码用 `node:crypto` 的 scrypt（N=32768, r=8），每条独立盐，`timingSafeEqual` 比对；无原生依赖
+- **不保存密码**。身份来自 Google，本服务只存 Google 的账号标识（sub）与邮箱
+- ID token 在本地验签（Google 公钥，RS256），不把凭证塞进 URL 交给 tokeninfo 接口
+- 校验 `aud` 等于本服务的客户端 ID —— 少了这一步，任何 Google 应用的凭证都能登进来
+- 账号以 Google 的 `sub` 为键，不以邮箱为键：用户改了 Google 邮箱，笔记和额度还是他的
 - 会话令牌是 HMAC-SHA256 签名的不透明令牌，不是 JWT —— 只有一个签发方和一个验证方，固定算法可以完全避开 JWT 头部混淆那一类问题
-- 登录失败按 `IP + 邮箱` 限流
+- 登录失败按 IP 限流：验签要向 Google 取公钥并做签名运算，不能让人白嫖
 - 任务归属逐个校验，不因为 id 难猜就假定安全
 
 ## 运行
@@ -151,4 +153,3 @@ Postgres 的 `jsonb` 会把对象键名排序存储，所以产物读回来时**
 
 - 计费与订阅（现在只有每日任务数上限，超出后引导用户改用自己的 Key）
 - 队列跨进程（当前是进程内队列，多实例部署需要换成 Redis）
-- OAuth 登录

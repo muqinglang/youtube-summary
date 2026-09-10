@@ -4,11 +4,14 @@
 -- for everyone, so the first viewer pays for the model calls and everyone after reads a row. Only
 -- `library` and `usage_jobs` are partitioned by account.
 
+-- Identity comes from Google; this service never holds a password. The subject is the key
+-- rather than the address, because a Google account can change its address and the person is
+-- still the same person with the same library.
 CREATE TABLE IF NOT EXISTS users (
-  id            uuid PRIMARY KEY,
-  email         text NOT NULL UNIQUE,
-  password_hash text NOT NULL,
-  created_at    timestamptz NOT NULL DEFAULT now()
+  id         uuid PRIMARY KEY,
+  google_sub text NOT NULL UNIQUE,
+  email      text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS videos (

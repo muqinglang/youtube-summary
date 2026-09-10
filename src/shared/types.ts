@@ -253,7 +253,7 @@ export type RuntimeRequest =
   | { type: 'settings:save'; settings: Partial<Settings> }
   | { type: 'settings:clearKey' }
   | { type: 'ai:test' }
-  | { type: 'account:signIn'; email: string; password: string; create: boolean }
+  | { type: 'account:signIn' }
   | { type: 'account:signOut' }
   | { type: 'account:status' }
   | { type: 'library:search'; query: string; limit?: number }

@@ -1481,6 +1481,17 @@ textarea {
 }
 /* Icon only, but still a bordered button rather than a bare glyph: this is the only way data
    leaves the extension, so it has to stay findable. */
+.google-signin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: 100%;
+  padding: 10px 14px;
+}
+.google-signin svg {
+  display: block;
+}
 .button.icon-only {
   display: inline-flex;
   align-items: center;

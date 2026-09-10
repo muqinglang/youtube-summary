@@ -1,26 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { issueToken, readToken } from '../../server/auth/tokens';
-import { hashPassword, verifyPassword } from '../../server/auth/passwords';
-import { CONFIG, createHarness, register } from './harness';
+import { CONFIG, createHarness, googleToken } from './harness';
 
 const EMAIL = 'reader@example.com';
-const PASSWORD = 'a-long-enough-password';
-
-describe('password hashing', () => {
-  it('produces a salted verifiable hash and rejects the wrong password', async () => {
-    const hash = await hashPassword(PASSWORD);
-    expect(hash.startsWith('scrypt$')).toBe(true);
-    // A distinct salt per hash: two hashes of one password must not match each other.
-    expect(await hashPassword(PASSWORD)).not.toBe(hash);
-    expect(await verifyPassword(PASSWORD, hash)).toBe(true);
-    expect(await verifyPassword('a-long-enough-passwerd', hash)).toBe(false);
-  });
-
-  it('rejects a malformed record instead of throwing', async () => {
-    for (const bad of ['', 'nonsense', 'scrypt$1$2$3', 'argon2$1$1$1$c2FsdA$aGFzaA'])
-      await expect(verifyPassword(PASSWORD, bad)).resolves.toBe(false);
-  });
-});
 
 describe('session tokens', () => {
   it('round-trips a user id and refuses tampering or expiry', () => {
@@ -40,92 +22,61 @@ describe('session tokens', () => {
 });
 
 describe('accounts', () => {
-  it('registers, then authenticates the same credentials', async () => {
-    const { app } = createHarness();
-    const created = await app.inject({
-      method: 'POST',
-      url: '/v1/auth/register',
-      payload: { email: EMAIL, password: PASSWORD },
-    });
-    expect(created.statusCode).toBe(201);
-    const token = created.json<{ token: string }>().token;
+  const signIn = (app: ReturnType<typeof createHarness>['app'], payload: Record<string, unknown>) =>
+    app.inject({ method: 'POST', url: '/v1/auth/google', payload });
 
-    const me = await app.inject({
-      method: 'GET',
-      url: '/v1/me',
-      headers: { authorization: `Bearer ${token}` },
+  it('creates the account on first sign-in and returns to the same one after', async () => {
+    const { app, store } = createHarness();
+    const first = await signIn(app, { idToken: googleToken(EMAIL) });
+    expect(first.statusCode).toBe(200);
+    const created = first.json<{ token: string; user: { id: string; email: string } }>();
+    expect(created.user.email).toBe(EMAIL);
+    expect(created.token).toBeTruthy();
+
+    const again = await signIn(app, { idToken: googleToken(EMAIL) });
+    // The same Google account is the same account here; a second sign-in must not fork it.
+    expect(again.json<{ user: { id: string } }>().user.id).toBe(created.user.id);
+    expect(await store.users.byId(created.user.id)).toMatchObject({ email: EMAIL });
+  });
+
+  it('follows the person when Google changes their address', async () => {
+    const { app } = createHarness();
+    const before = await signIn(app, { idToken: `sub-stable|old@example.com` });
+    const after = await signIn(app, { idToken: `sub-stable|new@example.com` });
+    const id = before.json<{ user: { id: string } }>().user.id;
+    // Keyed by Google's subject, so the library and usage stay with the person.
+    expect(after.json<{ user: { id: string; email: string } }>().user).toEqual({
+      id,
+      email: 'new@example.com',
     });
-    expect(me.statusCode).toBe(200);
-    expect(me.json<{ user: { email: string } }>().user.email).toBe(EMAIL);
-    expect(me.json<{ usage: { dailyJobLimit: number } }>().usage.dailyJobLimit).toBe(
-      CONFIG.dailyJobLimit,
+  });
+
+  it('refuses a token the verifier rejects, and a malformed request', async () => {
+    const { app } = createHarness();
+    expect((await signIn(app, { idToken: 'x'.repeat(40) })).statusCode).toBe(401);
+    expect((await signIn(app, {})).statusCode).toBe(400);
+    // Too short to be a JWT at all, so it never reaches the verifier.
+    expect((await signIn(app, { idToken: 'short' })).statusCode).toBe(400);
+  });
+
+  it('requires the token to carry the nonce the request asked for', async () => {
+    const { app } = createHarness();
+    // Binds Google's answer to this sign-in, so a token captured elsewhere cannot be replayed.
+    expect((await signIn(app, { idToken: googleToken(EMAIL, 'n1'), nonce: 'n1' })).statusCode).toBe(
+      200,
     );
-
-    const login = await app.inject({
-      method: 'POST',
-      url: '/v1/auth/login',
-      payload: { email: EMAIL.toUpperCase(), password: PASSWORD },
-    });
-    // Addresses are matched case-insensitively so a capitalised login still works.
-    expect(login.statusCode).toBe(200);
-    expect(login.json<{ token: string }>().token).toBeTruthy();
+    expect((await signIn(app, { idToken: googleToken(EMAIL, 'n1'), nonce: 'n2' })).statusCode).toBe(
+      401,
+    );
   });
 
-  it('refuses a duplicate address and a too-short password', async () => {
+  it('throttles repeated bad tokens from one address', async () => {
     const { app } = createHarness();
-    await register(app, EMAIL);
-    const duplicate = await app.inject({
-      method: 'POST',
-      url: '/v1/auth/register',
-      payload: { email: EMAIL, password: PASSWORD },
-    });
-    expect(duplicate.statusCode).toBe(409);
-    const weak = await app.inject({
-      method: 'POST',
-      url: '/v1/auth/register',
-      payload: { email: 'other@example.com', password: 'short' },
-    });
-    expect(weak.statusCode).toBe(400);
-  });
-
-  it('does not reveal whether an address exists', async () => {
-    const { app } = createHarness();
-    await register(app, EMAIL);
-    const wrongPassword = await app.inject({
-      method: 'POST',
-      url: '/v1/auth/login',
-      payload: { email: EMAIL, password: 'a-long-enough-passwerd' },
-    });
-    const unknownAddress = await app.inject({
-      method: 'POST',
-      url: '/v1/auth/login',
-      payload: { email: 'nobody@example.com', password: PASSWORD },
-    });
-    expect(wrongPassword.statusCode).toBe(401);
-    expect(unknownAddress.statusCode).toBe(401);
-    expect(wrongPassword.json()).toEqual(unknownAddress.json());
-  });
-
-  it('throttles repeated failures for one address', async () => {
-    const { app } = createHarness();
-    await register(app, EMAIL);
-    let last = 0;
-    for (let attempt = 0; attempt < 11; attempt += 1) {
-      const response = await app.inject({
-        method: 'POST',
-        url: '/v1/auth/login',
-        payload: { email: EMAIL, password: 'a-long-enough-passwerd' },
-      });
-      last = response.statusCode;
-    }
-    expect(last).toBe(429);
-    // The throttle must not lock out the real password holder forever, but it does apply now.
-    const correct = await app.inject({
-      method: 'POST',
-      url: '/v1/auth/login',
-      payload: { email: EMAIL, password: PASSWORD },
-    });
-    expect(correct.statusCode).toBe(429);
+    for (let attempt = 0; attempt < 10; attempt += 1)
+      expect((await signIn(app, { idToken: 'y'.repeat(40) })).statusCode).toBe(401);
+    // Verification is signature work against a remote key set; it is not free to spam.
+    const blocked = await signIn(app, { idToken: googleToken(EMAIL) });
+    expect(blocked.statusCode).toBe(429);
   });
 
   it('guards every private route', async () => {

@@ -7,6 +7,7 @@ const BASE = {
   SIDENOTE_PROVIDER: 'openai',
   SIDENOTE_MODEL: 'gpt-4.1-mini',
   SIDENOTE_API_KEY: 'server-side-key',
+  SIDENOTE_GOOGLE_CLIENT_ID: 'test-client.apps.googleusercontent.com',
 } satisfies NodeJS.ProcessEnv;
 
 const load = (extra: NodeJS.ProcessEnv = {}) => loadConfig({ ...BASE, ...extra });
@@ -27,6 +28,10 @@ describe('server configuration', () => {
     // A custom provider has no official endpoint to fall back on.
     expect(() => loadConfig({ ...BASE, SIDENOTE_PROVIDER: 'custom' })).toThrow('SIDENOTE_BASE_URL');
     expect(() => loadConfig({ ...BASE, SIDENOTE_API_KEY: '  ' })).toThrow('SIDENOTE_API_KEY');
+    // Sign-in is the only way in, so a deployment without a client id can serve nobody.
+    expect(() => loadConfig({ ...BASE, SIDENOTE_GOOGLE_CLIENT_ID: '' })).toThrow(
+      'SIDENOTE_GOOGLE_CLIENT_ID',
+    );
   });
 
   it('leaves cross-video search off when no embedding key is supplied', () => {

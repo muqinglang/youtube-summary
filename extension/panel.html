@@ -449,24 +449,30 @@
         <p class="hint" id="mode-hint"></p>
         <fieldset id="hosted-fields" class="settings-group" hidden disabled>
           <div id="account-out">
-            <label for="account-email">邮箱</label
-            ><input
-              id="account-email"
-              type="email"
-              autocomplete="username"
-              placeholder="you@example.com"
-            />
-            <label for="account-password">密码</label
-            ><input
-              id="account-password"
-              type="password"
-              autocomplete="current-password"
-              placeholder="至少 10 位"
-            />
-            <div class="dialog-actions">
-              <button type="button" class="text-button" id="account-register">注册并登录</button
-              ><button type="button" class="button primary" id="account-login">登录</button>
-            </div>
+            <button type="button" class="button primary google-signin" id="account-login">
+              <svg viewBox="0 0 18 18" width="16" height="16" aria-hidden="true">
+                <path
+                  d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"
+                  fill="#4285F4"
+                />
+                <path
+                  d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"
+                  fill="#34A853"
+                />
+                <path
+                  d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"
+                  fill="#FBBC05"
+                />
+                <path
+                  d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.9 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"
+                  fill="#EA4335"
+                />
+              </svg>
+              用 Google 账号登录
+            </button>
+            <p class="hint">
+              只读取邮箱地址，用来识别你的账号与额度；不会读取你的 Google 其他数据。
+            </p>
           </div>
           <div id="account-in" hidden>
             <p class="hint" id="account-summary"></p>

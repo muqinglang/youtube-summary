@@ -136,18 +136,11 @@ export class HostedClient {
     }
   }
 
-  register(email: string, password: string, signal: AbortSignal): Promise<Account> {
-    return this.request('/v1/auth/register', accountSchema, {
+  /** The token travels in the body, never in a URL, and is exchanged for our own session. */
+  signInWithGoogle(idToken: string, nonce: string, signal: AbortSignal): Promise<Account> {
+    return this.request('/v1/auth/google', accountSchema, {
       method: 'POST',
-      body: { email, password },
-      signal,
-    });
-  }
-
-  login(email: string, password: string, signal: AbortSignal): Promise<Account> {
-    return this.request('/v1/auth/login', accountSchema, {
-      method: 'POST',
-      body: { email, password },
+      body: { idToken, nonce },
       signal,
     });
   }

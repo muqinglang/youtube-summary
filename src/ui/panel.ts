@@ -1888,26 +1888,30 @@ async function switchMode(mode: RunMode): Promise<void> {
   void refreshLibrarySearch();
 }
 
-async function signIn(create: boolean): Promise<void> {
-  const email = $<HTMLInputElement>('#account-email').value.trim();
-  const password = $<HTMLInputElement>('#account-password').value;
+let signingIn = false;
+
+/**
+ * Google is the only way in. The token never touches this page: the worker runs the flow and
+ * hands back only the resulting session, so a compromised panel has nothing to steal.
+ */
+async function signIn(): Promise<void> {
+  if (signingIn) return;
+  signingIn = true;
+  const button = $<HTMLButtonElement>('#account-login');
+  button.disabled = true;
   $('#settings-error').hidden = true;
   try {
-    state.settings = await send<PublicSettings>({
-      type: 'account:signIn',
-      email,
-      password,
-      create,
-    });
-    // The password is never kept in the DOM once it has been exchanged for a session.
-    $<HTMLInputElement>('#account-password').value = '';
+    state.settings = await send<PublicSettings>({ type: 'account:signIn' });
     renderSettingsMode('hosted');
     updateActions();
     void refreshLibrarySearch();
-    toast(create ? '注册成功，已登录' : '登录成功');
+    toast('登录成功');
   } catch (error) {
     $('#settings-error').hidden = false;
     $('#settings-error').textContent = errorMessage(error);
+  } finally {
+    signingIn = false;
+    button.disabled = false;
   }
 }
 
@@ -2275,8 +2279,7 @@ function bindEvents(): void {
   });
   on('#mode-byok', 'click', () => switchMode('byok'));
   on('#mode-hosted', 'click', () => switchMode('hosted'));
-  on('#account-login', 'click', () => signIn(false));
-  on('#account-register', 'click', () => signIn(true));
+  on('#account-login', 'click', () => signIn());
   on('#account-signout', 'click', async () => {
     state.settings = await send<PublicSettings>({ type: 'account:signOut' });
     renderSettingsMode('hosted');

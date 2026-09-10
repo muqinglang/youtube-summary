@@ -27,6 +27,11 @@ export interface ServerConfig {
   baseUrl: string;
   model: string;
   apiKey: string;
+  /**
+   * The OAuth client the extension signs in with. Sign-in is the only way in, so a deployment
+   * without it can serve cached artifacts to nobody — it is required rather than optional.
+   */
+  googleClientId: string;
   /** Absent disables cross-video search; everything else runs unchanged. */
   embedding?: EmbeddingConfig;
   /** Postgres connection string; omitted runs the in-memory store, for tests and local work. */
@@ -124,6 +129,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     provider,
     baseUrl: resolveBaseUrl(provider, env.SIDENOTE_BASE_URL),
     model: required('SIDENOTE_MODEL', env.SIDENOTE_MODEL),
+    googleClientId: required('SIDENOTE_GOOGLE_CLIENT_ID', env.SIDENOTE_GOOGLE_CLIENT_ID),
     apiKey: required('SIDENOTE_API_KEY', env.SIDENOTE_API_KEY),
     ...(embedding ? { embedding } : {}),
     databaseUrl: env.DATABASE_URL?.trim() || undefined,

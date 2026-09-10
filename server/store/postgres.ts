@@ -157,7 +157,7 @@ async function createChunkStore(
 interface UserRow {
   id: string;
   email: string;
-  password_hash: string;
+  google_sub: string;
   created_at: Date;
 }
 
@@ -165,7 +165,7 @@ function toUser(row: UserRow): UserRecord {
   return {
     id: row.id,
     email: row.email,
-    passwordHash: row.password_hash,
+    googleSub: row.google_sub,
     createdAt: row.created_at.toISOString(),
   };
 }
@@ -204,18 +204,14 @@ export async function createPostgresStore(
 
   return {
     users: {
-      create: async (email, passwordHash) => {
+      fromGoogle: async (subject, email) => {
+        // One statement, so two sign-ins racing on a first visit cannot both insert.
         const { rows } = await pool.query<UserRow>(
-          `INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3) RETURNING *`,
-          [randomUUID(), email.toLowerCase(), passwordHash],
+          `INSERT INTO users (id, google_sub, email) VALUES ($1, $2, $3)
+           ON CONFLICT (google_sub) DO UPDATE SET email = EXCLUDED.email RETURNING *`,
+          [randomUUID(), subject, email.toLowerCase()],
         );
         return toUser(rows[0]!);
-      },
-      byEmail: async (email) => {
-        const { rows } = await pool.query<UserRow>(`SELECT * FROM users WHERE email = $1`, [
-          email.toLowerCase(),
-        ]);
-        return rows[0] ? toUser(rows[0]) : undefined;
       },
       byId: async (id) => {
         // Session tokens carry a uuid; a malformed one must not surface as a 500.

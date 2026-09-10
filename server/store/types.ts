@@ -4,7 +4,8 @@ import type { DigestStore } from '../../src/background/ai-service';
 export interface UserRecord {
   id: string;
   email: string;
-  passwordHash: string;
+  /** Google's stable, opaque account id. The address can change; this cannot. */
+  googleSub: string;
   createdAt: string;
 }
 
@@ -69,8 +70,11 @@ export interface ChunkStore {
  */
 export interface Store {
   users: {
-    create(email: string, passwordHash: string): Promise<UserRecord>;
-    byEmail(email: string): Promise<UserRecord | undefined>;
+    /**
+     * Finds the account behind a Google subject, creating it on first sign-in. Keyed by subject
+     * rather than address, so someone who changes their Google address keeps their library.
+     */
+    fromGoogle(subject: string, email: string): Promise<UserRecord>;
     byId(id: string): Promise<UserRecord | undefined>;
   };
   videos: {

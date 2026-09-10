@@ -42,13 +42,17 @@ when('postgres store', () => {
     await expect((await connect()).ping()).resolves.toBeUndefined();
   });
 
-  it('round-trips an account and matches addresses case-insensitively', async () => {
+  it('creates an account once per Google subject and follows an address change', async () => {
     const db = await connect();
+    const subject = `sub-${unique()}`;
     const email = `user-${unique()}@example.com`;
-    const created = await db.users.create(email.toUpperCase(), 'scrypt$hash');
+    const created = await db.users.fromGoogle(subject, email.toUpperCase());
     expect(created.email).toBe(email);
-    expect((await db.users.byEmail(email.toUpperCase()))?.id).toBe(created.id);
-    expect((await db.users.byId(created.id))?.passwordHash).toBe('scrypt$hash');
+    // Same subject, new address: the same row, so the library and usage stay with the person.
+    const again = await db.users.fromGoogle(subject, `changed-${email}`);
+    expect(again.id).toBe(created.id);
+    expect(again.email).toBe(`changed-${email}`);
+    expect((await db.users.byId(created.id))?.googleSub).toBe(subject);
     // A token carrying something that is not a uuid must not reach the query as an error.
     await expect(db.users.byId('not-a-uuid')).resolves.toBeUndefined();
   });
@@ -92,7 +96,7 @@ when('postgres store', () => {
 
   it('counts usage per account per day', async () => {
     const db = await connect();
-    const user = await db.users.create(`usage-${unique()}@example.com`, 'scrypt$hash');
+    const user = await db.users.fromGoogle(`sub-${unique()}`, `usage-${unique()}@example.com`);
     const day = '2026-09-09';
     expect(await db.usage.jobsToday(user.id, day)).toBe(0);
     expect(await db.usage.recordJob(user.id, day)).toBe(1);
@@ -104,7 +108,7 @@ when('postgres store', () => {
 
   it('records a library without duplicating a repeated video', async () => {
     const db = await connect();
-    const user = await db.users.create(`library-${unique()}@example.com`, 'scrypt$hash');
+    const user = await db.users.fromGoogle(`sub-${unique()}`, `library-${unique()}@example.com`);
     await db.library.add(user.id, 'video-a');
     await db.library.add(user.id, 'video-a');
     await db.library.add(user.id, 'video-b');

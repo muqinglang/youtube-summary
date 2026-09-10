@@ -2,6 +2,7 @@ import '../shared/zod-setup';
 import { type ProgressCallback } from './ai-service';
 import { createRunner } from './runner';
 import { HostedClient } from './hosted';
+import { googleAuthUrl, idTokenFromRedirect, isConfiguredClientId } from '../shared/google';
 import { AiError, safeError } from './client';
 import {
   clearKey,
@@ -173,15 +174,23 @@ async function dispatch(
       return createRunner(await getPrivateSettings()).test(controller.signal);
     }
     case 'account:signIn': {
-      const email = typeof request.email === 'string' ? request.email.trim() : '';
-      const password = typeof request.password === 'string' ? request.password : '';
-      if (!email || password.length < 10) throw new AiError('请填写邮箱，密码至少 10 位。');
+      if (!isConfiguredClientId())
+        throw new AiError('这个构建还没有配置 Google 登录，请先设置 OAuth 客户端 ID。');
       const settings = await getPrivateSettings();
+      // Ties the token Google returns to this request, so one captured elsewhere is useless.
+      const nonce = crypto.randomUUID();
+      const redirect = await chrome.identity.launchWebAuthFlow({
+        url: googleAuthUrl(chrome.identity.getRedirectURL(), nonce),
+        interactive: true,
+      });
+      if (!redirect) throw new AiError('登录已取消。');
+      const idToken = idTokenFromRedirect(redirect);
       const controller = new AbortController();
-      const client = new HostedClient(settings.serverUrl, '', {});
-      const account = request.create
-        ? await client.register(email, password, controller.signal)
-        : await client.login(email, password, controller.signal);
+      const account = await new HostedClient(settings.serverUrl, '', {}).signInWithGoogle(
+        idToken,
+        nonce,
+        controller.signal,
+      );
       return saveSession(account.token, account.user.email);
     }
     case 'account:signOut':

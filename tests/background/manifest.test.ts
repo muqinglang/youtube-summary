@@ -47,9 +47,13 @@ describe('extension permissions', () => {
       'https://m.youtube.com/*',
       'https://translate.googleapis.com/*',
     ]);
+    // `identity` is what store review will ask about: it exists only for Google sign-in, which
+    // is the sole way into hosted mode. It grants no host access and reads nothing but the
+    // address, and it is unused entirely by anyone running on their own API key.
     expect(manifest.permissions).toEqual([
       'storage',
       'activeTab',
+      'identity',
       'declarativeNetRequestWithHostAccess',
     ]);
   });
