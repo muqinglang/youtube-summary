@@ -33,6 +33,15 @@
     <div class="notice" id="notice" role="status" hidden></div>
     <nav class="tabs" role="tablist" aria-label="学习功能">
       <button
+        id="tab-guide"
+        role="tab"
+        data-tab="guide"
+        aria-controls="view-guide"
+        aria-selected="false"
+        tabindex="-1"
+      >
+        引导提问</button
+      ><button
         id="tab-transcript"
         role="tab"
         data-tab="transcript"
@@ -49,33 +58,6 @@
         tabindex="-1"
       >
         章节</button
-      ><button
-        id="tab-guide"
-        role="tab"
-        data-tab="guide"
-        aria-controls="view-guide"
-        aria-selected="false"
-        tabindex="-1"
-      >
-        引导提问</button
-      ><button
-        id="tab-glossary"
-        role="tab"
-        data-tab="glossary"
-        aria-controls="view-glossary"
-        aria-selected="false"
-        tabindex="-1"
-      >
-        术语</button
-      ><button
-        id="tab-notes"
-        role="tab"
-        data-tab="notes"
-        aria-controls="view-notes"
-        aria-selected="false"
-        tabindex="-1"
-      >
-        笔记</button
       ><button
         id="tab-summary"
         role="tab"
@@ -187,7 +169,7 @@
             aria-label="搜索字幕"
             placeholder="搜索原文或译文"
           /><button id="clip-current" class="text-button" title="把正在播放的这一句存进笔记">
-            剪藏当前句</button
+            存为笔记</button
           ><button id="follow-btn" class="text-button is-active" aria-pressed="true">
             跟随播放
           </button>
@@ -263,13 +245,7 @@
           <button class="button" data-generate-guide>生成引导问题</button>
         </div>
       </section>
-      <section
-        id="view-glossary"
-        class="view"
-        role="tabpanel"
-        aria-labelledby="tab-glossary"
-        hidden
-      >
+      <section id="view-glossary" class="view" role="region" aria-label="术语表" hidden>
         <div class="view-tools">
           <span>视频默认你已经知道的东西</span>
           <span class="chapter-heading-actions"
@@ -294,9 +270,9 @@
           <button class="button" data-generate-glossary>整理术语表</button>
         </div>
       </section>
-      <section id="view-notes" class="view" role="tabpanel" aria-labelledby="tab-notes" hidden>
+      <section id="view-notes" class="view" role="region" aria-label="笔记" hidden>
         <div class="view-tools">
-          <span>剪下来的，才是你的</span>
+          <span>记下来的，才是你的 · 保存在本机</span>
           <span class="chapter-heading-actions"
             ><button id="notes-clear" class="text-button" hidden>清空</button
             ><span id="notes-count"></span
@@ -304,10 +280,10 @@
         </div>
         <div id="notes-list" class="scroll notes-list" tabindex="0" aria-label="笔记" hidden></div>
         <div id="notes-empty" class="scroll empty" tabindex="0">
-          <div class="empty-mark">✂</div>
+          <div class="empty-mark">✎</div>
           <h2>把要紧的句子留下</h2>
           <p>
-            在字幕区点「剪藏当前句」，或选中一段文字后剪藏。每条都带时间点和译文，可以写下自己的想法，随笔记一起导出。
+            在字幕区点「存为笔记」，或选中一段文字后存下来。每条都带时间点和译文，可以写下自己的想法，随笔记一起导出。
           </p>
           <button class="button" data-tab="transcript">回到字幕</button>
         </div>
@@ -411,7 +387,13 @@
       </div>
     </main>
     <footer class="app-footer">
-      <span id="footer-note">笔记保存在本机</span>
+      <div class="footer-nav" role="group" aria-label="我的内容">
+        <button id="tab-glossary" class="footer-tab" data-tab="glossary" aria-pressed="false">
+          术语 <small id="glossary-badge"></small></button
+        ><button id="tab-notes" class="footer-tab" data-tab="notes" aria-pressed="false">
+          笔记 <small id="notes-badge"></small>
+        </button>
+      </div>
       <div class="export-wrap">
         <button class="button" id="export-open" disabled aria-expanded="false">导出笔记 ↓</button>
         <div id="export-menu" class="export-menu" hidden>
@@ -422,7 +404,7 @@
           ><button data-export="markdown">
             <b>MD</b><span>Markdown<small>文本笔记与时间点</small></span></button
           ><button data-export="clips">
-            <b>✂</b><span>剪藏笔记<small>你留下的句子与想法</small></span></button
+            <b>✎</b><span>我的笔记<small>你留下的句子与想法</small></span></button
           ><button data-export="print">
             <b>⎙</b><span>打印<small>打开排版页并调用打印</small></span>
           </button>

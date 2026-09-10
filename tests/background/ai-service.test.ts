@@ -506,3 +506,65 @@ describe('long-video resilience', () => {
     expect(result.notice).toContain('1 段未能翻译');
   });
 });
+
+describe('request validation reports what is wrong', () => {
+  const base = {
+    task: 'outline' as const,
+    video: {
+      id: 'QLLuZbuTIRc',
+      title: 'T',
+      author: 'A',
+      url: 'https://youtu.be/QLLuZbuTIRc',
+      duration: 60,
+      currentTime: 0,
+      paused: true,
+      tracks: [],
+    },
+    transcript: {
+      videoId: 'QLLuZbuTIRc',
+      language: 'en',
+      source: 'youtube' as const,
+      coverage: 'complete' as const,
+      cues: [
+        { id: 'a', start: 0, end: 2, text: 'First line' },
+        { id: 'b', start: 2, end: 4, text: 'Second line' },
+      ],
+    },
+    language: '简体中文',
+  };
+  // Deliberately malformed: the cast is the point, since runAi's job here is to reject it.
+  const run = (request: unknown) =>
+    runAi(request as AiRequest, DEFAULT_SETTINGS, new AbortController().signal, () => undefined, {
+      json: async () => {
+        throw new Error('must not reach the provider');
+      },
+    });
+
+  it('names the offending cue by index instead of asking the user to hunt', async () => {
+    // The whole point: a 589-cue transcript has one bad entry and no way to find it by reading.
+    const cues = [...base.transcript.cues];
+    cues[1] = { ...cues[1]!, text: '' };
+    await expect(run({ ...base, transcript: { ...base.transcript, cues } })).rejects.toThrow(
+      /cues\.1\.text/,
+    );
+  });
+
+  it('names a bad time range and a bad video field too', async () => {
+    const cues = [...base.transcript.cues];
+    cues[0] = { ...cues[0]!, start: 10, end: 2 };
+    await expect(run({ ...base, transcript: { ...base.transcript, cues } })).rejects.toThrow(
+      /transcript/,
+    );
+    await expect(run({ ...base, video: { ...base.video, duration: Number.NaN } })).rejects.toThrow(
+      /video\.duration/,
+    );
+  });
+
+  it('never puts subtitle text into the error, only field paths', async () => {
+    const secret = 'a-viewers-private-transcript-line';
+    const cues = [{ id: 'a', start: 5, end: 1, text: secret }];
+    await expect(run({ ...base, transcript: { ...base.transcript, cues } })).rejects.not.toThrow(
+      new RegExp(secret),
+    );
+  });
+});

@@ -1422,6 +1422,31 @@ textarea {
   font-size: 10px;
   color: var(--muted);
 }
+/* The two views that left the tab bar. Styled as a pair of quiet entries rather than tabs, so
+   the top bar stays the one place that answers "what is this video about". */
+.footer-nav {
+  display: flex;
+  gap: 6px;
+}
+.footer-tab {
+  padding: 5px 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.footer-tab:hover {
+  color: var(--text);
+}
+.footer-tab.is-active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.footer-tab small {
+  color: var(--accent);
+  font-size: 9px;
+}
 .app-footer .button {
   font-size: 11px;
 }

@@ -375,6 +375,23 @@ const translationSchema = z.object({
     .max(300),
 });
 
+/**
+ * Turns a schema failure into the shortest thing that identifies it: which field, and for an
+ * array, which index. Field names and indices only — a message that quoted the offending cue
+ * would put transcript content into an error string that gets logged and shown.
+ */
+function requestProblems(error: z.ZodError): string {
+  const seen = new Set<string>();
+  for (const issue of error.issues) {
+    const where = issue.path.length ? issue.path.join('.') : '(整个请求)';
+    seen.add(`${where}（${issue.message}）`);
+    if (seen.size >= 3) break;
+  }
+  return seen.size
+    ? [...seen].join('；')
+    : '请检查字幕非空、时间范围有效，且单条字幕不超过 10000 字符。';
+}
+
 export async function runAi(
   input: AiRequest,
   settings: Settings,
@@ -385,9 +402,10 @@ export async function runAi(
 ): Promise<AiResult> {
   const parsed = aiRequestSchema.safeParse(input);
   if (!parsed.success)
-    throw new AiError(
-      '字幕或请求格式不正确。请检查字幕非空、时间范围有效，且单条字幕不超过 10000 字符。',
-    );
+    // Naming the offending field turns "check your subtitles" into something actionable: a
+    // 589-cue transcript has one bad entry somewhere and nobody can find it by reading.
+    // Paths only — never the subtitle text itself.
+    throw new AiError(`字幕或请求格式不正确：${requestProblems(parsed.error)}`);
   const request = parsed.data;
   if (request.task !== 'translate' && request.video.id !== request.transcript.videoId) {
     throw new AiError('字幕与当前视频不匹配，请重新加载字幕。');

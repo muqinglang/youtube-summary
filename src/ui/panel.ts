@@ -38,8 +38,20 @@ import { runJob, send } from './runtime';
 import { googleTranslateUrl, resolveTranslationEngine } from './google-translate';
 import { translateCuesCloud } from './cloud-translate';
 
-const TABS = ['transcript', 'chapters', 'guide', 'glossary', 'notes', 'summary', 'chat'] as const;
-type Tab = (typeof TABS)[number];
+const VIEWS = ['guide', 'transcript', 'chapters', 'glossary', 'notes', 'summary', 'chat'] as const;
+type Tab = (typeof VIEWS)[number];
+/**
+ * Only these sit in the tab bar. Seven tabs overflowed at 360px, and the two that left are the
+ * ones that hold what you produced rather than what the video is about, so they live in the
+ * footer next to 导出笔记.
+ */
+const TABS = [
+  'guide',
+  'transcript',
+  'chapters',
+  'summary',
+  'chat',
+] as const satisfies readonly Tab[];
 type DisplayMode = 'bilingual' | 'original' | 'translated';
 const params = new URLSearchParams(location.search);
 const workspace = params.has('workspace') && window.parent !== window;
@@ -399,6 +411,8 @@ function renderGlossary(): void {
   $('#glossary-empty').hidden = Boolean(terms.length);
   $('#glossary-refresh').hidden = !terms.length;
   $('#glossary-count').textContent = terms.length ? `${terms.length} 条` : '';
+  // The footer entry carries the count, because the view it opens is no longer visible in the bar.
+  $('#glossary-badge').textContent = terms.length ? String(terms.length) : '';
   list.replaceChildren(
     ...terms.map((entry) => {
       const card = document.createElement('div');
@@ -436,6 +450,7 @@ function renderClips(): void {
   list.hidden = !clips.length;
   $('#notes-empty').hidden = Boolean(clips.length);
   $('#notes-count').textContent = clips.length ? `${clips.length} 条` : '';
+  $('#notes-badge').textContent = clips.length ? String(clips.length) : '';
   $<HTMLButtonElement>('#notes-clear').hidden = !clips.length;
   list.replaceChildren(
     ...clips.map((clip) => {
@@ -496,7 +511,7 @@ async function persistClips(): Promise<void> {
 async function addClip(start: number, text: string, translation: string): Promise<void> {
   if (!state.video || !text.trim()) return;
   if (state.clips.some((clip) => clip.start === start && clip.text === text)) {
-    toast('这一条已经剪藏过了');
+    toast('这一条已经在笔记里了');
     return;
   }
   state.clips = [
@@ -512,13 +527,13 @@ async function addClip(start: number, text: string, translation: string): Promis
   ].sort((a, b) => a.start - b.start);
   renderClips();
   await persistClips();
-  toast('已剪藏');
+  toast('已存为笔记');
 }
 
 async function clipActiveCue(): Promise<void> {
   const cue = state.transcript?.cues[state.activeCue];
   if (!cue) {
-    notice('还没有正在播放的字幕可以剪藏。');
+    notice('还没有正在播放的字幕可以存。');
     return;
   }
   await addClip(cue.start, cue.text, state.translations[cue.id] ?? '');
@@ -541,14 +556,31 @@ async function generateGlossary(): Promise<void> {
   toast(`已整理 ${result.glossary.terms.length} 条术语`);
 }
 
-async function generateGuide(): Promise<void> {
+async function generateGuide({ quiet = false } = {}): Promise<void> {
   const context = aiContext();
-  const result = await run({ task: 'guide', ...context }, Boolean(state.guide));
+  const result = await run({ task: 'guide', ...context }, quiet ? false : Boolean(state.guide));
   if (result?.task !== 'guide') return;
   state.guide = result.guide;
   renderGuide();
+  // An automatic run must not yank the viewer out of whatever they were reading.
+  if (quiet) return;
   showTab('guide');
   toast(`已生成 ${result.guide.questions.length} 个引导问题`);
+}
+
+/**
+ * 引导提问 is the first thing in the tab bar, so it should be there when you arrive rather than
+ * behind a button. Silent on purpose: an unconfigured key must not pop the settings dialog just
+ * because a video was opened, and a cache hit costs nothing on a video seen before.
+ */
+async function autoGenerateGuide(version: number): Promise<void> {
+  if (state.guide || state.job || state.loading) return;
+  if (!aiReady(state.settings) || version !== state.loadVersion) return;
+  try {
+    await generateGuide({ quiet: true });
+  } catch {
+    // Nobody asked for this run, so nobody should be told it failed.
+  }
 }
 
 /** An explicit jump is honoured even into filler: the viewer asked to be there. */
@@ -660,10 +692,17 @@ function showTab(tab: Tab): void {
   state.tab = tab;
   document.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach((button) => {
     const selected = button.dataset.tab === tab;
+    // The footer entries are buttons, not tabs: aria-selected would be meaningless on them, and
+    // taking them out of the tab order would strand them.
+    if (button.classList.contains('footer-tab')) {
+      button.setAttribute('aria-pressed', String(selected));
+      button.classList.toggle('is-active', selected);
+      return;
+    }
     button.setAttribute('aria-selected', String(selected));
-    button.tabIndex = selected ? 0 : -1;
+    if (button.getAttribute('role') === 'tab') button.tabIndex = selected ? 0 : -1;
   });
-  for (const name of TABS) {
+  for (const name of VIEWS) {
     $(`#view-${name}`).hidden = name !== tab;
   }
   closeExport();
@@ -802,6 +841,7 @@ function installTranscript(transcript: Transcript): void {
   void primeTranslations(version).finally(() => {
     if (version === state.loadVersion) maybeTranslate();
   });
+  void autoGenerateGuide(version);
 }
 
 function setFollow(follow: boolean): void {
@@ -891,7 +931,7 @@ function offerExplain(): void {
   const clip = document.createElement('button');
   clip.className = 'explain-trigger';
   clip.dataset.clipSelection = 'true';
-  clip.textContent = '剪藏这段';
+  clip.textContent = '存为笔记';
   $('#explain-bubble').replaceChildren(trigger, clip);
   placeExplain(selection.getRangeAt(0).getBoundingClientRect());
 }
@@ -1699,7 +1739,7 @@ function clipsMarkdown(): string {
 async function exportNotes(format: string): Promise<void> {
   closeExport();
   if (format === 'clips') {
-    if (!state.clips.length) throw new Error('还没有剪藏任何内容。');
+    if (!state.clips.length) throw new Error('还没有任何笔记。');
     downloadFile(
       `${state.video?.title ?? '视频'} 笔记.md`,
       clipsMarkdown(),
@@ -2257,7 +2297,7 @@ function bindEvents(): void {
   document.querySelector('.tabs')?.addEventListener('keydown', (input) => {
     const event = input as KeyboardEvent;
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-    const current = TABS.indexOf(state.tab);
+    const current = TABS.indexOf(state.tab as (typeof TABS)[number]);
     const index =
       event.key === 'Home'
         ? 0
