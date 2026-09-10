@@ -61,7 +61,8 @@ const DEFAULT_EMBEDDING_MODEL = 'text-embedding-v3';
 const DEFAULT_EMBEDDING_DIMENSIONS = 1024;
 const DEFAULT_EMBEDDING_BATCH = 10;
 
-function loadEmbedding(env: NodeJS.ProcessEnv): EmbeddingConfig | undefined {
+/** Exported so a deployment can check its embedding provider without a full server config. */
+export function loadEmbedding(env: NodeJS.ProcessEnv): EmbeddingConfig | undefined {
   const apiKey = env.SIDENOTE_EMBEDDING_API_KEY?.trim();
   if (!apiKey) return undefined;
   const dimensions = number(

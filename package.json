@@ -16,6 +16,7 @@
     "server": "tsx --env-file-if-exists=server/.env server/index.ts",
     "server:dev": "tsx watch --env-file-if-exists=server/.env server/index.ts",
     "server:build": "tsx scripts/build-server.ts",
+    "check:embeddings": "tsx --env-file-if-exists=server/.env scripts/check-embeddings.ts",
     "server:start": "node --env-file-if-exists=server/.env dist-server/index.js"
   },
   "dependencies": {

@@ -79,6 +79,16 @@ Anthropic **没有 embedding 接口**，所以用 Claude 跑对话时必须另�
 | `SIDENOTE_EMBEDDING_DIMENSIONS` | `1024`                                              | 必须等于模型实际输出的维度       |
 | `SIDENOTE_EMBEDDING_BATCH`      | `10`                                                | 每次请求的文本条数，各家上限不同 |
 
+配好后先验一次，别等索引灌满了才发现不对：
+
+```bash
+npm run check:embeddings
+```
+
+它会用**接近真实长度**的片段做检索（一句话的语料比真实情况难得多，用它判断会误伤一个本来能用的模型），检查两件事：维度是否等于配置值，以及换一种说法、几乎不重合的用词能否检索到正确片段。
+
+百炼 `text-embedding-v3` @ 1024 维实测（2026-09-10，中英各一组）：正确命中 0.60–0.75，领先第二名 0.15–0.29；**完全无关的问题最高也有 0.34**。分离度是够的，但那个下限并不低 —— 这就是代码里不设绝对阈值的原因：`score > 0.3` 这种过滤器会把什么都放进来，而多少分算相关要按模型标定，换一家就得重来。
+
 维度会写进 `chunks.embedding` 的列类型。改了维度而表已存在，启动会**直接报错并指名要改的变量**，而不是等到每次插入都失败。换供应商需要 `DROP TABLE chunks` 重新索引。
 
 pgvector 是扩展，不少托管 Postgres 没装或不给应用角色 `CREATE EXTENSION`。装不上不会让服务起不来：`store.chunks` 为空，`/v1/library/search` 返回 501，`/v1/me` 里 `features.librarySearch` 为 `false`，扩展据此直接隐藏入口。
@@ -94,7 +104,7 @@ pgvector 是扩展，不少托管 Postgres 没装或不给应用角色 `CREATE E
 ## 运行
 
 ```bash
-cp server/.env.example server/.env   # 填好 Key，这个文件已在 .gitignore 里
+cp server/.env server/.env   # 填好 Key，这个文件已在 .gitignore 里
 npm run server                        # 或 npm run server:dev 热重载
 ```
 
