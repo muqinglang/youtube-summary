@@ -159,7 +159,7 @@ h1 {
   flex: 1;
   min-height: 160px;
   /* Trimmed: the picture is the point of this page, and every pixel here came out of it. */
-  padding: 10px 14px 6px;
+  padding: 8px 10px 6px;
   container-type: size;
 }
 .player-wrap {
@@ -167,7 +167,7 @@ h1 {
   /* 16/9 is 177.8cqh, so 176 leaves a hair of slack rather than the 8% the old 164 gave away.
      The width cap is what binds on a wide window; the old 1000px one left the picture smaller
      than the room it had. */
-  width: min(97cqw, 176cqh, 1600px);
+  width: min(100cqw, 176cqh, 1600px);
   aspect-ratio: 16 / 9;
   border-radius: 14px;
   overflow: hidden;
@@ -225,6 +225,11 @@ h1 {
   font-size: clamp(16px, 1.15vw, 22px);
   font-weight: 500;
   color: #f3f4f6;
+  /* One line, not two. Chinese renders the same sentence far shorter than the English above it,
+     so the second reserved line was empty almost always — and it sat exactly between the text
+     and the progress bar, which is where it read as wasted space. A translation that does wrap
+     scrolls in place rather than moving the video. */
+  height: calc(var(--caption-line) * 1em);
 }
 /* Which rows exist is a property of the display mode, never of whether text is present. Hiding
    an empty row was the larger half of the jumping: the block lost a whole line between cues and
@@ -250,7 +255,7 @@ h1 {
   width: 100%;
   /* Tall enough to grab; the visible bar is the track pseudo-element below. */
   height: 16px;
-  margin: 0 0 14px;
+  margin: 0 0 8px;
   padding: 0;
   border: 0;
   background: transparent;
