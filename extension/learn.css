@@ -158,12 +158,16 @@ h1 {
   justify-content: center;
   flex: 1;
   min-height: 160px;
-  padding: 24px 20px 10px;
+  /* Trimmed: the picture is the point of this page, and every pixel here came out of it. */
+  padding: 10px 14px 6px;
   container-type: size;
 }
 .player-wrap {
   position: relative;
-  width: min(86cqw, 164cqh, 1000px);
+  /* 16/9 is 177.8cqh, so 176 leaves a hair of slack rather than the 8% the old 164 gave away.
+     The width cap is what binds on a wide window; the old 1000px one left the picture smaller
+     than the room it had. */
+  width: min(97cqw, 176cqh, 1600px);
   aspect-ratio: 16 / 9;
   border-radius: 14px;
   overflow: hidden;
@@ -183,7 +187,7 @@ h1 {
    constant; an unusually long cue scrolls inside its own box rather than pushing the video. */
 .subtitles {
   flex: none;
-  padding: 16px 40px 22px;
+  padding: 10px 40px 14px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -229,12 +233,15 @@ h1 {
 .subtitles[data-mode='translated'] #original {
   display: none;
 }
-.subtitles[data-enabled='false'] {
+.subtitles[data-enabled='false'],
+/* `display: flex` above outranks the user-agent rule for [hidden], so hiding this block by
+   attribute silently did nothing and the CC button in the toolbar had no effect. */
+.subtitles[hidden] {
   display: none;
 }
 .playback {
   flex-shrink: 0;
-  padding: 12px 24px 18px;
+  padding: 10px 24px 12px;
 }
 #timeline {
   -webkit-appearance: none;
@@ -380,6 +387,23 @@ h1 {
   overflow: hidden;
   border-left: 1px solid var(--line);
 }
+/* The picture is bounded by height and width together: giving back only the caption strip, or
+   only the study column, moves the other cap into the way. Taking both is what makes a screen
+   share readable. */
+.focus-mode .workspace {
+  grid-template-columns: minmax(0, 1fr);
+}
+.focus-mode .study,
+/* Hidden by rule, not by preference, so the caption setting survives and comes back on exit.
+   Collapsing the column alone is measurably worth nothing — the caption strip still sets the
+   height cap, and the picture does not grow by a pixel until both are gone. */
+.focus-mode .subtitles {
+  display: none;
+}
+#focus-toggle[aria-pressed='true'] {
+  color: var(--gold);
+  background: #343020;
+}
 #study-panel {
   display: block;
   width: 100%;
@@ -454,12 +478,10 @@ h1 {
   }
   .player-wrap {
     width: 100%;
-    max-width: 700px;
+    max-width: 900px;
   }
   .subtitles {
-    min-height: 130px;
-    max-height: none;
-    padding: 20px 24px 24px;
+    padding: 14px 24px 16px;
   }
   .study {
     height: 720px;

@@ -230,6 +230,11 @@ async function initialize() {
   on('#settings', () => panelAction('settings'));
   on('#guide', () => panelAction('guide'));
   on('#captions-toggle', () => panelAction('captions', !(preferences?.overlayEnabled ?? true)));
+  on('#focus-toggle', () => {
+    const focused = document.body.classList.toggle('focus-mode');
+    $('#focus-toggle').setAttribute('aria-pressed', String(focused));
+    $('#focus-toggle').title = focused ? '恢复面板与字幕条' : '放大画面：暂时收起右侧面板与字幕条';
+  });
   on('#fullscreen', () =>
     document.fullscreenElement
       ? document.exitFullscreen()
