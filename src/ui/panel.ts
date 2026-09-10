@@ -2411,7 +2411,7 @@ function bindGuide(): void {
     ],
     [
       '把收获带走',
-      '用 AI 问答深入理解内容。导出笔记支持真实 XMind 和 Markdown 文件，PDF 在独立打印页中另存。关闭学习页面会取消进行中的 AI 任务。',
+      '用 AI 问答深入理解内容。导出笔记支持 PDF、XMind 和 Markdown 文件，都在本机生成。关闭学习页面会取消进行中的 AI 任务。',
     ],
   ];
   let index = 0;

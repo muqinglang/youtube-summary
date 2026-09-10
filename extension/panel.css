@@ -1479,6 +1479,16 @@ textarea {
 .app-footer .button {
   font-size: 11px;
 }
+/* Icon only, but still a bordered button rather than a bare glyph: this is the only way data
+   leaves the extension, so it has to stay findable. */
+.button.icon-only {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+}
+.button.icon-only svg {
+  display: block;
+}
 .export-wrap {
   position: relative;
 }

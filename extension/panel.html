@@ -395,10 +395,28 @@
         </button>
       </div>
       <div class="export-wrap">
-        <button class="button" id="export-open" disabled aria-expanded="false">导出笔记 ↓</button>
+        <button
+          class="button icon-only"
+          id="export-open"
+          disabled
+          aria-expanded="false"
+          title="导出笔记"
+          aria-label="导出笔记"
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <path
+              d="M12 3v11m0 0 4-4m-4 4-4-4M5 16v3.5A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
         <div id="export-menu" class="export-menu" hidden>
           <button data-export="pdf">
-            <b>PDF</b><span>排版文档<small>可搜索、可复制的中文 PDF</small></span></button
+            <b>PDF</b><span>PDF<small>可搜索、可复制的中文排版</small></span></button
           ><button data-export="xmind">
             <b>XM</b><span>XMind<small>可继续编辑的思维导图</small></span></button
           ><button data-export="markdown">
