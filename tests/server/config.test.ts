@@ -16,6 +16,13 @@ describe('server configuration', () => {
     expect(() => loadConfig({ ...BASE, SIDENOTE_SESSION_SECRET: 'too-short' })).toThrow(
       'SIDENOTE_SESSION_SECRET',
     );
+    // 33 characters, so the length check alone waves it through — and it is published here.
+    expect(() =>
+      loadConfig({ ...BASE, SIDENOTE_SESSION_SECRET: 'change-me-to-a-long-random-string' }),
+    ).toThrow('占位值');
+    expect(() =>
+      loadConfig({ ...BASE, SIDENOTE_SESSION_SECRET: '  CHANGE-ME-TO-A-LONG-RANDOM-STRING  ' }),
+    ).toThrow('占位值');
     expect(() => loadConfig({ ...BASE, SIDENOTE_PROVIDER: 'gemini' })).toThrow('SIDENOTE_PROVIDER');
     // A custom provider has no official endpoint to fall back on.
     expect(() => loadConfig({ ...BASE, SIDENOTE_PROVIDER: 'custom' })).toThrow('SIDENOTE_BASE_URL');

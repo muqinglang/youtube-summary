@@ -47,8 +47,16 @@ npm test   # 改完跑一次，确认没漏
 
 ```bash
 docker run -d --name sidenote-pg -e POSTGRES_PASSWORD=devpass -e POSTGRES_DB=sidenote \
-  -p 5433:5432 postgres:16-alpine
+  -p 5433:5432 pgvector/pgvector:pg16
 DATABASE_URL=postgres://postgres:devpass@127.0.0.1:5433/sidenote npm test
+```
+
+用 `pgvector/pgvector:pg16` 而不是 `postgres:16-alpine`：后者没有 pgvector，向量那组断言会**自动跳过**而不是失败，看起来一样绿。
+
+配了向量服务的话，同时验一次它本身：
+
+```bash
+npm run check:embeddings   # 检查维度是否匹配，以及语义检索是否真的能用
 ```
 
 再实跑一次镜像，确认交付物本身没问题：
@@ -76,11 +84,35 @@ fly secrets set \
   SIDENOTE_PROVIDER=deepseek \
   SIDENOTE_MODEL=deepseek-v4-flash \
   SIDENOTE_API_KEY=<你的 Key> \
+  SIDENOTE_EMBEDDING_API_KEY=<向量服务 Key，不需要跨视频检索就省略> \
   SIDENOTE_CORS_ORIGINS=chrome-extension://<扩展ID>
 
 fly deploy
 fly logs
 curl https://<你的域名>/ready
+```
+
+`fly deploy` 默认用 **Fly 的远程构建器**打镜像，不依赖你本机的 Docker 和网络。本机 `docker build` 失败（例如抓包工具在做 TLS 中间人，容器不信任那张根证书，`npm ci` 会报 `UNABLE_TO_VERIFY_LEAF_SIGNATURE`）**不影响 `fly deploy`**。
+
+三件容易在这一步翻车的事：
+
+- **`SIDENOTE_SESSION_SECRET` 必须是新随机串。** `.env.example` 里的占位值刚好 33 个字符，长度检查拦不住，而它是公开的 —— 用它上线等于任何人都能伪造任意账号的登录态。现在配置层会直接拒绝这个值，但别的弱口令它管不了。
+- **数据库要有 pgvector**，否则跨视频检索静默关闭（服务照常起，`/v1/me` 里 `features.librarySearch` 为 `false`）。连上去确认一次：
+
+  ```bash
+  fly postgres connect -a <数据库名>
+  CREATE EXTENSION IF NOT EXISTS vector;   -- 报错就说明这个实例装不了
+  ```
+
+- **向量服务的区域要对上机房。** 百炼有北京和新加坡两个端点，**Key 是按区域发的**，拿北京的 Key 打国际端点会 401。部署在境外又用北京端点，至少要接受跨境延迟。真出问题时 `/v1/library/search` 返回 502 并带上状态码，日志里也看得到。
+
+上线后确认这三件事：
+
+```bash
+curl https://<你的域名>/ready          # {"ready":true} —— 数据库通了
+# 注册一个账号拿到 token，然后：
+curl https://<你的域名>/v1/me -H "Authorization: Bearer <token>"
+# features.librarySearch 为 true 才说明 pgvector 和向量服务都就位
 ```
 
 自建 VPS 同理：`docker build` 后把这些作为环境变量注入即可。

@@ -55,6 +55,14 @@ function number(name: string, value: string | undefined, fallback: number): numb
 
 const PROVIDERS = new Set<AiProvider>(['openai', 'deepseek', 'anthropic', 'custom']);
 
+/**
+ * The value shipped in .env.example. It is 33 characters, so a length check waves it through,
+ * and it is published in this repository — deploying with it lets anyone who has read the repo
+ * forge a session token for any account. Copying the template and filling in only the keys you
+ * were thinking about is the normal way to end up here, so it is refused by name.
+ */
+const PLACEHOLDER_SECRETS = new Set(['change-me-to-a-long-random-string']);
+
 /** Alibaba Bailian, reachable from mainland China and OpenAI-compatible on this path. */
 const DEFAULT_EMBEDDING_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
 const DEFAULT_EMBEDDING_MODEL = 'text-embedding-v3';
@@ -102,6 +110,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   const secret = required('SIDENOTE_SESSION_SECRET', env.SIDENOTE_SESSION_SECRET);
   // A short secret is guessable, and a leaked session token is a full account takeover.
   if (secret.length < 32) throw new ConfigError('SIDENOTE_SESSION_SECRET 至少需要 32 个字符。');
+  if (PLACEHOLDER_SECRETS.has(secret.toLowerCase()))
+    throw new ConfigError(
+      'SIDENOTE_SESSION_SECRET 还是 .env.example 里的占位值，这个值是公开的。' +
+        '请换成随机串，例如 openssl rand -base64 48。',
+    );
   const embedding = loadEmbedding(env);
   return {
     port: number('PORT', env.PORT, 8787),
