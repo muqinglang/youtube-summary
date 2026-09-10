@@ -13,10 +13,10 @@
     "test:ads": "playwright test --config tests/content/playwright.config.ts",
     "check": "npm run typecheck && npm run lint && npm test && npm run build && npm run server:build",
     "format": "prettier --write src server tests scripts extension *.json *.md",
-    "server": "tsx server/index.ts",
-    "server:dev": "tsx watch server/index.ts",
+    "server": "tsx --env-file-if-exists=server/.env server/index.ts",
+    "server:dev": "tsx watch --env-file-if-exists=server/.env server/index.ts",
     "server:build": "tsx scripts/build-server.ts",
-    "server:start": "node dist-server/index.js"
+    "server:start": "node --env-file-if-exists=server/.env dist-server/index.js"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",

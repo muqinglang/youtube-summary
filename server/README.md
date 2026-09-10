@@ -94,9 +94,13 @@ pgvector 是扩展，不少托管 Postgres 没装或不给应用角色 `CREATE E
 ## 运行
 
 ```bash
-cp server/.env.example server/.env   # 填好后 export，或用你习惯的方式注入
+cp server/.env.example server/.env   # 填好 Key，这个文件已在 .gitignore 里
 npm run server                        # 或 npm run server:dev 热重载
 ```
+
+`server/.env` 由 Node 的 `--env-file-if-exists` 读取，**文件不存在也不会报错** —— 线上用平台的 secrets 注入环境变量，不需要这个文件。真实进程里已有的同名变量优先，`.env` 不会覆盖它。
+
+Key 只存在于这两个地方：本机的 `server/.env`，和线上平台的 secrets。它不进仓库、不进镜像、不下发给扩展。
 
 不设 `DATABASE_URL` 会使用内存存储，重启后账号和缓存全部丢失，仅适合本地调试。生产接 Postgres，表结构见 [schema.sql](store/schema.sql)，首次启动自动建表。
 
