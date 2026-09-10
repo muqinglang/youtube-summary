@@ -31,6 +31,19 @@ export function downloadFile(name: string, data: string | Uint8Array, mime: stri
   window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
 
+const GENERIC_FAILURE = '操作失败，请重试。';
+
+/**
+ * `instanceof Error` is per-realm. The panel runs in an iframe inside the learning page, and that
+ * page builds its errors in the parent realm, so every message crossing the bridge tested false
+ * here and collapsed into the generic text — a real cause like "原标签页已切换到其他视频" reached
+ * the user as "操作失败，请重试". Reading the message off the object survives the boundary, and
+ * covers DOMException (AbortError) too, which is not an Error subclass in every engine.
+ */
 export function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : '操作失败，请重试。';
+  const message =
+    typeof error === 'object' && error !== null && 'message' in error
+      ? (error as { message?: unknown }).message
+      : undefined;
+  return typeof message === 'string' && message.trim() ? message : GENERIC_FAILURE;
 }
