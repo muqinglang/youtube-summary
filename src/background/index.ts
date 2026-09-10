@@ -192,6 +192,20 @@ async function dispatch(
       const controller = new AbortController();
       return new HostedClient(settings.serverUrl, settings.sessionToken, {}).me(controller.signal);
     }
+    case 'library:search': {
+      const settings = await getPrivateSettings();
+      if (!settings.sessionToken) throw new AiError('跨视频搜索需要先登录托管服务。');
+      const query = typeof request.query === 'string' ? request.query.trim() : '';
+      if (!query) throw new AiError('请输入要搜索的内容。');
+      const limit = Math.min(Math.max(1, Math.trunc(request.limit ?? 8)), 20);
+      const controller = new AbortController();
+      // The session token stays in the worker; the panel only ever sees the passages.
+      return new HostedClient(settings.serverUrl, settings.sessionToken, {}).searchLibrary(
+        query,
+        limit,
+        controller.signal,
+      );
+    }
     case 'ai:run':
       return executeJob(request.jobId, request.request, sender, (progress) => {
         void chrome.runtime

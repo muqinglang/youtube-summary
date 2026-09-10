@@ -100,6 +100,21 @@ curl https://<你的域名>/ready
 | `SIDENOTE_LOG`             | 选填     | 设为 `off` 关闭日志                                      |
 | `PORT`                     | 选填     | 默认 8787                                                |
 
+跨视频知识库需要另一组变量，**全部选填**，不设就只是这一个功能关闭：
+
+| 变量                            | 说明                                                                   |
+| ------------------------------- | ---------------------------------------------------------------------- |
+| `SIDENOTE_EMBEDDING_API_KEY`    | 向量服务的 Key。不设则关闭该功能                                       |
+| `SIDENOTE_EMBEDDING_BASE_URL`   | 默认 `https://dashscope.aliyuncs.com/compatible-mode/v1`（阿里云百炼） |
+| `SIDENOTE_EMBEDDING_MODEL`      | 默认 `text-embedding-v3`                                               |
+| `SIDENOTE_EMBEDDING_DIMENSIONS` | 默认 `1024`，必须等于模型实际输出的维度                                |
+| `SIDENOTE_EMBEDDING_BATCH`      | 默认 `10`                                                              |
+
+两件容易踩的事：
+
+- **Anthropic 没有 embedding 接口。** 对话用 Claude 时，这组变量必须指向另一家。
+- **数据库要有 pgvector。** Fly 官方 Postgres、Supabase、Neon、RDS 都可以；装不上时服务照常启动，只是 `/v1/library/search` 返回 501、扩展里那个入口自动隐藏。维度改动会在启动时直接报错并指名要改的变量，换供应商需要 `DROP TABLE chunks` 重新索引。
+
 ### 6. ⚠️ 目前只能单实例
 
 任务状态与登录限流都在**进程内存**里。开第二个实例会出现：

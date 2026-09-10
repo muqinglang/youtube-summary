@@ -136,6 +136,19 @@ export interface Answer {
 
 export type AiProvider = 'openai' | 'deepseek' | 'anthropic' | 'custom';
 
+/** One retrieved passage from another video in the account's library. */
+export interface LibraryMatch {
+  videoId: string;
+  title: string;
+  author: string;
+  url: string;
+  start: number;
+  end: number;
+  text: string;
+  /** Cosine similarity; comparable within one result list, not across embedding models. */
+  score: number;
+}
+
 /** Where jobs run: `byok` calls the provider from this browser, `hosted` calls our server. */
 export type RunMode = 'byok' | 'hosted';
 
@@ -227,6 +240,7 @@ export type RuntimeRequest =
   | { type: 'account:signIn'; email: string; password: string; create: boolean }
   | { type: 'account:signOut' }
   | { type: 'account:status' }
+  | { type: 'library:search'; query: string; limit?: number }
   | { type: 'ai:run'; jobId: string; request: AiRequest }
   | { type: 'ai:cancel'; jobId: string }
   | { type: 'video:get'; tabId: number }

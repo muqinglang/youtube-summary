@@ -54,7 +54,7 @@ describe('shared video cache', () => {
   it('misses when anything that changes the answer changes', async () => {
     // A generous allowance: a job blocked by the quota also reports `cached: false`, which would
     // let these assertions pass without the cache ever being consulted.
-    const { app, client } = createHarness({ dailyJobLimit: 50 });
+    const { app, client } = createHarness({ config: { dailyJobLimit: 50 } });
     const token = await register(app, 'reader@example.com');
     const fresh = async (body: unknown) => {
       const outcome = await runJob(app, token, body);
@@ -94,7 +94,7 @@ describe('shared video cache', () => {
 
 describe('hosted quota', () => {
   it('counts only work that actually ran, and points at BYOK when exhausted', async () => {
-    const { app, client } = createHarness({ dailyJobLimit: 2 });
+    const { app, client } = createHarness({ config: { dailyJobLimit: 2 } });
     const token = await register(app, 'reader@example.com');
 
     await runJob(app, token, request('outline'));

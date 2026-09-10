@@ -3,6 +3,7 @@ import { buildMarkdown, buildXMind } from '../core/exports';
 import { findCueIndex, formatTime, parseTranscript } from '../core/transcript';
 import { getOriginPattern } from '../shared/endpoint';
 import { getProvider, PROVIDERS } from '../shared/providers';
+import { watchUrl } from '../shared/youtube';
 import type {
   AiRequest,
   AiProvider,
@@ -28,6 +29,7 @@ import type {
   Transcript,
   VideoChapter,
   VideoInfo,
+  LibraryMatch,
 } from '../shared/types';
 import { cacheKey, clearCache, readCache, writeCache } from './cache';
 import { readClips, writeClips } from './notes';
@@ -73,6 +75,10 @@ const state: {
   loadVersion: number;
   loading: boolean;
   skipFiller: boolean;
+  /** Whether the signed-in server offers cross-video retrieval at all. */
+  librarySearch: boolean;
+  askScope: 'video' | 'library';
+  searching: boolean;
   job?: AbortController;
   jobTask?: AiRequest['task'];
 } = {
@@ -87,6 +93,9 @@ const state: {
   loadVersion: 0,
   loading: false,
   skipFiller: false,
+  librarySearch: false,
+  askScope: 'video',
+  searching: false,
   clips: [],
 };
 let toastTimer = 0;
@@ -1065,8 +1074,15 @@ function updateActions(): void {
     state.loading ||
     Boolean(state.job) ||
     savingTranslationEngine;
-  for (const selector of ['#translate-btn', '#summarize-btn', '#ask-btn'])
+  for (const selector of ['#translate-btn', '#summarize-btn'])
     $<HTMLButtonElement>(selector).disabled = unavailable;
+  // Searching the library reads no transcript from this tab, so it stays available on a video
+  // whose subtitles never loaded.
+  $<HTMLButtonElement>('#ask-btn').disabled =
+    state.askScope === 'library' ? state.searching || Boolean(state.job) : unavailable;
+  document
+    .querySelectorAll<HTMLButtonElement>('.scope-chip')
+    .forEach((chip) => (chip.disabled = state.searching || Boolean(state.job)));
   const translateButton = $<HTMLButtonElement>('#translate-btn');
   const engine = resolveTranslationEngine(state.settings || { hasApiKey: false, model: '' });
   translateButton.textContent = translator ? '翻译中…' : '翻译全部';
@@ -1546,6 +1562,100 @@ async function setEngine(engine: 'google' | 'ai'): Promise<void> {
   }
 }
 
+/**
+ * Only offered when the server says it has an embedding provider. Hiding it beats showing a
+ * control that answers with a configuration error.
+ */
+async function refreshLibrarySearch(): Promise<void> {
+  const settings = state.settings;
+  const eligible = settings?.mode === 'hosted' && settings.hasSession;
+  state.librarySearch = false;
+  if (eligible) {
+    try {
+      const status = await send<{ features?: { librarySearch?: boolean } }>({
+        type: 'account:status',
+      });
+      state.librarySearch = Boolean(status.features?.librarySearch);
+    } catch {
+      // Offline, or an older server with no feature list: the surface stays hidden either way.
+      state.librarySearch = false;
+    }
+  }
+  if (!state.librarySearch) state.askScope = 'video';
+  renderAskScope();
+}
+
+function renderAskScope(): void {
+  $('#ask-scope').hidden = !state.librarySearch;
+  document.querySelectorAll<HTMLButtonElement>('.scope-chip').forEach((chip) => {
+    chip.setAttribute('aria-pressed', String(chip.dataset.scope === state.askScope));
+  });
+  $<HTMLTextAreaElement>('#question').placeholder =
+    state.askScope === 'library' ? '在你看过的所有视频里搜索…' : '关于这段视频，你想了解什么？';
+}
+
+async function searchLibrary(query: string): Promise<void> {
+  query = query.trim();
+  if (!query || state.searching || state.job) return;
+  state.searching = true;
+  updateActions();
+  try {
+    const matches = await send<LibraryMatch[]>({ type: 'library:search', query });
+    document.querySelector('.chat-welcome')?.remove();
+    appendLibraryResults(query, matches);
+    $<HTMLTextAreaElement>('#question').value = '';
+  } finally {
+    state.searching = false;
+    updateActions();
+  }
+}
+
+function appendLibraryResults(query: string, matches: LibraryMatch[]): void {
+  const item = document.createElement('section');
+  const asked = document.createElement('div');
+  asked.className = 'user-message';
+  asked.textContent = query;
+  const answer = document.createElement('div');
+  answer.className = 'answer';
+  const label = document.createElement('span');
+  label.className = 'answer-label';
+  label.textContent = '资料库检索';
+  answer.append(label);
+  if (!matches.length) {
+    const empty = document.createElement('p');
+    empty.textContent = '资料库里没有相关内容。只有用托管模式处理过的视频会被收录。';
+    answer.append(empty);
+  }
+  for (const match of matches) {
+    const url = watchUrl(match.videoId, match.start);
+    const current = match.videoId === state.video?.id;
+    const card = document.createElement(current || !url ? 'button' : 'a');
+    card.className = 'library-result';
+    if (card instanceof HTMLAnchorElement && url) {
+      card.href = url;
+      card.target = '_blank';
+      card.rel = 'noopener noreferrer';
+    } else if (card instanceof HTMLButtonElement) {
+      card.type = 'button';
+      // Same video: jump in place rather than opening a second copy of it.
+      if (current) card.addEventListener('click', () => void seek(match.start));
+      else card.disabled = true;
+    }
+    const title = document.createElement('h4');
+    title.textContent = current ? '本视频' : match.title || '未命名视频';
+    const text = document.createElement('p');
+    text.textContent = match.text;
+    const where = document.createElement('span');
+    where.className = 'library-where';
+    where.textContent = [match.author, `${formatTime(match.start)} ↗`].filter(Boolean).join(' · ');
+    card.append(title, text, where);
+    answer.append(card);
+  }
+  item.append(asked, answer);
+  $('#messages').append(item);
+  $('#messages').scrollTo({ top: $('#messages').scrollHeight, behavior: 'smooth' });
+}
+
 async function ask(question: string): Promise<void> {
   question = question.trim();
   if (!question || state.job) return;
@@ -1691,6 +1801,7 @@ async function switchMode(mode: RunMode): Promise<void> {
   state.settings = await send<PublicSettings>({ type: 'settings:save', settings: { mode } });
   renderSettingsMode(mode);
   updateActions();
+  void refreshLibrarySearch();
 }
 
 async function signIn(create: boolean): Promise<void> {
@@ -1708,6 +1819,7 @@ async function signIn(create: boolean): Promise<void> {
     $<HTMLInputElement>('#account-password').value = '';
     renderSettingsMode('hosted');
     updateActions();
+    void refreshLibrarySearch();
     toast(create ? '注册成功，已登录' : '登录成功');
   } catch (error) {
     $('#settings-error').hidden = false;
@@ -2044,9 +2156,9 @@ function bindEvents(): void {
   });
   $('#question-form').addEventListener('submit', (event) => {
     event.preventDefault();
-    void ask($<HTMLTextAreaElement>('#question').value).catch((error: unknown) =>
-      notice(errorMessage(error), true),
-    );
+    const text = $<HTMLTextAreaElement>('#question').value;
+    const submit = state.askScope === 'library' ? searchLibrary(text) : ask(text);
+    void submit.catch((error: unknown) => notice(errorMessage(error), true));
   });
   $('#question').addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
@@ -2059,6 +2171,15 @@ function bindEvents(): void {
     event.preventDefault();
     void saveSettings();
   });
+  document.querySelectorAll<HTMLButtonElement>('.scope-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const scope = chip.dataset.scope === 'library' ? 'library' : 'video';
+      if (scope === state.askScope) return;
+      state.askScope = scope;
+      renderAskScope();
+      updateActions();
+    });
+  });
   on('#mode-byok', 'click', () => switchMode('byok'));
   on('#mode-hosted', 'click', () => switchMode('hosted'));
   on('#account-login', 'click', () => signIn(false));
@@ -2067,6 +2188,7 @@ function bindEvents(): void {
     state.settings = await send<PublicSettings>({ type: 'account:signOut' });
     renderSettingsMode('hosted');
     updateActions();
+    void refreshLibrarySearch();
     toast('已退出登录');
   });
   on('#account-refresh', 'click', async () => {
@@ -2239,6 +2361,9 @@ async function initialize(): Promise<void> {
     language.add(new Option(state.settings.targetLanguage, state.settings.targetLanguage));
   language.value = state.settings.targetLanguage;
   publishPreferences();
+  // Deliberately not awaited: it is one request to the hosted server, and the panel must paint
+  // whether or not that server answers.
+  void refreshLibrarySearch();
   if (params.has('settings') || !Number.isInteger(tabId) || tabId < 0) {
     $('#video-title').textContent = '打开 YouTube 视频，开始学习';
     $('#transcript-list').innerHTML =

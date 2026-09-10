@@ -1,6 +1,8 @@
 import type { z } from 'zod';
 import { createApp } from '../../server/app';
+import type { Embedder } from '../../server/ai/embeddings';
 import { createGateway } from '../../server/ai/gateway';
+import { createLibraryService, type LibraryService } from '../../server/ai/library';
 import type { ServerConfig } from '../../server/config';
 import { createMemoryStore } from '../../server/store/memory';
 import type { Store } from '../../server/store/types';
@@ -69,6 +71,38 @@ export const VIDEO = {
   tracks: [],
 };
 
+export interface StubEmbedder extends Embedder {
+  /** Provider round trips. Skipping an already-indexed video must leave these untouched. */
+  calls: { batches: number; texts: number };
+}
+
+/**
+ * Hashed bag of words. Not a real embedding — it knows nothing about meaning — but it does put
+ * passages that share vocabulary near each other, so a retrieval test asserts that the pipeline
+ * ranks, rather than asserting that a fixture came back.
+ */
+export function lexicalEmbedder(dimensions = 512): StubEmbedder {
+  const calls = { batches: 0, texts: 0 };
+  return {
+    calls,
+    model: 'stub-lexical',
+    dimensions,
+    embed: async (texts) => {
+      calls.batches += 1;
+      calls.texts += texts.length;
+      return texts.map((text) => {
+        const vector = new Array<number>(dimensions).fill(0);
+        for (const token of text.toLowerCase().match(/[a-z0-9]+|[一-鿿]/gu) ?? []) {
+          let bucket = 0;
+          for (const char of token) bucket = (bucket * 31 + char.codePointAt(0)!) % dimensions;
+          vector[bucket]! += 1;
+        }
+        return vector;
+      });
+    },
+  };
+}
+
 export interface CountingClient extends JsonClient {
   /** Provider calls actually made. A cache hit must leave this untouched. */
   calls: { digest: number; final: number };
@@ -105,16 +139,32 @@ export function countingClient(): CountingClient {
   return client;
 }
 
-export function createHarness(overrides: Partial<ServerConfig> = {}) {
+export interface HarnessOptions {
+  config?: Partial<ServerConfig>;
+  /** False builds the app without a library service, the shape of a deployment with no key. */
+  librarySearch?: boolean;
+}
+
+export function createHarness({
+  config: overrides = {},
+  librarySearch = true,
+}: HarnessOptions = {}) {
   const store: Store = createMemoryStore();
   const client = countingClient();
+  const embedder = lexicalEmbedder();
   const config = { ...CONFIG, ...overrides };
+  const library: LibraryService | undefined = librarySearch
+    ? createLibraryService(store, embedder, (error) => {
+        throw error;
+      })
+    : undefined;
   const app = createApp({
     config,
     store,
     gateway: createGateway(store, SETTINGS, client),
+    ...(library ? { library } : {}),
   });
-  return { app, store, client, config };
+  return { app, store, client, config, embedder, library };
 }
 
 export async function register(

@@ -3,7 +3,14 @@ import { z } from 'zod';
 import { aiRequestSchema } from '../src/background/validation';
 import { DEFAULT_HOSTED_URL } from '../src/shared/hosted';
 import type { AiRequest, Settings } from '../src/shared/types';
+import { createEmbedder, EmbeddingError } from './ai/embeddings';
 import { createGateway, type Gateway } from './ai/gateway';
+import {
+  createLibraryService,
+  LibraryError,
+  MAX_SEARCH_RESULTS,
+  type LibraryService,
+} from './ai/library';
 import { hashPassword, verifyPassword } from './auth/passwords';
 import { issueToken, readToken } from './auth/tokens';
 import type { ServerConfig } from './config';
@@ -23,6 +30,11 @@ const credentials = z.object({
   password: z.string().min(10).max(200),
 });
 const jobBody = z.object({ request: aiRequestSchema });
+const searchBody = z.object({
+  query: z.string().trim().min(1).max(500),
+  limit: z.number().int().min(1).max(MAX_SEARCH_RESULTS).optional(),
+});
+const DEFAULT_SEARCH_RESULTS = 8;
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -33,9 +45,12 @@ export interface AppOptions {
   store: Store;
   /** Overridden in tests so no real provider is called. */
   gateway?: Gateway;
+  /** Overridden in tests to supply a deterministic embedder; absent disables cross-video search. */
+  library?: LibraryService;
 }
 
-export function createApp({ config, store, gateway }: AppOptions): FastifyInstance {
+export function createApp(options: AppOptions): FastifyInstance {
+  const { config, store, gateway } = options;
   const app = Fastify({ bodyLimit: BODY_LIMIT, logger: config.logging });
   const settings: Settings = {
     // The server is the host; it never runs in hosted mode itself.
@@ -55,6 +70,13 @@ export function createApp({ config, store, gateway }: AppOptions): FastifyInstan
     temperature: 0.3,
   };
   const ai = gateway ?? createGateway(store, settings);
+  const library =
+    options.library ??
+    (config.embedding
+      ? createLibraryService(store, createEmbedder(config.embedding), (error) =>
+          app.log.warn({ error }, '跨视频索引失败'),
+        )
+      : undefined);
   const queue = new JobQueue(ai);
   const loginAttempts = new Map<string, { count: number; until: number }>();
 
@@ -161,6 +183,8 @@ export function createApp({ config, store, gateway }: AppOptions): FastifyInstan
       user: { id: user!.id, email: user!.email },
       usage: { jobsToday: used, dailyJobLimit: config.dailyJobLimit },
       library: await store.library.list(userId),
+      // The extension hides the cross-video surface rather than offering a button that 501s.
+      features: { librarySearch: Boolean(library) },
     });
   });
 
@@ -188,6 +212,8 @@ export function createApp({ config, store, gateway }: AppOptions): FastifyInstan
       coverage: aiRequest.transcript.coverage,
       cues: aiRequest.transcript.cues,
     });
+    if (aiRequest.task !== 'translate')
+      library?.schedule(aiRequest.video.id, aiRequest.transcript.cues);
 
     // A cached artifact costs nothing, so it is served before the quota is even consulted, and
     // without entering the queue: this is the common path once anyone has processed the video.
@@ -206,6 +232,44 @@ export function createApp({ config, store, gateway }: AppOptions): FastifyInstan
       return reply.code(202).send({ cached: false, jobId: job.id });
     } catch (error) {
       return reply.code(429).send({ error: error instanceof Error ? error.message : '任务过多。' });
+    }
+  });
+
+  app.post('/v1/library/search', async (request, reply) => {
+    const userId = await requireUser(request, reply);
+    if (!userId) return undefined;
+    if (!library) return reply.code(501).send({ error: '该服务端未开启跨视频知识库。' });
+    const parsed = searchBody.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: '搜索内容不能为空。' });
+    // Only what this account has actually watched. The artifact cache is shared; a library is not.
+    const videoIds = await store.library.list(userId);
+    try {
+      const matches = await library.search(
+        videoIds,
+        parsed.data.query,
+        parsed.data.limit ?? DEFAULT_SEARCH_RESULTS,
+      );
+      const videos = new Map(
+        await Promise.all(
+          [...new Set(matches.map((match) => match.videoId))].map(
+            async (id) => [id, await store.videos.get(id)] as const,
+          ),
+        ),
+      );
+      return reply.send({
+        matches: matches.map((match) => ({
+          ...match,
+          title: videos.get(match.videoId)?.title ?? '',
+          author: videos.get(match.videoId)?.author ?? '',
+          url: videos.get(match.videoId)?.url ?? '',
+        })),
+      });
+    } catch (error) {
+      if (error instanceof LibraryError) return reply.code(400).send({ error: error.message });
+      // An embedding failure is the provider's, not the caller's; its message is already
+      // sanitised to a status code, so it is safe to pass through.
+      if (error instanceof EmbeddingError) return reply.code(502).send({ error: error.message });
+      throw error;
     }
   });
 

@@ -1,6 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import type { Digest } from '../../src/background/validation';
-import type { ArtifactRecord, Store, TranscriptRecord, UserRecord, VideoRecord } from './types';
+import { cosineSimilarity } from '../ai/embeddings';
+import type {
+  ArtifactRecord,
+  ChunkMatch,
+  ChunkRecord,
+  Store,
+  TranscriptRecord,
+  UserRecord,
+  VideoRecord,
+} from './types';
 
 /** Backs tests and local development so the whole service runs without a database. */
 export function createMemoryStore(): Store {
@@ -12,6 +21,7 @@ export function createMemoryStore(): Store {
   const digests = new Map<string, Digest>();
   const jobs = new Map<string, number>();
   const library = new Map<string, Set<string>>();
+  const chunks = new Map<string, { source: string; rows: ChunkRecord[] }>();
 
   return {
     users: {
@@ -74,6 +84,30 @@ export function createMemoryStore(): Store {
         library.set(userId, owned);
       },
       list: async (userId) => [...(library.get(userId) ?? [])],
+    },
+    chunks: {
+      has: async (videoId, source) => chunks.get(videoId)?.source === source,
+      put: async (videoId, source, rows) => {
+        chunks.set(videoId, { source, rows });
+      },
+      search: async (videoIds, embedding, limit) => {
+        const wanted = new Set(videoIds);
+        const matches: ChunkMatch[] = [];
+        for (const [videoId, entry] of chunks) {
+          if (!wanted.has(videoId)) continue;
+          for (const row of entry.rows)
+            matches.push({
+              videoId,
+              start: row.start,
+              end: row.end,
+              text: row.text,
+              score: cosineSimilarity(embedding, row.embedding),
+            });
+        }
+        // Exhaustive rather than indexed: correct by construction, and the volumes this store
+        // ever holds are a test fixture or one developer's local library.
+        return matches.sort((a, b) => b.score - a.score).slice(0, limit);
+      },
     },
     ping: async () => undefined,
     close: async () => undefined,

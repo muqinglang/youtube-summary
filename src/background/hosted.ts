@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { isAllowedHostedUrl } from '../shared/hosted';
-import type { AiRequest, AiResult, JobProgress } from '../shared/types';
+import type { AiRequest, AiResult, JobProgress, LibraryMatch } from '../shared/types';
 import { AiError, assertNotAborted } from './client';
 import type { ProgressCallback } from './ai-service';
 
@@ -17,6 +17,24 @@ const meSchema = z.object({
   user: z.object({ id: z.string().max(200), email: z.string().max(320) }),
   usage: z.object({ jobsToday: z.number(), dailyJobLimit: z.number() }),
   library: z.array(z.string().max(200)).max(5000).optional(),
+  // Absent on an older server, which is treated the same as off.
+  features: z.object({ librarySearch: z.boolean() }).partial().optional(),
+});
+const searchSchema = z.object({
+  matches: z
+    .array(
+      z.object({
+        videoId: z.string().max(200),
+        title: z.string().max(500),
+        author: z.string().max(200),
+        url: z.string().max(2000),
+        start: z.number(),
+        end: z.number(),
+        text: z.string().max(8000),
+        score: z.number(),
+      }),
+    )
+    .max(50),
 });
 const progressSchema = z.object({
   completed: z.number(),
@@ -136,6 +154,17 @@ export class HostedClient {
 
   me(signal: AbortSignal): Promise<AccountStatus> {
     return this.request('/v1/me', meSchema, { method: 'GET', signal, auth: true });
+  }
+
+  /** Retrieval over the videos this account has watched. One embedding call, no queue. */
+  async searchLibrary(query: string, limit: number, signal: AbortSignal): Promise<LibraryMatch[]> {
+    const found = await this.request('/v1/library/search', searchSchema, {
+      method: 'POST',
+      body: { query, limit },
+      signal,
+      auth: true,
+    });
+    return found.matches;
   }
 
   /**

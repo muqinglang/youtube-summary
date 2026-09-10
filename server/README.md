@@ -49,13 +49,39 @@ summarize  → digest 8, final 3   ← 带用户 Prompt，证据确实不同，�
 | ------ | --------------------- | ----------------------------------------------------------------------------------------- |
 | `POST` | `/v1/auth/register`   | `{email, password}` → `{token, user}`，密码至少 10 位                                     |
 | `POST` | `/v1/auth/login`      | 同上。邮箱不存在和密码错误返回**完全相同**的响应                                          |
-| `GET`  | `/v1/me`              | 账号、今日用量、视频库                                                                    |
+| `GET`  | `/v1/me`              | 账号、今日用量、视频库、`features.librarySearch`                                          |
+| `POST` | `/v1/library/search`  | `{query, limit?}` → 跨视频检索命中片段；未配置向量服务时 `501`                            |
 | `POST` | `/v1/jobs`            | `{request}`（一个 `AiRequest`）。命中缓存 `200 {cached:true, result}`；否则 `202 {jobId}` |
 | `GET`  | `/v1/jobs/:id`        | 轮询任务状态                                                                              |
 | `GET`  | `/v1/jobs/:id/events` | SSE 进度流                                                                                |
 | `POST` | `/v1/jobs/:id/cancel` | 取消                                                                                      |
 
 命中缓存的请求**不入队、不计额度** —— 它本来就没花钱。
+
+## 跨视频知识库
+
+托管模式处理过的视频会被切成重叠片段并向量化，之后可以在**自己看过的所有视频**里按语义检索。
+
+- 切片规则见 [chunking.ts](ai/chunking.ts)。中文按字计 token、英文按四字符计一个 —— 不做这个区分，中文片段会大出四倍
+- 检索只在调用者 `library` 里的视频上做。产物缓存是全站共享的，**视频库不是**
+- 同一个视频最多返回 2 条，否则一个视频会占满整页结果
+- 不设相关度阈值：多少分算「相关」要按具体 embedding 模型标定，没有真实数据量之前给不出可信的数，所以原样返回分数
+
+### 配置向量服务
+
+Anthropic **没有 embedding 接口**，所以用 Claude 跑对话时必须另配一家。默认指向阿里云百炼（大陆可直连，OpenAI 兼容）：
+
+| 变量                            | 默认值                                              | 说明                             |
+| ------------------------------- | --------------------------------------------------- | -------------------------------- |
+| `SIDENOTE_EMBEDDING_API_KEY`    | 无                                                  | **不设就整个功能关闭**，其余照常 |
+| `SIDENOTE_EMBEDDING_BASE_URL`   | `https://dashscope.aliyuncs.com/compatible-mode/v1` | OpenAI 兼容的 `/embeddings` 路径 |
+| `SIDENOTE_EMBEDDING_MODEL`      | `text-embedding-v3`                                 |                                  |
+| `SIDENOTE_EMBEDDING_DIMENSIONS` | `1024`                                              | 必须等于模型实际输出的维度       |
+| `SIDENOTE_EMBEDDING_BATCH`      | `10`                                                | 每次请求的文本条数，各家上限不同 |
+
+维度会写进 `chunks.embedding` 的列类型。改了维度而表已存在，启动会**直接报错并指名要改的变量**，而不是等到每次插入都失败。换供应商需要 `DROP TABLE chunks` 重新索引。
+
+pgvector 是扩展，不少托管 Postgres 没装或不给应用角色 `CREATE EXTENSION`。装不上不会让服务起不来：`store.chunks` 为空，`/v1/library/search` 返回 501，`/v1/me` 里 `features.librarySearch` 为 `false`，扩展据此直接隐藏入口。
 
 ## 安全
 
@@ -87,11 +113,13 @@ npm run server                        # 或 npm run server:dev 热重载
 单元测试默认用内存存储，所以 **Postgres 实现只有一处覆盖**，部署前请跑一次：
 
 ```bash
-docker run -d --name sidenote-pg -e POSTGRES_PASSWORD=devpass -e POSTGRES_DB=sidenote   -p 5433:5432 postgres:16-alpine
+docker run -d --name sidenote-pg -e POSTGRES_PASSWORD=devpass -e POSTGRES_DB=sidenote   -p 5433:5432 pgvector/pgvector:pg16
 DATABASE_URL=postgres://postgres:devpass@127.0.0.1:5433/sidenote npm test
 ```
 
 没设 `DATABASE_URL` 时这组测试自动跳过，不影响其他机器。
+
+用 `pgvector/pgvector:pg16` 而不是 `postgres:16-alpine`：后者没有 pgvector，向量那组断言会**自动跳过**而不是失败，看起来一样绿。
 
 镜像本身也建议实跑一次再部署：
 
@@ -108,6 +136,5 @@ Postgres 的 `jsonb` 会把对象键名排序存储，所以产物读回来时**
 ## 还没做
 
 - 计费与订阅（现在只有每日任务数上限，超出后引导用户改用自己的 Key）
-- pgvector 跨视频知识库（表结构已按这个方向设计）
 - 队列跨进程（当前是进程内队列，多实例部署需要换成 Redis）
 - OAuth 登录

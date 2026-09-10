@@ -34,6 +34,34 @@ export interface ArtifactRecord {
   createdAt: string;
 }
 
+export interface ChunkRecord {
+  index: number;
+  start: number;
+  end: number;
+  text: string;
+  embedding: number[];
+}
+
+export interface ChunkMatch {
+  videoId: string;
+  start: number;
+  end: number;
+  text: string;
+  /** Cosine similarity in [-1, 1]; higher is closer. */
+  score: number;
+}
+
+/**
+ * Vectors for cross-video retrieval. `source` fingerprints the transcript, the embedding model
+ * and its dimensions together, so changing any of them re-indexes instead of mixing vector spaces
+ * that cannot be compared.
+ */
+export interface ChunkStore {
+  has(videoId: string, source: string): Promise<boolean>;
+  put(videoId: string, source: string, chunks: ChunkRecord[]): Promise<void>;
+  search(videoIds: string[], embedding: number[], limit: number): Promise<ChunkMatch[]>;
+}
+
 /**
  * Two tiers on purpose. Everything derived from a video is keyed by the video and shared by every
  * account, which is what makes a second viewer of the same video nearly free. Only what belongs to
@@ -68,6 +96,11 @@ export interface Store {
     add(userId: string, videoId: string): Promise<void>;
     list(userId: string): Promise<string[]>;
   };
+  /**
+   * Absent when the deployment has no vector support, which is a normal configuration rather than
+   * an error: the caller reports the feature as unavailable instead of failing a request.
+   */
+  chunks?: ChunkStore;
   /** Proves the backing store is reachable; a readiness probe must not pass without it. */
   ping(): Promise<void>;
   close(): Promise<void>;

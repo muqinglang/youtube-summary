@@ -8,9 +8,13 @@ const config = loadConfig();
 // Without DATABASE_URL everything runs in memory, which is enough to exercise the API locally
 // but loses every account and every cached artifact on restart.
 const store: Store = config.databaseUrl
-  ? await createPostgresStore(config.databaseUrl)
+  ? await createPostgresStore(config.databaseUrl, {
+      // Only asks for the vector table when an embedding provider is actually configured.
+      ...(config.embedding ? { embeddingDimensions: config.embedding.dimensions } : {}),
+    })
   : createMemoryStore();
 if (!config.databaseUrl) console.warn('DATABASE_URL 未设置：使用内存存储，重启后数据全部丢失。');
+if (!config.embedding) console.warn('SIDENOTE_EMBEDDING_API_KEY 未设置：跨视频知识库已关闭。');
 
 const app = createApp({ config, store });
 await app.listen({ port: config.port, host: '0.0.0.0' });
