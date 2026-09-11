@@ -15,7 +15,12 @@ primary_region = "sin"
   force_https = true
   auto_stop_machines = "suspend"
   auto_start_machines = true
-  min_machines_running = 1
+  # Zero, not one. `max_machines_running` governs autostart and does not stop a deploy from
+  # creating a second machine for high availability — which it did, and two machines answer job
+  # polls they know nothing about. flyctl only skips the HA machine when this is 0.
+  # Suspend keeps the VM's memory, and a cold start costs about a second against AI calls that
+  # take minutes, so nothing here depends on a machine staying warm.
+  min_machines_running = 0
   max_machines_running = 1
 
   [[http_service.checks]]

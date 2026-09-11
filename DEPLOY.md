@@ -123,8 +123,9 @@ curl https://<你的域名>/ready
 
 三件容易在这一步翻车的事：
 
+- **别让 Fly 建第二台机器。** 这个服务只能单实例。`max_machines_running = 1` 管的是自动启停，**拦不住部署时为高可用多建一台** —— 实测确实建了两台。只有 `min_machines_running = 0` 才会让 flyctl 跳过那台 HA 机器（仓库里的 `fly.toml` 已改）。已经建出来了就 `fly scale count 1 --app <应用名>` 销毁多余的。
 - **`SIDENOTE_SESSION_SECRET` 必须是新随机串。** `.env.example` 里的占位值刚好 33 个字符，长度检查拦不住，而它是公开的 —— 用它上线等于任何人都能伪造任意账号的登录态。现在配置层会直接拒绝这个值，但别的弱口令它管不了。
-- **数据库要有 pgvector**，否则跨视频检索静默关闭（服务照常起，`/v1/me` 里 `features.librarySearch` 为 `false`）。连上去确认一次：
+- **Fly 自家的 Postgres 没有 pgvector。** 2026-09-11 实测：`flyio/postgres-flex:18.1` 的扩展目录里 61 个 control 文件，没有 vector —— 不是权限问题，是镜像里根本没装。跨视频检索需要它的话，用 Neon / Supabase（免费层就有 pgvector），把连接串设成 `DATABASE_URL` 即可。没有它服务照常起，只是那个功能静默关闭（`/v1/me` 里 `features.librarySearch` 为 `false`）。确认办法：
 
   ```bash
   fly postgres connect -a <数据库名>
