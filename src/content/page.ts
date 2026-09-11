@@ -3,6 +3,7 @@ import type { Reply, VideoInfo } from '../shared/types';
 import { parseTranscript } from '../core/transcript';
 import { installCaptionCapture } from './caption-capture';
 import { readNativeTranscript } from './native-transcript';
+import { captionsViaPlayer, type CaptionPlayer } from './player-captions';
 import { extractVideoChapters } from './chapters';
 import {
   parsePageRequest,
@@ -13,7 +14,7 @@ import {
   type PlayerSnapshot,
 } from './protocol';
 
-interface YouTubePlayer extends HTMLElement {
+interface YouTubePlayer extends HTMLElement, CaptionPlayer {
   getPlayerResponse?: () => unknown;
 }
 
@@ -140,10 +141,20 @@ async function getTranscript(trackId?: string) {
           coverage: data?.isLive ? 'unknown' : 'complete',
         };
       } catch {
-        // The normal transcript panel can still work when timedtext returns HTTP 200 + empty body.
+        // An empty 200 is what a fetch without the player's proof-of-origin token now gets.
         if (controller.signal.aborted || videoIdFromUrl(location.href) !== id)
           throw new Error('视频已切换或读取已取消');
       }
+      // The player's own request carries that token. Asking it beats scraping the transcript
+      // panel, which a background tab may never render.
+      const played = await captionsViaPlayer(
+        document.querySelector<YouTubePlayer>('#movie_player'),
+        capture,
+        id,
+        track,
+        controller.signal,
+      );
+      if (played && videoIdFromUrl(location.href) === id) return played;
     }
     return await readNativeTranscript(id, trackId, controller.signal);
   } catch (error) {
