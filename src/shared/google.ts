@@ -8,7 +8,8 @@
  * `https://<extension-id>.chromiumapp.org/` as an authorised redirect URI. The extension id has
  * to be stable first, which for an unpacked build means pinning `key` in the manifest.
  */
-export const GOOGLE_CLIENT_ID = '000000000000-replace-me.apps.googleusercontent.com';
+export const GOOGLE_CLIENT_ID =
+  '349741359370-7rgnpaarq2ukd8ej6e6ssh3tun4tp1a1.apps.googleusercontent.com';
 
 export const GOOGLE_AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
 
