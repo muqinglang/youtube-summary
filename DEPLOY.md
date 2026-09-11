@@ -56,7 +56,14 @@ npm run build   # 重新打包扩展
 
 这一步必须你来做：
 
-1. **先固定扩展 ID。** 未打包加载时扩展 ID 会变，而 OAuth 的重定向地址里包含它。在 `extension/manifest.json` 加一个 `"key"` 字段固定住（或先发布到应用商店拿正式 ID）。
+1. **先固定扩展 ID。** 未打包加载时扩展 ID 由路径推导，换台机器就变，而 OAuth 的重定向地址里包含它。跑一次：
+
+   ```bash
+   npm run pin-extension-id
+   ```
+
+   它会生成密钥、把 `key` 写进 `extension/manifest.json`，并打印扩展 ID 和对应的重定向地址。已经有 `key` 时只打印、不改动。
+
 2. Google Cloud Console → APIs & Services → **Credentials** → Create credentials → **OAuth client ID** → 类型选 **Web application**。
 3. Authorized redirect URIs 填：`https://<扩展ID>.chromiumapp.org/`
 4. 拿到客户端 ID 后填两处，**必须一致**：

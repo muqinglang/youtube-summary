@@ -12,3 +12,4 @@ playwright-report/
 qa-downloads/
 tests/compatibility/artifacts/
 dist-server/
+extension-key.pem

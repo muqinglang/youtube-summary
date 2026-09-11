@@ -1,5 +1,6 @@
 {
   "manifest_version": 3,
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkc/6T9fC9xyMX9zu3mTyRl9zxdMarlmZ28Xq2dTADo8LMpqwQlf+7o/7dvWRXrKFgCoPzLoF6dZYkGlJ9KU9Gl9JWVPxvDQVKivem2gfEgNjSJAjOoJiw20Q5rGTxSah9M4lm+pYpyev9aaUWZezWrSvICMtd5tbVQkGukADMkgHH1cVCbYfH05lANUo7j4jscJLrWfP88kS8gjBlEpV05Yh/cLUAt3HXU4D9i6NuTJTjhBO3IA9IEgJMDY5MnjX0mb+/4W0mFO9KR9ZPzCjJJnbNpvgOthIDcNKWoVFgKv2YK0zC8QCDigcDMhVWHgQXm0KKYSmzT12RbmP8XBq6QIDAQAB",
   "name": "旁听 Sidenote - YouTube AI 学习助手",
   "description": "YouTube 双语字幕、引导提问、视频总结与 AI 问答。支持自定义提示词，可导出可搜索的 PDF、XMind 与 Markdown。",
   "version": "0.7.0",

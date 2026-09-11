@@ -18,6 +18,7 @@
     "server:build": "tsx scripts/build-server.ts",
     "check:embeddings": "tsx --env-file-if-exists=server/.env scripts/check-embeddings.ts",
     "set-hosted-origin": "tsx scripts/set-hosted-origin.ts",
+    "pin-extension-id": "tsx scripts/pin-extension-id.ts",
     "server:start": "node --env-file-if-exists=server/.env dist-server/index.js"
   },
   "dependencies": {
