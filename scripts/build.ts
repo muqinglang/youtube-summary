@@ -59,4 +59,19 @@ const { version } = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'
 await mkdir(join(root, 'release'), { recursive: true });
 const archive = join(root, 'release', `sidenote-${version}.zip`);
 await writeFile(archive, zipSync(files));
-console.log(`Extension: ${output}\nPackage: ${archive}`);
+// The store assigns its own id, so the package uploaded there must not pin one with `key`. The
+// unpacked build keeps it: the OAuth redirect URI is registered against that pinned id.
+const manifest = JSON.parse(new TextDecoder().decode(files['manifest.json'])) as Record<
+  string,
+  unknown
+>;
+delete manifest.key;
+const storeArchive = join(root, 'release', `sidenote-${version}-store.zip`);
+await writeFile(
+  storeArchive,
+  zipSync({
+    ...files,
+    'manifest.json': new TextEncoder().encode(JSON.stringify(manifest, null, 2)),
+  }),
+);
+console.log(`Extension: ${output}\nPackage: ${archive}\nStore package: ${storeArchive}`);

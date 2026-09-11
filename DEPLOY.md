@@ -231,8 +231,14 @@ npm run check     # 类型、lint、测试、扩展与服务端构建
 - 开发者账号（一次性 $5）
 - **隐私政策的公开 URL** —— `docs/privacy.md` 内容够用，开 GitHub Pages 最快
 - 商店截图（1280×800）、简介、分类
-- 每个权限的用途说明
+- 每个权限的用途说明（照抄 [privacy.md](docs/privacy.md) 的「权限用途」一节即可；`identity` 只用于 Google 登录）
 - 数据用途申报：**必须如实勾选「字幕内容会发送给第三方」**。默认字幕走 Google 公共接口；托管模式会把字幕上传到你的服务端
+
+Google 登录带来的三件事，漏一件商店版就登不进去：
+
+1. **上传 `release/sidenote-<版本>-store.zip`，不是另一个。** 商店会自己分配扩展 ID，上传的包不该用 `key` 钉死 ID；`npm run build` 会同时产出去掉 `key` 的商店版。另一个带 `key` 的包留给 GitHub Release / 开发者模式用。
+2. **把商店分配的 ID 加进 OAuth 重定向地址。** ID 变了，重定向地址也跟着变：Google Auth Platform → Clients → Sidenote extension，再加一条 `https://<商店ID>.chromiumapp.org/`。开发版那条不用删，两条并存。
+3. **把 OAuth 应用从 Testing 发布为 Production。** Testing 状态只有测试用户能登录。只申请了 `openid email` 这类非敏感范围，发布不用走敏感范围审核，但要在 Branding 页填好应用名称、支持邮箱和隐私政策链接。
 
 商店有 **「不公开」(Unlisted)** 选项：搜不到但有链接就能装，还能自动更新。小范围分发比发 zip 舒服得多。
 
