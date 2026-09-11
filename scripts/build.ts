@@ -56,6 +56,15 @@ await collect(output);
 const { version } = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as {
   version: string;
 };
+// The store reads the manifest's version; the package is named from package.json's. Nothing
+// else keeps the two in step, and drift ships a zip whose name and contents disagree.
+const manifestVersion = (
+  JSON.parse(new TextDecoder().decode(files['manifest.json'])) as { version?: string }
+).version;
+if (manifestVersion !== version)
+  throw new Error(
+    `manifest.json 是 ${manifestVersion}，package.json 是 ${version}：两处版本号必须一致。`,
+  );
 await mkdir(join(root, 'release'), { recursive: true });
 const archive = join(root, 'release', `sidenote-${version}.zip`);
 await writeFile(archive, zipSync(files));
