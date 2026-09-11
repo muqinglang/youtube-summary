@@ -154,19 +154,20 @@ curl https://<你的域名>/v1/me -H "Authorization: Bearer <token>"
 
 ### 5. 环境变量
 
-| 变量                        | 必填     | 说明                                                     |
-| --------------------------- | -------- | -------------------------------------------------------- |
-| `SIDENOTE_SESSION_SECRET`   | ✅       | 会话签名密钥，**至少 32 位**。泄露等同于所有账号可被冒用 |
-| `SIDENOTE_PROVIDER`         | ✅       | `openai` / `deepseek` / `anthropic` / `custom`           |
-| `SIDENOTE_MODEL`            | ✅       | 模型 id                                                  |
-| `SIDENOTE_API_KEY`          | ✅       | 运营方自己的 Key，只存在于服务端进程                     |
-| `SIDENOTE_GOOGLE_CLIENT_ID` | ✅       | OAuth 客户端 ID，必须与扩展里那份完全一致                |
-| `SIDENOTE_BASE_URL`         | 选填     | 覆盖服务商官方地址；`custom` 时必填                      |
-| `DATABASE_URL`              | 强烈建议 | **不设则使用内存存储，重启后账号与缓存全部丢失**         |
-| `SIDENOTE_DAILY_JOB_LIMIT`  | 选填     | 单账号每日任务数，默认 20                                |
-| `SIDENOTE_CORS_ORIGINS`     | 选填     | 逗号分隔。扩展来源形如 `chrome-extension://<扩展ID>`     |
-| `SIDENOTE_LOG`              | 选填     | 设为 `off` 关闭日志                                      |
-| `PORT`                      | 选填     | 默认 8787                                                |
+| 变量                        | 必填     | 说明                                                                                                 |
+| --------------------------- | -------- | ---------------------------------------------------------------------------------------------------- |
+| `SIDENOTE_SESSION_SECRET`   | ✅       | 会话签名密钥，**至少 32 位**。泄露等同于所有账号可被冒用                                             |
+| `SIDENOTE_PROVIDER`         | ✅       | `openai` / `deepseek` / `anthropic` / `custom`                                                       |
+| `SIDENOTE_MODEL`            | ✅       | 模型 id                                                                                              |
+| `SIDENOTE_API_KEY`          | ✅       | 运营方自己的 Key，只存在于服务端进程                                                                 |
+| `SIDENOTE_GOOGLE_CLIENT_ID` | ✅       | OAuth 客户端 ID，必须与扩展里那份完全一致                                                            |
+| `SIDENOTE_BASE_URL`         | 选填     | 覆盖服务商官方地址；`custom` 时必填                                                                  |
+| `DATABASE_URL`              | 强烈建议 | **不设则使用内存存储，重启后账号与缓存全部丢失**                                                     |
+| `SIDENOTE_DAILY_JOB_LIMIT`  | 选填     | 单账号每日任务数，默认 20                                                                            |
+| `SIDENOTE_HOSTED_EMAILS`    | 强烈建议 | 能用托管额度的邮箱，逗号分隔，`*` 为所有人。**留空则谁都不能用** —— 托管花的是你的 Key，且还没有计费 |
+| `SIDENOTE_CORS_ORIGINS`     | 选填     | 逗号分隔。扩展来源形如 `chrome-extension://<扩展ID>`                                                 |
+| `SIDENOTE_LOG`              | 选填     | 设为 `off` 关闭日志                                                                                  |
+| `PORT`                      | 选填     | 默认 8787                                                                                            |
 
 跨视频知识库需要另一组变量，**全部选填**，不设就只是这一个功能关闭：
 

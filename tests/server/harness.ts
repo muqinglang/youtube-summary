@@ -21,6 +21,8 @@ export const CONFIG: ServerConfig = {
   apiKey: 'server-side-key-never-sent-to-clients',
   googleClientId: 'test-client.apps.googleusercontent.com',
   dailyJobLimit: 3,
+  // Everyone, so the many addresses the other suites register keep their quota.
+  hostedEmails: new Set(['*']),
   logging: false,
   corsOrigins: ['chrome-extension://abcdefghijklmnopabcdefghijklmnop'],
 };

@@ -81,6 +81,13 @@ export function createApp(options: AppOptions): FastifyInstance {
       : undefined);
   const queue = new JobQueue(ai);
   const google = options.google ?? createGoogleVerifier(config.googleClientId);
+  // Hosted jobs spend the operator's keys and nothing bills for them yet, so quota goes only to
+  // invited accounts. Everyone else can still sign in and read cached results, which cost
+  // nothing; starting new work is steered to their own key.
+  const limitFor = (email: string | undefined): number =>
+    config.hostedEmails.has('*') || (email !== undefined && config.hostedEmails.has(email))
+      ? config.dailyJobLimit
+      : 0;
   const signInAttempts = new Map<string, { count: number; until: number }>();
 
   app.addHook('onClose', async () => {
@@ -170,7 +177,7 @@ export function createApp(options: AppOptions): FastifyInstance {
     const used = await store.usage.jobsToday(userId, today());
     return reply.send({
       user: { id: user!.id, email: user!.email },
-      usage: { jobsToday: used, dailyJobLimit: config.dailyJobLimit },
+      usage: { jobsToday: used, dailyJobLimit: limitFor(user!.email) },
       library: await store.library.list(userId),
       // The extension hides the cross-video surface rather than offering a button that 501s.
       features: { librarySearch: Boolean(library) },
@@ -209,10 +216,13 @@ export function createApp(options: AppOptions): FastifyInstance {
     const cached = await ai.peek(aiRequest);
     if (cached) return reply.send({ cached: true, result: cached });
 
+    const limit = limitFor((await store.users.byId(userId))?.email);
     const used = await store.usage.jobsToday(userId, today());
-    if (used >= config.dailyJobLimit)
+    if (used >= limit)
       return reply.code(402).send({
-        error: '今日额度已用完，可在设置中改用自己的 API Key 继续。',
+        error: limit
+          ? '今日额度已用完，可在设置中改用自己的 API Key 继续。'
+          : '托管额度目前只对受邀账号开放，请在设置中改用自己的 API Key。',
         quotaExhausted: true,
       });
     await store.usage.recordJob(userId, today());

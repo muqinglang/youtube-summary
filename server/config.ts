@@ -38,6 +38,12 @@ export interface ServerConfig {
   databaseUrl?: string;
   /** Hosted jobs a single account may start per day before it must fall back to its own key. */
   dailyJobLimit: number;
+  /**
+   * Accounts allowed to spend hosted quota, lowercased; `*` admits everyone. Empty admits nobody:
+   * hosted jobs spend the operator's keys and there is no billing, so the tap stays shut unless
+   * someone is named here — a forgotten variable must not quietly reopen it.
+   */
+  hostedEmails: Set<string>;
   corsOrigins: string[];
   /** Fastify's logger option: on in production, off under test. */
   logging: boolean;
@@ -134,6 +140,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     ...(embedding ? { embedding } : {}),
     databaseUrl: env.DATABASE_URL?.trim() || undefined,
     dailyJobLimit: number('SIDENOTE_DAILY_JOB_LIMIT', env.SIDENOTE_DAILY_JOB_LIMIT, 20),
+    hostedEmails: new Set(
+      (env.SIDENOTE_HOSTED_EMAILS ?? '')
+        .split(',')
+        .map((entry) => entry.trim().toLowerCase())
+        .filter(Boolean),
+    ),
     logging: env.SIDENOTE_LOG !== 'off',
     corsOrigins: (env.SIDENOTE_CORS_ORIGINS ?? '')
       .split(',')

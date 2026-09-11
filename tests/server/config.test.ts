@@ -107,3 +107,13 @@ describe('server configuration', () => {
     ).toBe('http://127.0.0.1:9999/v1');
   });
 });
+
+describe('hosted quota allowlist', () => {
+  it('reads a comma list, lowercased and trimmed, and admits nobody when absent', () => {
+    expect(load().hostedEmails).toEqual(new Set());
+    expect(
+      load({ SIDENOTE_HOSTED_EMAILS: ' Owner@Example.com , ,second@example.com' }).hostedEmails,
+    ).toEqual(new Set(['owner@example.com', 'second@example.com']));
+    expect(load({ SIDENOTE_HOSTED_EMAILS: '*' }).hostedEmails).toEqual(new Set(['*']));
+  });
+});
