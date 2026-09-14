@@ -115,6 +115,30 @@ when('postgres store', () => {
     expect((await db.library.list(user.id)).sort()).toEqual(['video-a', 'video-b']);
   });
 
+  it('keeps items per account, refusing older copies and writes past the limits', async () => {
+    const db = await connect();
+    const user = await db.users.fromGoogle(`sub-${unique()}`, `items-${unique()}@example.com`);
+    const other = await db.users.fromGoogle(`sub-${unique()}`, `items-${unique()}@example.com`);
+    const limits = { bytes: 64, items: 2 };
+    const put = (owner: string, key: string, value: string, updatedAt: number) =>
+      db.items.put(owner, key, { value, updatedAt }, limits);
+
+    expect(await put(user.id, 'notes:a', '["first"]', 100)).toBe('saved');
+    expect(await put(user.id, 'notes:a', '["late"]', 90)).toBe('stale');
+    expect(await db.items.get(user.id, 'notes:a')).toEqual({ value: '["first"]', updatedAt: 100 });
+    await expect(db.items.get(other.id, 'notes:a')).resolves.toBeUndefined();
+
+    expect(await put(user.id, 'notes:b', '[]', 1)).toBe('saved');
+    // A third key is past the item limit; replacing one of the two is not.
+    expect(await put(user.id, 'notes:c', '[]', 1)).toBe('full');
+    expect(await put(user.id, 'notes:b', '["x"]', 2)).toBe('saved');
+    expect(await put(user.id, 'notes:b', JSON.stringify(['y'.repeat(80)]), 3)).toBe('full');
+    // Real timestamps are past 2^31, which an integer column would have overflowed on.
+    const now = Date.now();
+    expect(await put(other.id, 'notes:a', '[]', now)).toBe('saved');
+    expect((await db.items.get(other.id, 'notes:a'))?.updatedAt).toBe(now);
+  });
+
   it('replaces a transcript when the same track is read again', async () => {
     const db = await connect();
     const videoId = `video-${unique()}`;

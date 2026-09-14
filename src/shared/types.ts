@@ -257,6 +257,8 @@ export type RuntimeRequest =
   | { type: 'account:signOut' }
   | { type: 'account:status' }
   | { type: 'library:search'; query: string; limit?: number }
+  | { type: 'sync:get'; key: string }
+  | { type: 'sync:put'; key: string; value: unknown; updatedAt: number }
   | { type: 'ai:run'; jobId: string; request: AiRequest }
   | { type: 'ai:cancel'; jobId: string }
   | { type: 'video:get'; tabId: number }

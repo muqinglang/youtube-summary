@@ -172,4 +172,28 @@ describe('background runtime authorization', () => {
     expect(disconnect).toHaveBeenCalledOnce();
     expect(addListener).not.toHaveBeenCalled();
   });
+
+  it('syncs only well-formed items, and forgets a session the server refuses', async () => {
+    local.values['sidenote:session'] = { value: 'session-token', origin: 'https://sidenote.fly.dev' };
+    const fetcher = vi.fn<typeof fetch>(
+      async () => new Response(JSON.stringify({ error: '登录状态已失效，请重新登录。' }), { status: 401 }),
+    );
+    vi.stubGlobal('fetch', fetcher);
+
+    // The panel names the item, so the name is checked before it can reach a URL.
+    expect(await request({ type: 'sync:put', key: '../users', value: [], updatedAt: 1 })).toEqual({
+      ok: false,
+      error: '同步内容无效。',
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+
+    const expired = await request({ type: 'sync:get', key: 'notes:video1' });
+    expect(expired.ok).toBe(false);
+    expect(String(fetcher.mock.calls[0]?.[0])).toBe(
+      'https://sidenote.fly.dev/v1/items/notes%3Avideo1',
+    );
+    // Without this the panel would keep believing it is signed in while every save stays local.
+    await vi.waitFor(() => expect(local.values['sidenote:session']).toBeUndefined());
+    vi.unstubAllGlobals();
+  });
 });

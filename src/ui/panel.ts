@@ -34,7 +34,14 @@ import type {
   DisplayMode,
 } from '../shared/types';
 import { cacheKey, clearCache, readCache, writeCache } from './cache';
-import { readClips, writeClips } from './notes';
+import {
+  pushClips,
+  readClips,
+  syncClips,
+  uploadLegacyClips,
+  writeClips,
+  type Cloud,
+} from './notes';
 import { downloadFile, element as $, errorMessage, escapeHtml as esc } from './dom';
 import { runJob, send } from './runtime';
 import { googleTranslateUrl, resolveTranslationEngine } from './google-translate';
@@ -495,18 +502,35 @@ function renderClips(): void {
   );
 }
 
-/** Clips belong to the video, not to a session, so they are reloaded whenever it changes. */
+/** The account's copy of notes and results, reached through the worker, which holds the session. */
+const cloud: Cloud = {
+  get: (key) => send({ type: 'sync:get', key }),
+  put: (key, value, updatedAt) => send({ type: 'sync:put', key, value, updatedAt }),
+};
+
+/**
+ * Clips belong to the video, not to a session, so they are reloaded whenever it changes: this
+ * machine's copy first so the list paints at once, then the account's if that one is newer.
+ */
 async function loadClips(videoId: string): Promise<void> {
   const version = state.loadVersion;
-  const clips = await readClips(videoId);
-  if (version !== state.loadVersion || state.video?.id !== videoId) return;
-  state.clips = clips;
-  renderClips();
+  const show = (clips: Clip[]) => {
+    if (version !== state.loadVersion || state.video?.id !== videoId) return;
+    // Re-rendering an unchanged list would take focus from a comment being typed.
+    if (JSON.stringify(clips) === JSON.stringify(state.clips)) return;
+    state.clips = clips;
+    renderClips();
+  };
+  show(await readClips(videoId));
+  show(await syncClips(videoId, cloud));
 }
 
 async function persistClips(): Promise<void> {
   if (!state.video) return;
-  await writeClips(state.video.id, state.clips);
+  const videoId = state.video.id;
+  await writeClips(videoId, state.clips);
+  // Already safe on this machine. If the upload fails, the next sync finds these newer and retries.
+  void pushClips(videoId, cloud).catch(() => undefined);
 }
 
 /** Keeps the line, its translation and where it came from, so a note stands on its own later. */
@@ -1205,7 +1229,7 @@ function updateActions(): void {
 const WAITING_NOTES = [
   '正在逐段读完整片字幕，再汇总成笔记。',
   '视频越长段数越多，可以先去忙别的，回来结果还在。',
-  '结果会缓存在本机，下次打开同一个视频直接复用。',
+  '结果会保存到你的账号，换台电脑打开同一个视频也能直接看。',
   '个别段落读取失败会自动跳过，不影响其余部分。',
   '所有时间点都来自真实字幕，生成后可以点开核对。',
 ];
@@ -1250,6 +1274,22 @@ function updateProgress(progress: JobProgress): void {
   $('#job-progress').setAttribute('aria-valuenow', String(Math.round(ratio * 100)));
   $('#job-bar').style.width = unknown ? '' : `${(ratio * 100).toFixed(1)}%`;
   $('#job-step').textContent = unknown ? '' : `${completed} / ${total} 段`;
+}
+
+/** This machine's cache first; failing that, a copy the account kept from another machine. */
+async function savedResult(key: string, task: AiRequest['task']): Promise<AiResult | undefined> {
+  const cached = await readCache<AiResult>(key);
+  if (cached) return cached;
+  try {
+    const found = await cloud.get(key);
+    const result = found?.value as AiResult | undefined;
+    if (result?.task !== task) return undefined;
+    await writeCache(key, result).catch(() => undefined);
+    return result;
+  } catch {
+    // Offline, or the session lapsed: generating it again is the fallback either way.
+    return undefined;
+  }
 }
 
 async function run(request: AiRequest, force = false): Promise<AiResult | undefined> {
@@ -1297,9 +1337,9 @@ async function run(request: AiRequest, force = false): Promise<AiResult | undefi
       // 2: outline sections gained density and kind, so version 1 entries render blank badges.
       version: 3,
     });
-    const cached = force ? undefined : await readCache<AiResult>(key);
+    const cached = force ? undefined : await savedResult(key, request.task);
     if (cached && !controller.signal.aborted && version === state.loadVersion) {
-      toast('已使用本地缓存，无需重复处理');
+      toast('已使用保存的结果，无需重复处理');
       if (cached.notice) notice(cached.notice);
       return cached;
     }
@@ -1317,6 +1357,7 @@ async function run(request: AiRequest, force = false): Promise<AiResult | undefi
       } catch {
         toast('结果已生成，但本地缓存空间不足。');
       }
+      void cloud.put(key, result, Date.now()).catch(() => undefined);
     }
     if (controller.signal.aborted || version !== state.loadVersion) return undefined;
     // Partial coverage is reported alongside the result instead of discarding it.
@@ -1864,12 +1905,8 @@ function renderSettingsMode(mode: RunMode): void {
   byokFields.hidden = hosted;
   byokFields.disabled = hosted;
   $('#byok-actions').hidden = hosted;
-  const signedIn = Boolean(state.settings?.hasSession);
-  $('#account-out').hidden = signedIn;
-  $('#account-in').hidden = !signedIn;
-  $('#account-summary').textContent = signedIn
-    ? `已登录 ${state.settings?.accountEmail || ''}。点「刷新状态」查看订阅与今日用量。`
-    : '';
+  $('#account-email').textContent = state.settings?.accountEmail || '';
+  $('#account-summary').textContent = '点「刷新状态」查看订阅与今日用量。';
   $('#mode-hint').textContent = hosted
     ? 'Google 账号一键登录，不用申请和填写 API Key，全部 AI 功能开箱即用，另享跨视频「我的资料库」。目前内测中，仅限受邀用户。'
     : '扩展免费，按你在服务商那里的实际用量付费；字幕和提问只发给你选择的服务商。';
@@ -1898,21 +1935,23 @@ let signingIn = false;
  * hands back only the resulting session, so a compromised panel has nothing to steal.
  */
 async function signIn(): Promise<void> {
-  if (signingIn) return;
+  if (signingIn || !state.settings) return;
   signingIn = true;
-  const button = $<HTMLButtonElement>('#account-login');
+  const button = $<HTMLButtonElement>('#sign-in');
   button.disabled = true;
-  $('#settings-error').hidden = true;
+  $('#sign-in-error').hidden = true;
   try {
-    state.settings = await send<PublicSettings>({ type: 'account:signIn' });
-    renderSettingsMode('hosted');
-    updateActions();
-    void refreshLibrarySearch();
-    toast('登录成功');
+    // Asked inside the click, the only moment Chrome allows it.
+    const origin = getOriginPattern(state.settings.serverUrl);
+    if (!(await chrome.permissions.request({ origins: [origin] })))
+      throw new Error('需要允许访问旁听服务，才能把笔记保存到你的账号。');
+    await send<PublicSettings>({ type: 'account:signIn' });
+    // Starting over is simpler than finishing half an initialisation, and it guarantees nothing
+    // from before sign-in, or from another account, is still on screen.
+    location.reload();
   } catch (error) {
-    $('#settings-error').hidden = false;
-    $('#settings-error').textContent = errorMessage(error);
-  } finally {
+    $('#sign-in-error').textContent = errorMessage(error);
+    $('#sign-in-error').hidden = false;
     signingIn = false;
     button.disabled = false;
   }
@@ -2282,13 +2321,10 @@ function bindEvents(): void {
   });
   on('#mode-byok', 'click', () => switchMode('byok'));
   on('#mode-hosted', 'click', () => switchMode('hosted'));
-  on('#account-login', 'click', () => signIn());
   on('#account-signout', 'click', async () => {
-    state.settings = await send<PublicSettings>({ type: 'account:signOut' });
-    renderSettingsMode('hosted');
-    updateActions();
-    void refreshLibrarySearch();
-    toast('已退出登录');
+    await send<PublicSettings>({ type: 'account:signOut' });
+    // Back to the sign-in screen. Nothing is deleted, from the account or from this machine.
+    location.reload();
   });
   on('#account-refresh', 'click', async () => {
     const status = await send<{ usage: { jobsToday: number; dailyJobLimit: number } }>({
@@ -2332,7 +2368,7 @@ function bindEvents(): void {
   });
   on('#clear-cache', 'click', async () => {
     await clearCache();
-    toast('学习缓存已清除');
+    toast('本机缓存已清除，账号里保存的结果不受影响');
   });
   on('#prompt-open', 'click', () => {
     $<HTMLTextAreaElement>('#prompt-text').value = state.settings?.prompt || PRESETS.learn;
@@ -2420,7 +2456,7 @@ function bindGuide(): void {
     ],
     [
       '把收获带走',
-      '用 AI 问答深入理解内容。导出笔记支持 PDF、XMind 和 Markdown 文件，都在本机生成。关闭学习页面会取消进行中的 AI 任务。',
+      '用 AI 问答深入理解内容。笔记、术语和总结保存在你的账号里，换台电脑也在；导出支持 PDF、XMind 和 Markdown，都在本机生成。关闭学习页面会取消进行中的 AI 任务。',
     ],
   ];
   let index = 0;
@@ -2452,10 +2488,16 @@ function bindGuide(): void {
 }
 
 async function initialize(): Promise<void> {
+  state.settings = await send<PublicSettings>({ type: 'settings:get' });
+  // Notes and results are kept in the account, so there is nothing to use until there is one.
+  if (!state.settings.hasSession) {
+    document.body.classList.add('signed-out');
+    on('#sign-in', 'click', signIn);
+    return;
+  }
   bindEvents();
   bindGuide();
   updateActions();
-  state.settings = await send<PublicSettings>({ type: 'settings:get' });
   $<HTMLInputElement>('#auto-translate').checked = state.settings.autoTranslate !== false;
   updateActions();
   const language = $<HTMLSelectElement>('#target-language');
@@ -2466,6 +2508,8 @@ async function initialize(): Promise<void> {
   // Deliberately not awaited: it is one request to the hosted server, and the panel must paint
   // whether or not that server answers.
   void refreshLibrarySearch();
+  // Notes from before accounts go up once; with none left this never reaches the network.
+  void uploadLegacyClips(cloud).catch(() => undefined);
   if (params.has('settings') || !Number.isInteger(tabId) || tabId < 0) {
     $('#video-title').textContent = '打开 YouTube 视频，开始学习';
     $('#transcript-list').innerHTML =

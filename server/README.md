@@ -50,6 +50,8 @@ summarize  → digest 8, final 3   ← 带用户 Prompt，证据确实不同，�
 | `POST` | `/v1/auth/google`     | `{idToken, nonce?}` → `{token, user}`。首次登录即建号                                     |
 | `GET`  | `/v1/me`              | 账号、今日用量、视频库、`features.librarySearch`                                          |
 | `POST` | `/v1/library/search`  | `{query, limit?}` → 跨视频检索命中片段；未配置向量服务时 `501`                            |
+| `GET`  | `/v1/items/:key`      | 本账号保存的笔记或 AI 结果 → `{item}`，没有时 `item` 为 `null`                            |
+| `POST` | `/v1/items/:key`      | `{value, updatedAt}`；已有更新的副本时 `{saved:false}`，超出账号空间 `413`                |
 | `POST` | `/v1/jobs`            | `{request}`（一个 `AiRequest`）。命中缓存 `200 {cached:true, result}`；否则 `202 {jobId}` |
 | `GET`  | `/v1/jobs/:id`        | 轮询任务状态                                                                              |
 | `GET`  | `/v1/jobs/:id/events` | SSE 进度流                                                                                |

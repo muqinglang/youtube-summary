@@ -9,7 +9,7 @@
  * to be stable first, which for an unpacked build means pinning `key` in the manifest.
  */
 export const GOOGLE_CLIENT_ID =
-  '349741359370-7rgnpaarq2ukd8ej6e6ssh3tun4tp1a1.apps.googleusercontent.com';
+  '1056662974682-h7rppmlv25i162ajqedd7stm96j27g4b.apps.googleusercontent.com';
 
 export const GOOGLE_AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
 

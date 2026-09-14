@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { HostedClient } from '../../src/background/hosted';
+import { HostedClient, SessionExpiredError } from '../../src/background/hosted';
 import { createRunner } from '../../src/background/runner';
 import { DEFAULT_SETTINGS } from '../../src/background/settings';
 import type { AiRequest, Settings } from '../../src/shared/types';
@@ -144,5 +144,29 @@ describe('hosted client', () => {
     const fetcher = vi.fn<typeof fetch>();
     await expect(client(fetcher, '').me(signal())).rejects.toThrow('请先登录');
     expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('keeps and reads an item under an encoded key, and marks a refused session as expired', async () => {
+    const fetcher = vi.fn<typeof fetch>(async (_input, init) =>
+      init?.method === 'POST'
+        ? json({ saved: true })
+        : json({ item: { value: ['note'], updatedAt: 5 } }),
+    );
+    await expect(client(fetcher).putItem('notes:video1', ['note'], 5, signal())).resolves.toBe(
+      true,
+    );
+    await expect(client(fetcher).getItem('notes:video1', signal())).resolves.toEqual({
+      value: ['note'],
+      updatedAt: 5,
+    });
+    const [url, init] = fetcher.mock.calls[0]!;
+    expect(url).toBe(`${SERVER}/v1/items/notes%3Avideo1`);
+    expect(JSON.parse(String(init?.body))).toEqual({ value: ['note'], updatedAt: 5 });
+    expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer session-token');
+
+    const expired = json({ error: '登录状态已失效，请重新登录。' }, 401);
+    await expect(
+      client(async () => expired).getItem('notes:video1', signal()),
+    ).rejects.toBeInstanceOf(SessionExpiredError);
   });
 });

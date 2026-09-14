@@ -27,6 +27,7 @@ import {
   youtubeEmbedFixture,
   youtubeFixture,
 } from './fixtures';
+import { DEFAULT_HOSTED_URL } from '../../src/shared/hosted';
 
 test.describe.configure({ mode: 'serial' });
 let context: BrowserContext;
@@ -210,6 +211,12 @@ test.beforeAll(async () => {
   });
   const worker = context.serviceWorkers()[0] || (await context.waitForEvent('serviceworker'));
   expect(worker.url()).toMatch(/^chrome-extension:\/\/[^/]+\/background\.js$/);
+  // The panel opens on a Google sign-in. A stored session stands in for one. It is never sent:
+  // this profile does not grant the hosted origin, so every sync attempt fails quietly.
+  await worker.evaluate(
+    (origin) => chrome.storage.local.set({ 'sidenote:session': { value: 'e2e-session', origin } }),
+    new URL(DEFAULT_HOSTED_URL).origin,
+  );
   source = await context.newPage();
   await source.goto(VIDEO_URL);
   await expect
@@ -269,12 +276,11 @@ test('independent learning page: source untouched, embedded playback, real API, 
   expect(learningPages()[0]).toBe(existingLearning);
   await source.screenshot({ path: testInfo.outputPath('source-launcher.png'), fullPage: true });
   await expect(panel.locator('.cue')).toHaveCount(4);
+  // 术语 and 笔记 moved to the footer, so they are no longer tabs.
   expect(await panel.getByRole('tab').evaluateAll((tabs) => tabs.map((tab) => tab.id))).toEqual([
+    'tab-guide',
     'tab-transcript',
     'tab-chapters',
-    'tab-guide',
-    'tab-glossary',
-    'tab-notes',
     'tab-summary',
     'tab-chat',
   ]);

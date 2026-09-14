@@ -63,10 +63,18 @@ export interface ChunkStore {
   search(videoIds: string[], embedding: number[], limit: number): Promise<ChunkMatch[]>;
 }
 
+/** One thing a person keeps. Stored as sent; the server never looks inside. */
+export interface ItemRecord {
+  /** JSON text. */
+  value: string;
+  /** The writing machine's clock, in milliseconds. Decides which of two copies is newer. */
+  updatedAt: number;
+}
+
 /**
  * Two tiers on purpose. Everything derived from a video is keyed by the video and shared by every
  * account, which is what makes a second viewer of the same video nearly free. Only what belongs to
- * a person — their library and their usage — is partitioned by user.
+ * a person — their library, their usage and what they keep — is partitioned by user.
  */
 export interface Store {
   users: {
@@ -99,6 +107,20 @@ export interface Store {
   library: {
     add(userId: string, videoId: string): Promise<void>;
     list(userId: string): Promise<string[]>;
+  };
+  /**
+   * Notes and generated results, which belong to a person rather than to a video. A copy older
+   * than the stored one is refused rather than applied, and so is one that would take the account
+   * past its limits.
+   */
+  items: {
+    get(userId: string, key: string): Promise<ItemRecord | undefined>;
+    put(
+      userId: string,
+      key: string,
+      item: ItemRecord,
+      limits: { bytes: number; items: number },
+    ): Promise<'saved' | 'stale' | 'full'>;
   };
   /**
    * Absent when the deployment has no vector support, which is a normal configuration rather than

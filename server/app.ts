@@ -1,7 +1,7 @@
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { aiRequestSchema } from '../src/background/validation';
-import { DEFAULT_HOSTED_URL } from '../src/shared/hosted';
+import { DEFAULT_HOSTED_URL, ITEM_KEY } from '../src/shared/hosted';
 import type { AiRequest, Settings } from '../src/shared/types';
 import { createEmbedder, EmbeddingError } from './ai/embeddings';
 import { createGateway, type Gateway } from './ai/gateway';
@@ -35,6 +35,16 @@ const searchBody = z.object({
   limit: z.number().int().min(1).max(MAX_SEARCH_RESULTS).optional(),
 });
 const DEFAULT_SEARCH_RESULTS = 8;
+const itemBody = z.object({
+  // Anything JSON can carry; it is stored as sent.
+  value: z.unknown().refine((value) => value !== undefined),
+  updatedAt: z.number().int().positive(),
+});
+/** Above any note list or result the extension keeps. A heavy account is a few megabytes in all. */
+const ITEM_BYTES = 1024 * 1024;
+const ACCOUNT_LIMITS = { bytes: 20 * 1024 * 1024, items: 5000 };
+/** A clock this far ahead would win every later comparison and freeze the item on other machines. */
+const CLOCK_AHEAD_MS = 24 * 60 * 60_000;
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -270,6 +280,42 @@ export function createApp(options: AppOptions): FastifyInstance {
       if (error instanceof EmbeddingError) return reply.code(502).send({ error: error.message });
       throw error;
     }
+  });
+
+  // What a person keeps. Open to every signed-in account: storing it costs next to nothing, and
+  // keeping notes safe is the reason to sign in at all.
+  app.get<{ Params: { key: string } }>('/v1/items/:key', async (request, reply) => {
+    const userId = await requireUser(request, reply);
+    if (!userId) return undefined;
+    if (!ITEM_KEY.test(request.params.key))
+      return reply.code(400).send({ error: '同步内容无效。' });
+    const item = await store.items.get(userId, request.params.key);
+    return reply.send({
+      item: item ? { value: JSON.parse(item.value) as unknown, updatedAt: item.updatedAt } : null,
+    });
+  });
+
+  app.post<{ Params: { key: string } }>('/v1/items/:key', async (request, reply) => {
+    const userId = await requireUser(request, reply);
+    if (!userId) return undefined;
+    const body = itemBody.safeParse(request.body);
+    if (!ITEM_KEY.test(request.params.key) || !body.success)
+      return reply.code(400).send({ error: '同步内容无效。' });
+    if (body.data.updatedAt > Date.now() + CLOCK_AHEAD_MS)
+      return reply.code(400).send({ error: '这台电脑的时间不对，请校准系统时间后再试。' });
+    const value = JSON.stringify(body.data.value);
+    if (Buffer.byteLength(value) > ITEM_BYTES)
+      return reply.code(413).send({ error: '这条内容太大，无法保存到账号。' });
+    const outcome = await store.items.put(
+      userId,
+      request.params.key,
+      { value, updatedAt: body.data.updatedAt },
+      ACCOUNT_LIMITS,
+    );
+    if (outcome === 'full')
+      return reply.code(413).send({ error: '账号存储空间已满，新内容暂时只保存在这台电脑上。' });
+    // A newer copy already there is how a race ends, not an error.
+    return reply.send({ saved: outcome === 'saved' });
   });
 
   app.get<{ Params: { id: string } }>('/v1/jobs/:id', async (request, reply) => {

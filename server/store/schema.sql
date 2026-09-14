@@ -2,7 +2,7 @@
 --
 -- `artifacts` and `digests` carry no user_id on purpose: an outline of a video is the same outline
 -- for everyone, so the first viewer pays for the model calls and everyone after reads a row. Only
--- `library` and `usage_jobs` are partitioned by account.
+-- `library`, `usage_jobs` and `user_items` are partitioned by account.
 
 -- Identity comes from Google; this service never holds a password. The subject is the key
 -- rather than the address, because a Google account can change its address and the person is
@@ -65,4 +65,16 @@ CREATE TABLE IF NOT EXISTS library (
   video_id text NOT NULL,
   added_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, video_id)
+);
+
+-- Notes and AI results a person keeps, under the keys the extension uses locally. `value` is JSON
+-- text the server never looks inside. `updated_at` is the writer's clock in milliseconds, so a
+-- retry of an older copy that arrives late cannot land on top of a newer one.
+CREATE TABLE IF NOT EXISTS user_items (
+  user_id    uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  key        text NOT NULL,
+  value      text NOT NULL,
+  bytes      integer NOT NULL,
+  updated_at bigint NOT NULL,
+  PRIMARY KEY (user_id, key)
 );

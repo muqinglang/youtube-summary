@@ -54,9 +54,16 @@ const createdSchema = z.object({
   error: z.string().max(2000).optional(),
   quotaExhausted: z.boolean().optional(),
 });
+const itemSchema = z.object({
+  item: z.object({ value: z.unknown(), updatedAt: z.number() }).nullable(),
+});
+const savedSchema = z.object({ saved: z.boolean() });
 
 export type Account = z.infer<typeof accountSchema>;
 export type AccountStatus = z.infer<typeof meSchema>;
+
+/** The server no longer accepts this session; the worker forgets it so the panel asks again. */
+export class SessionExpiredError extends AiError {}
 
 export interface HostedOptions {
   fetch?: typeof globalThis.fetch;
@@ -120,7 +127,7 @@ export class HostedClient {
         // The server writes messages meant for this user; anything else stays generic.
         const parsed = errorBody.safeParse(raw);
         if (response.status === 401)
-          throw new AiError(parsed.data?.error ?? '登录状态已失效，请重新登录。');
+          throw new SessionExpiredError(parsed.data?.error ?? '登录状态已失效，请重新登录。');
         throw new AiError(parsed.data?.error ?? `托管服务请求失败（HTTP ${response.status}）。`);
       }
       const parsed = schema.safeParse(raw);
@@ -158,6 +165,32 @@ export class HostedClient {
       auth: true,
     });
     return found.matches;
+  }
+
+  /** One of this account's own items; null when the account has nothing under that key. */
+  async getItem(key: string, signal: AbortSignal) {
+    const found = await this.request(`/v1/items/${encodeURIComponent(key)}`, itemSchema, {
+      method: 'GET',
+      signal,
+      auth: true,
+    });
+    return found.item;
+  }
+
+  /** False when the account already holds a newer copy, which is how a race ends, not an error. */
+  async putItem(
+    key: string,
+    value: unknown,
+    updatedAt: number,
+    signal: AbortSignal,
+  ): Promise<boolean> {
+    const result = await this.request(`/v1/items/${encodeURIComponent(key)}`, savedSchema, {
+      method: 'POST',
+      body: { value, updatedAt },
+      signal,
+      auth: true,
+    });
+    return result.saved;
   }
 
   /**

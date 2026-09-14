@@ -1492,6 +1492,61 @@ textarea {
 .google-signin svg {
   display: block;
 }
+/* Until there is an account there is nothing else to show. */
+.sign-in-gate {
+  display: none;
+}
+body.signed-out > :not(.sign-in-gate) {
+  display: none !important;
+}
+body.signed-out .sign-in-gate {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 28px 24px;
+  text-align: center;
+}
+.sign-in-gate .brand-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  font-size: 38px;
+}
+.sign-in-gate h1 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-top: 6px;
+}
+.sign-in-gate p {
+  max-width: 340px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.8;
+}
+.sign-in-gate .google-signin {
+  width: min(320px, 100%);
+  margin-top: 10px;
+}
+.sign-in-gate .form-error {
+  color: #edc8b8;
+}
+.sign-in-gate .sign-in-note {
+  font-size: 12px;
+}
+.account-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+.account-row b {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
 .button.icon-only {
   display: inline-flex;
   align-items: center;

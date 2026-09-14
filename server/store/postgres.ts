@@ -368,6 +368,41 @@ export async function createPostgresStore(
         return rows.map((row) => row.video_id);
       },
     },
+    items: {
+      get: async (userId, key) => {
+        const { rows } = await pool.query<{ value: string; updated_at: string }>(
+          `SELECT value, updated_at FROM user_items WHERE user_id = $1 AND key = $2`,
+          [userId, key],
+        );
+        const row = rows[0];
+        return row ? { value: row.value, updatedAt: Number(row.updated_at) } : undefined;
+      },
+      put: async (userId, key, item, limits) => {
+        const bytes = Buffer.byteLength(item.value);
+        // One statement. The limits are measured without this key, so replacing an item is never
+        // counted against itself, and an older copy is refused in the same step.
+        const { rowCount } = await pool.query(
+          `WITH used AS (
+             SELECT count(*) AS items, coalesce(sum(bytes), 0) AS bytes
+             FROM user_items WHERE user_id = $1::uuid AND key <> $2::text
+           )
+           INSERT INTO user_items (user_id, key, value, bytes, updated_at)
+           SELECT $1::uuid, $2::text, $3::text, $4::integer, $5::bigint FROM used
+           WHERE used.items < $6::bigint AND used.bytes + $4::integer <= $7::bigint
+           ON CONFLICT (user_id, key) DO UPDATE
+             SET value = EXCLUDED.value, bytes = EXCLUDED.bytes, updated_at = EXCLUDED.updated_at
+             WHERE user_items.updated_at < EXCLUDED.updated_at`,
+          [userId, key, item.value, bytes, item.updatedAt, limits.items, limits.bytes],
+        );
+        if (rowCount) return 'saved';
+        // Nothing written: either a newer copy is already there, or the account is at its limit.
+        const { rows } = await pool.query(
+          `SELECT 1 FROM user_items WHERE user_id = $1 AND key = $2 AND updated_at >= $3`,
+          [userId, key, item.updatedAt],
+        );
+        return rows.length ? 'stale' : 'full';
+      },
+    },
     ...(chunks ? { chunks } : {}),
     ping: async () => {
       await pool.query('SELECT 1');

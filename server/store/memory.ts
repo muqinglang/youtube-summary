@@ -5,6 +5,7 @@ import type {
   ArtifactRecord,
   ChunkMatch,
   ChunkRecord,
+  ItemRecord,
   Store,
   TranscriptRecord,
   UserRecord,
@@ -22,6 +23,7 @@ export function createMemoryStore(): Store {
   const jobs = new Map<string, number>();
   const library = new Map<string, Set<string>>();
   const chunks = new Map<string, { source: string; rows: ChunkRecord[] }>();
+  const items = new Map<string, Map<string, ItemRecord>>();
 
   return {
     users: {
@@ -84,6 +86,21 @@ export function createMemoryStore(): Store {
         library.set(userId, owned);
       },
       list: async (userId) => [...(library.get(userId) ?? [])],
+    },
+    items: {
+      get: async (userId, key) => items.get(userId)?.get(key),
+      put: async (userId, key, item, limits) => {
+        const owned = items.get(userId) ?? new Map<string, ItemRecord>();
+        const current = owned.get(key);
+        if (current && current.updatedAt >= item.updatedAt) return 'stale';
+        const others = [...owned].filter(([name]) => name !== key);
+        const bytes = others.reduce((sum, [, other]) => sum + Buffer.byteLength(other.value), 0);
+        if (others.length >= limits.items || bytes + Buffer.byteLength(item.value) > limits.bytes)
+          return 'full';
+        owned.set(key, item);
+        items.set(userId, owned);
+        return 'saved';
+      },
     },
     chunks: {
       has: async (videoId, source) => chunks.get(videoId)?.source === source,

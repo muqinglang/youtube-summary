@@ -31,3 +31,9 @@ export function isAllowedHostedUrl(value: string): boolean {
  * first users. Flipping this back restores the mode tab, and whatever mode a user saved applies.
  */
 export const SUBSCRIPTION_ENABLED = false;
+
+/**
+ * How a kept item is named, in extension storage and on the server alike: `notes:<videoId>` or
+ * `learning:<digest>`. Nothing else reaches a URL path or a database key.
+ */
+export const ITEM_KEY = /^[a-z]+:[\w-]{1,128}$/;

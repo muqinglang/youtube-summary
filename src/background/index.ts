@@ -1,8 +1,10 @@
 import '../shared/zod-setup';
 import { type ProgressCallback } from './ai-service';
 import { createRunner } from './runner';
-import { HostedClient } from './hosted';
+import { HostedClient, SessionExpiredError } from './hosted';
 import { googleAuthUrl, idTokenFromRedirect, isConfiguredClientId } from '../shared/google';
+import { ITEM_KEY } from '../shared/hosted';
+import { claimLocalCopy } from '../ui/notes';
 import { AiError, safeError } from './client';
 import {
   clearKey,
@@ -22,6 +24,8 @@ const ready = restrictStorageAccess();
 // Player identity setup is independent: a failure must not disable settings or AI.
 void ensureEmbedIdentity().catch(() => undefined);
 const JOB_TIMEOUT_MS = 30 * 60_000;
+/** Short: the panel already shows what this machine has, and a hung server must not stall a job. */
+const SYNC_TIMEOUT_MS = 10_000;
 
 function isExtensionSender(sender: chrome.runtime.MessageSender): boolean {
   return (
@@ -146,6 +150,14 @@ async function exportPrint(
   return { id };
 }
 
+/** The account's own notes and results. The panel names the item; only the worker holds the session. */
+async function accountItems(key: unknown): Promise<HostedClient> {
+  if (typeof key !== 'string' || !ITEM_KEY.test(key)) throw new AiError('同步内容无效。');
+  const settings = await getPrivateSettings();
+  if (!settings.sessionToken) throw new AiError('请先登录。');
+  return new HostedClient(settings.serverUrl, settings.sessionToken, {});
+}
+
 async function dispatch(
   request: RuntimeRequest,
   sender: chrome.runtime.MessageSender,
@@ -191,6 +203,7 @@ async function dispatch(
         nonce,
         controller.signal,
       );
+      await claimLocalCopy(account.user.id);
       return saveSession(account.token, account.user.email);
     }
     case 'account:signOut':
@@ -215,6 +228,19 @@ async function dispatch(
         controller.signal,
       );
     }
+    case 'sync:get':
+      return (await accountItems(request.key)).getItem(
+        request.key,
+        AbortSignal.timeout(SYNC_TIMEOUT_MS),
+      );
+    case 'sync:put':
+      if (!Number.isSafeInteger(request.updatedAt)) throw new AiError('同步内容无效。');
+      return (await accountItems(request.key)).putItem(
+        request.key,
+        request.value,
+        request.updatedAt,
+        AbortSignal.timeout(SYNC_TIMEOUT_MS),
+      );
     case 'ai:run':
       return executeJob(request.jobId, request.request, sender, (progress) => {
         void chrome.runtime
@@ -258,7 +284,11 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     return false;
   void dispatch(message as RuntimeRequest, sender)
     .then((data) => sendResponse({ ok: true, data }))
-    .catch((error: unknown) => sendResponse({ ok: false, error: safeError(error) }));
+    .catch((error: unknown) => {
+      // Forgetting a session the server refused is what brings the sign-in screen back.
+      if (error instanceof SessionExpiredError) void clearSession().catch(() => undefined);
+      sendResponse({ ok: false, error: safeError(error) });
+    });
   return true;
 });
 
