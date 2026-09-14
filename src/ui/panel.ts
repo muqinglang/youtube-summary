@@ -1865,10 +1865,10 @@ function renderSettingsMode(mode: RunMode): void {
   $('#account-out').hidden = signedIn;
   $('#account-in').hidden = !signedIn;
   $('#account-summary').textContent = signedIn
-    ? `已登录 ${state.settings?.accountEmail || ''}。点「刷新额度」查看今日剩余。`
+    ? `已登录 ${state.settings?.accountEmail || ''}。点「刷新状态」查看订阅与今日用量。`
     : '';
   $('#mode-hint').textContent = hosted
-    ? '任务在旁听服务端运行，消耗账号额度。同一个视频别人处理过就直接复用，不重复计费。'
+    ? '订阅制：任务在旁听服务端运行，不用自己配 Key。同一个视频别人处理过就直接复用，不重复计费。目前为内测，仅受邀账号可用。'
     : '任务在本机运行，直连你自己的 API Key，不经过任何服务器。';
   updateConnectionTest();
 }
@@ -1952,7 +1952,7 @@ function updateConnectionTest(): void {
     $('#test-connection').textContent = testingConnection
       ? '正在检查账号…'
       : saved.hasSession
-        ? '检查账号与额度'
+        ? '检查账号状态'
         : '登录后可检查';
     return;
   }
@@ -2293,7 +2293,10 @@ function bindEvents(): void {
     });
     const left = Math.max(0, status.usage.dailyJobLimit - status.usage.jobsToday);
     $('#account-summary').textContent =
-      `已登录 ${state.settings?.accountEmail || ''}。今日还可发起 ${left} 个任务。`;
+      status.usage.dailyJobLimit === 0
+        ? // Zero is not an exhausted day: it is an account the subscription has not been opened for.
+          `已登录 ${state.settings?.accountEmail || ''}。当前账号未开通订阅，AI 任务请改用自己的 Key。`
+        : `已登录 ${state.settings?.accountEmail || ''}。今日还可发起 ${left} 个任务。`;
   });
   on('#test-connection', 'click', async () => {
     if (testingConnection) return;
