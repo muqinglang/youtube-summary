@@ -1868,8 +1868,8 @@ function renderSettingsMode(mode: RunMode): void {
     ? `已登录 ${state.settings?.accountEmail || ''}。点「刷新状态」查看订阅与今日用量。`
     : '';
   $('#mode-hint').textContent = hosted
-    ? '订阅制：任务在旁听服务端运行，不用自己配 Key。同一个视频别人处理过就直接复用，不重复计费。目前为内测，仅受邀账号可用。'
-    : '任务在本机运行，直连你自己的 API Key，不经过任何服务器。';
+    ? 'Google 账号一键登录，不用申请和填写 API Key，全部 AI 功能开箱即用，另享跨视频「我的资料库」。目前内测中，仅限受邀用户。'
+    : '扩展免费，按你在服务商那里的实际用量付费；字幕和提问只发给你选择的服务商。';
   updateConnectionTest();
 }
 
