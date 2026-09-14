@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { PublicSettings, Settings } from '../shared/types';
 import { validateBaseUrl } from '../shared/endpoint';
 import { getProvider, inferProvider } from '../shared/providers';
-import { DEFAULT_HOSTED_URL, isAllowedHostedUrl } from '../shared/hosted';
+import { DEFAULT_HOSTED_URL, isAllowedHostedUrl, SUBSCRIPTION_ENABLED } from '../shared/hosted';
 export { getOriginPattern, validateBaseUrl } from '../shared/endpoint';
 
 const SETTINGS_KEY = 'sidenote:settings';
@@ -30,7 +30,7 @@ export const DEFAULT_SETTINGS: Settings = {
   baseUrl: DEFAULT_PROVIDER.baseUrl,
   model: DEFAULT_PROVIDER.defaultModel,
   apiKey: '',
-  rememberKey: false,
+  rememberKey: true,
   translationEngine: 'auto',
   autoTranslate: true,
   targetLanguage: '简体中文',
@@ -74,6 +74,13 @@ async function readSettings(): Promise<Settings> {
     .partial()
     .safeParse(local[SETTINGS_KEY]);
   const result = { ...DEFAULT_SETTINGS, ...(saved.success ? saved.data : {}) };
+  // Hidden, not removed: a mode saved while it was offered must not strand anyone in a tab they
+  // can no longer see or switch out of.
+  if (!SUBSCRIPTION_ENABLED) result.mode = 'byok';
+  // Only a fresh install takes the remember-by-default. Settings saved before the field existed
+  // kept their key in session storage; reading them with the new default would look in the wrong
+  // place and lose a key that is still there.
+  if (saved.success && saved.data.rememberKey === undefined) result.rememberKey = false;
   try {
     result.baseUrl = validateBaseUrl(result.baseUrl);
   } catch {

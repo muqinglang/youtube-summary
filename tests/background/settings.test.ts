@@ -111,15 +111,17 @@ describe('private settings', () => {
     },
   );
 
-  it('stores keys in session by default and never returns one to the panel', async () => {
+  it('remembers keys locally on a fresh install and never returns one to the panel', async () => {
     const result = await saveSettings({ apiKey: 'private-test-key', model: 'gpt-4.1-mini' });
     expect(result).not.toHaveProperty('apiKey');
     expect(result.hasApiKey).toBe(true);
-    expect(JSON.stringify(local.data)).not.toContain('private-test-key');
-    expect(session.data['sidenote:apiKey']).toEqual({
+    // Remembered, but in its own origin-bound record: never inside the settings the panel reads.
+    expect(JSON.stringify(local.data['sidenote:settings'])).not.toContain('private-test-key');
+    expect(local.data['sidenote:apiKey']).toEqual({
       value: 'private-test-key',
       origin: 'https://api.openai.com',
     });
+    expect(session.data['sidenote:apiKey']).toBeUndefined();
     expect((await getPrivateSettings()).apiKey).toBe('private-test-key');
     await saveSettings({ apiKey: '', prompt: 'Changed' });
     expect((await getPrivateSettings()).apiKey).toBe('private-test-key');

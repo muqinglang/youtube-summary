@@ -25,3 +25,9 @@ export function isAllowedHostedUrl(value: string): boolean {
     return false;
   }
 }
+
+/**
+ * The subscription is hidden, not removed: everyone brings their own key while the tool finds its
+ * first users. Flipping this back restores the mode tab, and whatever mode a user saved applies.
+ */
+export const SUBSCRIPTION_ENABLED = false;

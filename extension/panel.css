@@ -199,7 +199,7 @@ textarea {
 }
 .eyebrow {
   color: var(--accent);
-  font-size: 10px;
+  font-size: 12px;
   margin-bottom: 8px;
 }
 .video-info h1 {
@@ -1572,7 +1572,7 @@ dialog h2 {
 }
 dialog label:not(.inline-check) {
   display: block;
-  font-size: 12px;
+  font-size: 13px;
   margin: 16px 0 8px;
 }
 dialog input:not([type='checkbox']),
@@ -1581,11 +1581,17 @@ dialog textarea {
   width: 100%;
   background: #121617;
 }
+/* 12px is the floor for Chinese on Windows: at 10px the strokes blur into each other whatever the
+   font, which is what made this dialog hard to read. */
 dialog .hint {
-  font-size: 10px;
-  line-height: 1.85;
-  color: #adb5b1;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #b9c0bd;
   margin: 8px 0 14px;
+}
+/* Scoped to the dialog: the transcript toolbar's text buttons have no width to spare. */
+dialog .text-button {
+  font-size: 12px;
 }
 .dialog-actions {
   display: flex;
@@ -1602,7 +1608,7 @@ dialog .hint {
   border: 1px solid #795547;
   color: #edc8b8;
   background: #35271f;
-  font-size: 11px;
+  font-size: 12px;
   overflow-wrap: anywhere;
 }
 .mode-toggle {
@@ -1630,7 +1636,7 @@ dialog .hint {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 11px;
+  font-size: 12px;
   margin-top: 20px;
   padding-top: 14px;
   color: var(--muted);

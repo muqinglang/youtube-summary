@@ -3,6 +3,7 @@ import { buildMarkdown, buildXMind } from '../core/exports';
 import { findCueIndex, formatTime, parseTranscript } from '../core/transcript';
 import { getOriginPattern } from '../shared/endpoint';
 import { getProvider, PROVIDERS } from '../shared/providers';
+import { SUBSCRIPTION_ENABLED } from '../shared/hosted';
 import { watchUrl } from '../shared/youtube';
 import type {
   AiRequest,
@@ -1852,6 +1853,8 @@ function openSettings(): void {
  */
 function renderSettingsMode(mode: RunMode): void {
   const hosted = mode === 'hosted';
+  // Hidden while everyone brings their own key; the markup and the flow stay for its return.
+  $('#mode-toggle').hidden = !SUBSCRIPTION_ENABLED;
   $('#mode-byok').setAttribute('aria-selected', String(!hosted));
   $('#mode-hosted').setAttribute('aria-selected', String(hosted));
   const hostedFields = $<HTMLFieldSetElement>('#hosted-fields');

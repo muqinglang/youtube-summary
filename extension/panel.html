@@ -439,7 +439,7 @@
         <button class="icon-button" data-close="settings-dialog" aria-label="关闭设置">×</button>
       </header>
       <form id="settings-form">
-        <div class="mode-toggle" role="group" aria-label="运行方式">
+        <div id="mode-toggle" class="mode-toggle" role="group" aria-label="运行方式">
           <button type="button" id="mode-byok" class="engine-tab" aria-selected="true">
             用自己的 Key</button
           ><button type="button" id="mode-hosted" class="engine-tab" aria-selected="false">
@@ -501,8 +501,8 @@
             ><input id="remember-key" type="checkbox" /> 在本机记住密钥</label
           >
           <p class="hint">
-            不勾选时，密钥仅保留到浏览器关闭。AI 功能会将所需字幕和提问发送给此服务；Google
-            内置翻译在本机处理。
+            不勾选时，密钥仅保留到浏览器关闭。AI 功能会将所需字幕和提问发送给此服务；默认字幕使用
+            Google 云端翻译。
           </p>
         </fieldset>
         <div id="settings-error" class="form-error" role="alert" hidden></div>
