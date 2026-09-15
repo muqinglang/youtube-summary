@@ -1,6 +1,6 @@
 # 旁听 Sidenote · YouTube AI 学习插件
 
-Chrome / Edge Manifest V3 扩展，把 YouTube 视频变成可检索、可复习的学习笔记。当前版本 `0.8.0`。
+Chrome / Edge Manifest V3 扩展，把 YouTube 视频变成可检索、可复习的学习笔记。当前版本 `0.8.1`。
 
 打开独立学习页：左侧是视频与双语字幕，右侧按「引导提问｜字幕｜章节｜总结｜问答」切换，底部是术语和笔记。双语字幕默认免 Key 直接可用；AI 总结、内容目录和问答使用你自己的 OpenAI、DeepSeek 或 Claude API Key。
 
@@ -9,7 +9,7 @@ Chrome / Edge Manifest V3 扩展，把 YouTube 视频变成可检索、可复习
 
 ## 安装（普通用户）
 
-1. 在 [Releases](../../releases) 下载 `sidenote-0.8.0.zip` 并解压。
+1. 在 [Releases](../../releases) 下载 `sidenote-0.8.1.zip` 并解压。
 2. 用 Chrome / Edge 130 或更新版本打开 `chrome://extensions` / `edge://extensions`。
 3. 打开右上角「开发者模式」，点击「加载已解压的扩展程序」，选择解压后**包含 `manifest.json` 的那一层文件夹**。
 

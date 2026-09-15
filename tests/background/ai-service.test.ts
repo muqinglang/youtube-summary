@@ -18,7 +18,8 @@ const video: VideoInfo = {
 };
 const cues: Cue[] = [
   { id: 'first', start: 0, end: 2, text: 'First idea.' },
-  { id: 'second', start: 2, end: 4, text: 'Second idea.' },
+  // Ten seconds apart, so the model reads them as two passages rather than one.
+  { id: 'second', start: 10, end: 12, text: 'Second idea.' },
 ];
 const transcript = (source = cues): Transcript => ({
   videoId: video.id,
@@ -69,7 +70,7 @@ describe('AI workflows', () => {
   });
 
   it('snaps approximate timestamps in chapters and mindmap nodes to real evidence starts', async () => {
-    // Allowed cue starts are [0, 2]; 15 snaps to the nearest real start (2).
+    // Allowed cue starts are [0, 10]; 15 snaps to the nearest real start (10).
     const result = await runAi(
       request(),
       DEFAULT_SETTINGS,
@@ -78,8 +79,8 @@ describe('AI workflows', () => {
       clientReturning(summary(15)),
     );
     if (result.task !== 'summarize') throw new Error('expected summary');
-    expect(result.summary.sections[0]!.start).toBe(2);
-    expect(result.summary.mindmap!.children![0]!.start).toBe(2);
+    expect(result.summary.sections[0]!.start).toBe(10);
+    expect(result.summary.mindmap!.children![0]!.start).toBe(10);
     const invalid = summary();
     invalid.mindmap!.children = [{ title: 'Bad time', start: 0.5 }];
     const snapped = await runAi(
@@ -113,10 +114,10 @@ describe('AI workflows', () => {
       }),
     );
     if (result.task !== 'outline') throw new Error('expected outline');
-    // Snapped (99 -> 2) and sorted chronologically, carrying the judgement for 「只看干货」.
+    // Snapped (99 -> 10) and sorted chronologically, carrying the judgement for 「只看干货」.
     expect(result.outline.sections).toEqual([
       { title: 'Intro', start: 0, density: 1, kind: 'filler' },
-      { title: 'Later part', start: 2, density: 5, kind: 'demo' },
+      { title: 'Later part', start: 10, density: 5, kind: 'demo' },
     ]);
   });
 
@@ -134,10 +135,10 @@ describe('AI workflows', () => {
       }),
     );
     if (result.task !== 'guide') throw new Error('expected guide');
-    // Allowed cue starts are [0, 2]; 99 snaps to 2 and the pair is sorted chronologically.
+    // Allowed cue starts are [0, 10]; 99 snaps to 10 and the pair is sorted chronologically.
     expect(result.guide.questions).toEqual([
       { question: '开头就回答的问题？', start: 0, answer: '第一个答案。' },
-      { question: '后面才回答的问题？', start: 2, answer: '第二个答案。' },
+      { question: '后面才回答的问题？', start: 10, answer: '第二个答案。' },
     ]);
   });
 
@@ -202,6 +203,30 @@ describe('AI workflows', () => {
     });
   });
 
+  it('reads sentence cues as passages, but still translates every cue by its own id', async () => {
+    const sentences = Array.from({ length: 6 }, (_, index) => ({
+      id: `sentence-${index}`,
+      start: index * 2,
+      end: index * 2 + 2,
+      text: `Sentence ${index}.`,
+    }));
+    const summarizing = clientReturning(summary());
+    await runAi(request(sentences), DEFAULT_SETTINGS, signal(), undefined, summarizing);
+    const read = vi.mocked(summarizing.json).mock.calls[0]![1] as { sourceCues: Cue[] };
+    expect(read.sourceCues.length).toBeLessThan(sentences.length);
+    const translated = await runAi(
+      { task: 'translate', transcript: transcript(sentences), language: 'zh' },
+      DEFAULT_SETTINGS,
+      signal(),
+      undefined,
+      clientReturning({
+        translations: sentences.map((sentence) => ({ id: sentence.id, text: '译文' })),
+      }),
+    );
+    if (translated.task !== 'translate') throw new Error('expected translation');
+    expect(Object.keys(translated.translations)).toEqual(sentences.map((sentence) => sentence.id));
+  });
+
   it.each([
     { translations: [{ id: 'first', text: 'Incomplete' }] },
     {
@@ -256,8 +281,8 @@ describe('AI workflows', () => {
       clientReturning({ text: 'Cited.', citations: [{ start: 99, label: 'Near' }] }),
     );
     if (snapped.task !== 'ask') throw new Error('expected answer');
-    // 99 snaps to the nearest real cue start (2) instead of being rejected.
-    expect(snapped.answer.citations[0]!.start).toBe(2);
+    // 99 snaps to the nearest real cue start (10) instead of being rejected.
+    expect(snapped.answer.citations[0]!.start).toBe(10);
   });
 
   it('does not send mismatched, empty or duplicate transcripts to a provider', async () => {

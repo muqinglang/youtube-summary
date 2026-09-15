@@ -154,6 +154,107 @@ function parseTimedText(text: string, format: 'srt' | 'vtt'): Cue[] {
   return cues;
 }
 
+interface Word {
+  time: number;
+  text: string;
+  /** YouTube writes each event's first word without the space that separates it from the last. */
+  opensEvent: boolean;
+}
+
+/** A sentence with more words than this is split at a comma… */
+const LONG_SENTENCE_WORDS = 14;
+/** …but only where both sides keep at least this many words, so no fragment reads on its own. */
+const CLAUSE_WORDS = 5;
+/** Speech with no punctuation to go by is cut at a pause this long once a run is this wide… */
+const PAUSE_SECONDS = 0.6;
+const SOFT_WIDTH = 80;
+/** …and at this width regardless. */
+const HARD_WIDTH = 120;
+/** A silence this long ends a sentence even without a full stop. */
+const SILENCE_SECONDS = 2;
+/** How long a cue stays up after its last word begins, unless the next one begins sooner. */
+const HOLD_SECONDS = 2;
+const SENTENCE_END = /[.!?。！？…]["'”’)\]]*$/u;
+const CLAUSE_END = /[,，;；:：、]["'”’)\]]*$/u;
+const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u;
+
+/** Roughly the room text takes on screen: a CJK character is about two Latin ones wide. */
+function textWidth(text: string): number {
+  let width = 0;
+  for (const char of text) width += CJK.test(char) ? 2 : 1;
+  return width;
+}
+
+function joinWords(words: Word[]): string {
+  let text = '';
+  for (const word of words) {
+    const part = word.text.replace(/\s+/g, ' ');
+    const touching = text && !/\s$/.test(text) && !/^\s/.test(part);
+    // The space an event's first word lacks belongs back only between scripts that use spaces.
+    if (touching && word.opensEvent && !CJK.test(text.at(-1)!) && !CJK.test(part[0]!)) text += ' ';
+    text += part;
+  }
+  return text.trim();
+}
+
+function splitClauses(sentence: Word[]): Word[][] {
+  if (sentence.length <= LONG_SENTENCE_WORDS) return [sentence];
+  const clauses: Word[][] = [[]];
+  for (const [index, word] of sentence.entries()) {
+    const clause = clauses.at(-1)!;
+    clause.push(word);
+    const remaining = sentence.length - index - 1;
+    if (
+      CLAUSE_END.test(word.text.trim()) &&
+      clause.length >= CLAUSE_WORDS &&
+      remaining >= CLAUSE_WORDS
+    )
+      clauses.push([]);
+  }
+  return clauses;
+}
+
+function splitRuns(clause: Word[]): Word[][] {
+  const runs: Word[][] = [[]];
+  let width = 0;
+  for (const [index, word] of clause.entries()) {
+    const gap = index ? word.time - clause[index - 1]!.time : 0;
+    if (width >= HARD_WIDTH || (width >= SOFT_WIDTH && gap >= PAUSE_SECONDS)) {
+      runs.push([]);
+      width = 0;
+    }
+    runs.at(-1)!.push(word);
+    width += textWidth(word.text);
+  }
+  return runs;
+}
+
+/**
+ * Speech recognition times every word but cuts its events wherever the display window filled, which
+ * is mid-sentence as often as not. Rebuilt here into what a viewer reads one at a time: sentences,
+ * long ones split at a comma that leaves a real clause on both sides, and runs with no punctuation
+ * at all cut at a pause once they are long enough to need it.
+ */
+function sentenceCues(words: Word[]): Cue[] {
+  const sentences: Word[][] = [[]];
+  for (const [index, word] of words.entries()) {
+    const previous = words[index - 1];
+    if (previous && word.time - previous.time >= SILENCE_SECONDS && sentences.at(-1)!.length)
+      sentences.push([]);
+    sentences.at(-1)!.push(word);
+    if (SENTENCE_END.test(word.text.trim())) sentences.push([]);
+  }
+  const pieces = sentences
+    .filter((sentence) => sentence.length)
+    .flatMap((sentence) => splitClauses(sentence).flatMap(splitRuns));
+  return pieces.map((piece, index) => {
+    const start = piece[0]!.time;
+    const next = pieces[index + 1]?.[0]?.time ?? Infinity;
+    const end = Math.min(next, piece.at(-1)!.time + HOLD_SECONDS);
+    return { id: `cue-${index}`, start, end: Math.max(end, start + 0.1), text: joinWords(piece) };
+  });
+}
+
 function parseJson3(text: string): Cue[] {
   let parsed: unknown;
   try {
@@ -165,6 +266,8 @@ function parseJson3(text: string): Cue[] {
   if (!Array.isArray(events) || events.length > MAX_CUES)
     throw new Error('YouTube 字幕缺少有效 events 列表。');
   const cues: Cue[] = [];
+  const words: Word[] = [];
+  let wordTimed = false;
   events.forEach((raw, index) => {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw))
       throw new Error('YouTube 字幕事件格式无效。');
@@ -199,8 +302,23 @@ function parseJson3(text: string): Cue[] {
     if (offsets.some((offset) => eventStart + offset > end))
       throw new Error('字幕片段偏移超出持续时间。');
     cues.push({ id: `cue-${index}`, start, end, text: content });
+    let opensEvent = true;
+    segments.forEach((segment, position) => {
+      if (!(segment.utf8 as string).trim()) return;
+      words.push({
+        time: eventStart + offsets[position]!,
+        text: segment.utf8 as string,
+        opensEvent,
+      });
+      opensEvent = false;
+    });
+    if (
+      segments.some((segment, position) => position > firstText && segment.tOffsetMs !== undefined)
+    )
+      wordTimed = true;
   });
-  return cues;
+  // A person's captions are already cut where a reader needs them; recognised speech is not.
+  return wordTimed ? sentenceCues(words.sort((a, b) => a.time - b.time)) : cues;
 }
 
 function xmlText(nodes: unknown, depth = 0): string {
@@ -335,6 +453,28 @@ export function chunkCues(cues: Cue[], maxChars = 12_000): Cue[][] {
   }
   if (chunk.length) chunks.push(chunk);
   return chunks;
+}
+
+/**
+ * Joins neighbouring cues into passages for a model to read. Sentence cues suit a reader, but each
+ * one costs the model an id and a time besides its words, and a long video has thousands of them.
+ * Passages about the size of a YouTube caption window keep that cost where it was, and each still
+ * starts on a real cue, so a cited time still lands on one.
+ */
+export function mergeCues(cues: Cue[], maxChars = 160, maxSeconds = 10): Cue[] {
+  const passages: Cue[] = [];
+  for (const cue of cues) {
+    const passage = passages.at(-1);
+    if (
+      passage &&
+      cue.start - passage.start < maxSeconds &&
+      passage.text.length + cue.text.length < maxChars
+    ) {
+      passage.text = `${passage.text} ${cue.text}`;
+      passage.end = Math.max(passage.end, cue.end);
+    } else passages.push({ ...cue });
+  }
+  return passages;
 }
 
 export function formatTime(seconds: number): string {

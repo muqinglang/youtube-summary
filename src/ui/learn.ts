@@ -20,6 +20,11 @@ let savedTranscript: { trackId?: string; transcript: Transcript } | undefined;
 let transcriptRequestId = 0;
 let timelinePointerId: number | undefined;
 let preferences: LearningPreferences | undefined;
+/** The cue the panel last asked to show, and when it is spoken. */
+let caption: { start: number; end: number; original: string; translated: string } | undefined;
+/** That cue cut into pieces that fit each row, at the width they were measured at. */
+let captionPieces = { width: -1, original: [''], translated: [''] };
+const words = new Intl.Segmenter(undefined, { granularity: 'word' });
 
 function applyPreferences(next: LearningPreferences) {
   const previous = preferences;
@@ -44,6 +49,7 @@ function publishVideo() {
     $<HTMLInputElement>('#timeline').value = String(video.currentTime);
   paintTimeline();
   $('#play').textContent = video.paused ? '▶' : 'Ⅱ';
+  paintCaption();
 }
 /** The played portion is drawn by the track gradient, so the fill ratio has to reach CSS. */
 function paintTimeline() {
@@ -51,6 +57,62 @@ function paintTimeline() {
   const max = Number(timeline.max) || 1;
   const ratio = Math.min(1, Math.max(0, Number(timeline.value) / max));
   timeline.style.setProperty('--progress', String(ratio));
+}
+
+/**
+ * Cuts text into pieces that each fit the row, breaking only before a word so punctuation stays
+ * with what it follows. Measured against the row itself, so it holds for any script, font and width.
+ */
+function paginate(row: HTMLElement, text: string): string[] {
+  // A hidden row has no box to measure against; it is cut again once it has one.
+  if (!text || !row.clientHeight) return [text];
+  const pieces: string[] = [];
+  let piece = '';
+  for (const { segment, isWordLike } of words.segment(text)) {
+    row.textContent = piece + segment;
+    if (isWordLike && piece.trim() && row.scrollHeight > row.clientHeight + 1) {
+      pieces.push(piece.trim());
+      piece = segment;
+    } else piece += segment;
+  }
+  pieces.push(piece.trim());
+  return pieces;
+}
+
+/** Weighted by length, so a short last piece is not held on screen as long as a full one. */
+function pieceAt(pieces: string[], progress: number): string {
+  const total = pieces.reduce((sum, piece) => sum + piece.length, 0);
+  let offset = Math.min(Math.max(progress, 0), 1) * total;
+  for (const piece of pieces) {
+    if (offset < piece.length) return piece;
+    offset -= piece.length;
+  }
+  return pieces[pieces.length - 1] ?? '';
+}
+
+/**
+ * The rows keep a fixed height so the player above never moves, which means a cue longer than its
+ * row cannot simply wrap. It is shown a piece at a time instead, following how far into the cue
+ * playback is: roughly where the speaker is in the sentence.
+ */
+function paintCaption() {
+  if (!caption) return;
+  const original = $('#original');
+  const translated = $('#translated');
+  const width = $('#subtitles').clientWidth;
+  if (width !== captionPieces.width)
+    captionPieces = {
+      width,
+      original: paginate(original, caption.original),
+      translated: paginate(translated, caption.translated),
+    };
+  const span = caption.end - caption.start;
+  const progress = span > 0 ? (video.currentTime - caption.start) / span : 0;
+  const nextOriginal = pieceAt(captionPieces.original, progress);
+  const nextTranslated = pieceAt(captionPieces.translated, progress);
+  // Only on change: this runs on every playback update, and rewriting the same text still lays out.
+  if (original.textContent !== nextOriginal) original.textContent = nextOriginal;
+  if (translated.textContent !== nextTranslated) translated.textContent = nextTranslated;
 }
 
 function mergeMetadata(next: VideoInfo) {
@@ -115,8 +177,14 @@ async function request(request: RuntimeRequest): Promise<unknown> {
     const box = $('#subtitles');
     box.dataset.mode = command.mode;
     box.dataset.enabled = String(command.enabled && player.matchesVideo);
-    $('#original').textContent = visible ? command.original : '';
-    $('#translated').textContent = visible ? command.translated : '';
+    caption = {
+      start: command.start,
+      end: command.end,
+      original: visible ? command.original : '',
+      translated: visible ? command.translated : '',
+    };
+    captionPieces.width = -1;
+    paintCaption();
   } else if (command.action === 'close') window.close();
   return null;
 }
@@ -178,6 +246,7 @@ async function initialize() {
     },
     (message) => {
       if (!player.matchesVideo) {
+        caption = undefined;
         $('#original').textContent = '';
         $('#translated').textContent = '';
       }
@@ -185,6 +254,9 @@ async function initialize() {
     },
   );
   loadingMetadata = refreshMetadata();
+  // Width decides where a long cue is cut, and it can change while paused, when no playback update
+  // would come along to cut it again.
+  new ResizeObserver(paintCaption).observe($('#subtitles'));
   panel.src = chrome.runtime.getURL(`panel.html?workspace=1&tabId=${sourceTabId}`);
   sourcePoll = window.setInterval(() => {
     void refreshMetadata();

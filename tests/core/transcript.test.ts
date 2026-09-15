@@ -3,6 +3,7 @@ import {
   chunkCues,
   findCueIndex,
   formatTime,
+  mergeCues,
   normalizeCues,
   parseTranscript,
 } from '../../src/core/transcript';
@@ -13,6 +14,32 @@ const cue = (start: number, end: number, text = 'hello', id = `cue-${start}`): C
   start,
   end,
   text,
+});
+
+describe('mergeCues', () => {
+  it('joins sentence cues into passages for a model, each starting on a real cue', () => {
+    const sentences = Array.from({ length: 12 }, (_, index) =>
+      cue(index * 2, index * 2 + 2, `Sentence ${index} says one thing.`, `cue-${index}`),
+    );
+    const passages = mergeCues(sentences);
+    expect(passages.length).toBeLessThan(sentences.length);
+    expect(passages.map((passage) => passage.text).join(' ')).toBe(
+      sentences.map((sentence) => sentence.text).join(' '),
+    );
+    for (const passage of passages) {
+      expect(sentences).toContainEqual(
+        expect.objectContaining({ id: passage.id, start: passage.start }),
+      );
+      expect(passage.text.length).toBeLessThanOrEqual(160);
+    }
+    // The input is untouched: the panel still shows and translates the sentences themselves.
+    expect(sentences[0]!.text).toBe('Sentence 0 says one thing.');
+  });
+
+  it('starts a new passage once one would span ten seconds or grow too long', () => {
+    expect(mergeCues([cue(0, 2, 'a'), cue(10, 12, 'b')])).toHaveLength(2);
+    expect(mergeCues([cue(0, 2, 'a'.repeat(100)), cue(2, 4, 'b'.repeat(100))])).toHaveLength(2);
+  });
 });
 
 describe('parseTranscript', () => {
@@ -35,7 +62,7 @@ describe('parseTranscript', () => {
     ]);
   });
 
-  it('uses JSON3 segment offsets while joining words without inventing spaces', () => {
+  it('rebuilds word-timed JSON3 at a silence, without inventing spaces inside CJK', () => {
     const input = JSON.stringify({
       events: [
         { tStartMs: 0, id: 1, wpWinPosId: 0 },
@@ -44,17 +71,64 @@ describe('parseTranscript', () => {
           dDurationMs: 3000,
           segs: [
             { utf8: '\n' },
-            { utf8: '你', tOffsetMs: 200 },
-            { utf8: '好 world', tOffsetMs: 700 },
+            { utf8: '你', tOffsetMs: 250 },
+            { utf8: '好 world', tOffsetMs: 750 },
           ],
         },
         { tStartMs: 5000, segs: [{ utf8: 'last', tOffsetMs: 500 }] },
       ],
     });
+    // Nearly four seconds of silence ends the first cue; each stays up two seconds past its last word.
     expect(parseTranscript(input)).toEqual([
-      cue(1.2, 4, '你好 world', 'cue-1'),
-      cue(5.5, 8.5, 'last', 'cue-2'),
+      cue(1.25, 3.75, '你好 world', 'cue-0'),
+      cue(5.5, 7.5, 'last', 'cue-1'),
     ]);
+  });
+
+  it('cuts recognised speech into sentences, splitting long ones at a comma with a clause each side', () => {
+    const words =
+      "Now, quickly before we get into this, I just want to show you why you should actually listen to me on this. So, this is my main channel, and you can see that in the lifetime of the channel, just from AdSense alone, I've made over $1.8 million. Most people never check the numbers behind a channel before copying what it does, sadly.".split(
+        ' ',
+      );
+    // YouTube's own shape: fixed windows of seven words, each window's first word without its space.
+    const events = [];
+    for (let index = 0; index < words.length; index += 7)
+      events.push({
+        tStartMs: 22_000 + index * 300,
+        dDurationMs: 2_100,
+        segs: words
+          .slice(index, index + 7)
+          .map((word, offset) =>
+            offset ? { utf8: ` ${word}`, tOffsetMs: offset * 300 } : { utf8: word },
+          ),
+      });
+    const cues = parseTranscript(JSON.stringify({ events }));
+    expect(cues.map((item) => item.text)).toEqual([
+      'Now, quickly before we get into this,',
+      'I just want to show you why you should actually listen to me on this.',
+      'So, this is my main channel,',
+      'and you can see that in the lifetime of the channel,',
+      "just from AdSense alone, I've made over $1.8 million.",
+      // Long enough to split, but the comma would leave a single word behind.
+      'Most people never check the numbers behind a channel before copying what it does, sadly.',
+    ]);
+    // Each starts on its own first word and holds until the next begins.
+    expect(cues[1]!.start).toBeCloseTo(24.1);
+    expect(cues[0]!.end).toBe(cues[1]!.start);
+  });
+
+  it('cuts speech with no punctuation at a pause once it runs long, and caps it regardless', () => {
+    const segs = Array.from({ length: 60 }, (_, index) => ({
+      utf8: index ? ' word' : 'word',
+      // One real pause, before the 21st word.
+      ...(index ? { tOffsetMs: index * 300 + (index >= 20 ? 1_000 : 0) } : {}),
+    }));
+    const cues = parseTranscript(
+      JSON.stringify({ events: [{ tStartMs: 0, dDurationMs: 30_000, segs }] }),
+    );
+    expect(cues[0]!.text.split(' ')).toHaveLength(20);
+    expect(cues.every((item) => item.text.length <= 130)).toBe(true);
+    expect(cues.map((item) => item.text).join(' ')).toBe(Array(60).fill('word').join(' '));
   });
 
   it('infers missing JSON3 duration from next event, retaining the final cue', () => {

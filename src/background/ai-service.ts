@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { chunkCues } from '../core/transcript';
+import { chunkCues, mergeCues } from '../core/transcript';
 import type {
   AiRequest,
   AiResult,
@@ -241,7 +241,7 @@ async function prepareEvidence(
   store: DigestStore | undefined,
   model: string,
 ): Promise<Evidence> {
-  const sources = sourceBatches(request.transcript.cues);
+  const sources = sourceBatches(mergeCues(request.transcript.cues));
   if (sources.length === 1) return { payload: { sourceCues: sources[0]! }, analysed: 1, total: 1 };
   const taskInstruction =
     request.task === 'ask'
@@ -411,7 +411,10 @@ export async function runAi(
     throw new AiError('字幕与当前视频不匹配，请重新加载字幕。');
   }
   assertNotAborted(signal);
-  const batches = sourceBatches(request.transcript.cues);
+  // Translation is keyed by each cue's id; everything else reads passages, which cost far less.
+  const batches = sourceBatches(
+    request.task === 'translate' ? request.transcript.cues : mergeCues(request.transcript.cues),
+  );
   const progress = new Progress(
     request.task === 'translate' ? batches.length : batches.length > 1 ? batches.length + 1 : 1,
     onProgress,

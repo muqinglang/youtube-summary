@@ -198,6 +198,9 @@ export type PlayerCommand =
       mode: DisplayMode;
       /** False when the viewer turned captions off, which collapses the block entirely. */
       enabled: boolean;
+      /** When the cue is spoken, so one too long for its rows can be shown a piece at a time. */
+      start: number;
+      end: number;
     }
   | { action: 'close' };
 

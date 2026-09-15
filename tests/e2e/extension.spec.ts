@@ -439,6 +439,50 @@ test('independent learning page: source untouched, embedded playback, real API, 
   await panel.locator('#display-mode').selectOption('bilingual');
   await expect(learning.locator('#original')).toBeVisible();
   await expect(learning.locator('#translated')).toBeVisible();
+  // A cue longer than its row is shown a piece at a time, never clipped, and the piece shown
+  // follows playback through the cue.
+  const showCaption = (original: string, translated: string, start: number, end: number) =>
+    learning.evaluate(
+      async (command) => {
+        const page = window as Window & {
+          sidenoteLearning?: { request: (request: unknown) => Promise<unknown> };
+        };
+        await page.sidenoteLearning?.request({ type: 'player:command', tabId: 0, command });
+        return [...document.querySelectorAll<HTMLElement>('#subtitles p')].map((row) => ({
+          text: row.textContent ?? '',
+          fits: row.scrollHeight <= row.clientHeight + 1,
+        }));
+      },
+      {
+        action: 'overlay',
+        original,
+        translated,
+        visible: true,
+        mode: 'bilingual',
+        enabled: true,
+        start,
+        end,
+      },
+    );
+  const shown = await learning.evaluate(() =>
+    [...document.querySelectorAll('#subtitles p')].map((row) => row.textContent ?? ''),
+  );
+  const longOriginal = Array.from(
+    { length: 12 },
+    (_, index) => `Point ${index + 1}: check the evidence before deciding anything.`,
+  ).join(' ');
+  const longTranslated = '在做出任何决定之前，先把证据核对清楚。'.repeat(10);
+  // Playback sits well inside the first cue, then past the end of the second.
+  const firstPieces = await showCaption(longOriginal, longTranslated, 0, 1e6);
+  const lastPieces = await showCaption(longOriginal, longTranslated, 0, 0.001);
+  for (const [index, full] of [longOriginal, longTranslated].entries()) {
+    expect(firstPieces[index]!.fits && lastPieces[index]!.fits).toBe(true);
+    expect(firstPieces[index]!.text.length).toBeLessThan(full.length);
+    expect(full.startsWith(firstPieces[index]!.text)).toBe(true);
+    expect(full.endsWith(lastPieces[index]!.text)).toBe(true);
+    expect(lastPieces[index]!.text).not.toBe(firstPieces[index]!.text);
+  }
+  await showCaption(shown[0]!, shown[1]!, 0, 1e6);
   await learning.locator('#captions-toggle').click();
   await expect(learning.locator('#captions-toggle')).toHaveAttribute('aria-pressed', 'false');
   await expect(panel.locator('#overlay-enabled')).not.toBeChecked();

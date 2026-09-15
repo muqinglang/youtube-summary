@@ -776,6 +776,8 @@ function resetVideo(): void {
     visible: false,
     mode: state.displayMode,
     enabled: false,
+    start: 0,
+    end: 0,
   }).catch(() => {});
 }
 
@@ -1152,6 +1154,8 @@ function updatePlayback(): void {
     // the text, which is what keeps the video still.
     mode: state.displayMode,
     enabled,
+    start: cue?.start ?? 0,
+    end: cue?.end ?? 0,
   };
   const identity = JSON.stringify(overlay);
   if (identity !== lastOverlay) {
@@ -1415,6 +1419,8 @@ const MIN_BATCH = 12;
 let translator: AbortController | undefined;
 let translateAll = false;
 let translationHalted = false;
+/** Cues Google still refused after retrying, left out until the viewer asks for everything again. */
+const skippedTranslations = new Set<string>();
 let cachePersistTimer = 0;
 let lastTranslatePaint = 0;
 
@@ -1489,12 +1495,16 @@ function persistTranslations(): void {
   }, 1500);
 }
 
+function needsTranslation(cue: Cue | undefined): cue is Cue {
+  return Boolean(cue && !state.translations[cue.id] && !skippedTranslations.has(cue.id));
+}
+
 function collectUntranslated(cues: Cue[], from: number, to: number): Cue[] {
   const out: Cue[] = [];
   const end = Math.min(cues.length, to);
   for (let index = Math.max(0, from); index < end && out.length < AI_CHUNK; index += 1) {
     const cue = cues[index];
-    if (cue && !state.translations[cue.id]) out.push(cue);
+    if (needsTranslation(cue)) out.push(cue);
   }
   return out;
 }
@@ -1510,7 +1520,7 @@ function nextBatch(): Cue[] | undefined {
   if (behind.length) return behind;
   // Free cloud Google fills the whole video (like Trancy); paid AI stays near the playhead.
   if (!translateAll && currentEngine() !== 'google') return undefined;
-  const first = cues.findIndex((cue) => !state.translations[cue.id]);
+  const first = cues.findIndex((cue) => needsTranslation(cue));
   return first < 0 ? undefined : collectUntranslated(cues, first, first + LOOKAHEAD);
 }
 
@@ -1521,8 +1531,7 @@ function untranslatedInWindow(): number {
   let count = 0;
   const end = Math.min(cues.length, active + LOOKAHEAD);
   for (let index = active; index < end; index += 1) {
-    const cue = cues[index];
-    if (cue && !state.translations[cue.id]) count += 1;
+    if (needsTranslation(cues[index])) count += 1;
   }
   return count;
 }
@@ -1543,8 +1552,7 @@ function maybeTranslate(): void {
   if (translator || !state.transcript || translationHalted) return;
   if (!autoTranslateOn() && !translateAll) return;
   if (!engineReady(currentEngine())) return;
-  const activeCue = state.transcript.cues[state.activeCue];
-  const activeMissing = Boolean(activeCue && !state.translations[activeCue.id]);
+  const activeMissing = needsTranslation(state.transcript.cues[state.activeCue]);
   if (!translateAll && !activeMissing && untranslatedInWindow() < MIN_BATCH) return;
   // runTranslator() calls back here from its finally block. Starting a run with nothing to do
   // would return through that block synchronously and re-enter, overflowing the stack.
@@ -1602,13 +1610,16 @@ async function runTranslator(): Promise<void> {
       if (engine === 'ai') {
         await translateBatchAi(batch, controller.signal, version);
       } else {
-        const map = await translateCuesCloud(
+        const { translations, failed } = await translateCuesCloud(
           batch,
           $<HTMLSelectElement>('#target-language').value,
           controller.signal,
         );
         if (controller.signal.aborted || version !== state.loadVersion) return;
-        mergeTranslations(map, true);
+        // A sentence Google keeps refusing must neither stop the rest of the video nor be asked
+        // for again on every pass.
+        for (const id of failed) skippedTranslations.add(id);
+        mergeTranslations(translations, true);
       }
     }
     if (version === state.loadVersion && !controller.signal.aborted) setTranslateStatus('');
@@ -1636,6 +1647,7 @@ function cancelTranslator(): void {
   translator = undefined;
   translateAll = false;
   translationHalted = false;
+  skippedTranslations.clear();
   clearTimeout(cachePersistTimer);
   setTranslateStatus('');
 }
@@ -1653,6 +1665,8 @@ function forceTranslateAll(): void {
   }
   translateAll = true;
   translationHalted = false;
+  // Asking for everything is also asking to try the sentences that failed before.
+  skippedTranslations.clear();
   setTranslateStatus('');
   if (!translator) void runTranslator();
   else updateActions();

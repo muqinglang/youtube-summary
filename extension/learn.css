@@ -184,7 +184,8 @@ h1 {
 /* Height is reserved, never negotiated. The player sits directly above, so a block that grew
    and shrank as each cue wrapped to one line or two moved the video on almost every cue. Each
    line box below is a fixed two lines tall whether or not both are used, which makes the total
-   constant; an unusually long cue scrolls inside its own box rather than pushing the video. */
+   constant; a cue too long for its box is shown a piece at a time instead (paintCaption in
+   learn.ts). */
 .subtitles {
   flex: none;
   padding: 10px 40px 14px;
@@ -202,15 +203,13 @@ h1 {
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
   /* em, so the reserved box tracks the clamped font size at every viewport width. */
   height: calc(2 * var(--caption-line) * 1em);
-  overflow-y: auto;
-  scrollbar-width: none;
+  overflow: hidden;
   display: flex;
-  align-items: center;
+  /* safe: a piece that still cannot fit, such as one unbroken URL, keeps its start in view rather
+     than losing it above the box. */
+  align-items: safe center;
   justify-content: center;
   width: 100%;
-}
-.subtitles p::-webkit-scrollbar {
-  display: none;
 }
 :root {
   --caption-line: 1.55;
@@ -227,8 +226,8 @@ h1 {
   color: #f3f4f6;
   /* One line, not two. Chinese renders the same sentence far shorter than the English above it,
      so the second reserved line was empty almost always — and it sat exactly between the text
-     and the progress bar, which is where it read as wasted space. A translation that does wrap
-     scrolls in place rather than moving the video. */
+     and the progress bar, which is where it read as wasted space. A longer translation is shown
+     a line at a time. */
   height: calc(var(--caption-line) * 1em);
 }
 /* Which rows exist is a property of the display mode, never of whether text is present. Hiding
