@@ -78,6 +78,7 @@
 - `identity`：用于 Google 登录，只申请 `openid email`，读取 Google 账号标识与邮箱地址。
 - YouTube 站点权限：读取字幕轨、播放器状态和转录内容，注入点赞旁的入口。必要时展开原视频描述中的「显示转录内容」。
 - `translate.googleapis.com` 站点权限：「默认字幕」向该域发送字幕文本并接收译文；仅用于翻译。
+- `webRequest`：只查看浏览器发往 YouTube 字幕接口（`/api/timedtext`）的请求地址。YouTube 多数自动字幕只对它自己的播放器开放，扩展因此用播放器已经请求过的地址再读取一次这份字幕。不拦截、不修改请求，也不查看其他网站的请求。
 - `declarativeNetRequestWithHostAccess`：只对本扩展发起的 YouTube 嵌入框架请求设置客户端 Referer，其中包含本扩展真实 ID，用于 YouTube 识别播放器客户端；不会修改其他网页或扩展的请求。
 - 可选站点权限：仅限三家 AI 服务商的官方域名与旁听服务域名。服务商域名在保存对应配置时申请，旁听服务域名在登录时申请。清单中不含通配的 HTTPS 范围，安装时不会授权任意站点。
 
