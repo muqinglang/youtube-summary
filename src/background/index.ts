@@ -17,12 +17,14 @@ import {
 } from './settings';
 import { summarySchema, videoSchema } from './validation';
 import { ensureEmbedIdentity, openLearningFromSender, openLearningFromTab } from './learning';
+import { observeCaptionRequests, transcriptFromObserved, withObservedCaptions } from './captions';
 import type { AiRequest, AiResult, ExportDocument, Reply, RuntimeRequest } from '../shared/types';
 
 const jobs = new Map<string, { controller: AbortController; owner: object }>();
 const ready = restrictStorageAccess();
 // Player identity setup is independent: a failure must not disable settings or AI.
 void ensureEmbedIdentity().catch(() => undefined);
+observeCaptionRequests();
 const JOB_TIMEOUT_MS = 30 * 60_000;
 /** Short: the panel already shows what this machine has, and a hung server must not stall a job. */
 const SYNC_TIMEOUT_MS = 10_000;
@@ -117,6 +119,22 @@ async function sendToYoutube(
   }
   if (!reply?.ok) throw new AiError(reply?.error?.slice(0, 500) || '视频页面操作未完成。');
   return reply.data;
+}
+
+/**
+ * The page reads captions its own way while any token-carrying URL the player fetched is tried
+ * directly. Either is enough. The second also works once the source tab is gone, as long as the
+ * learning page's player has requested the captions.
+ */
+function readTranscript(
+  request: Extract<RuntimeRequest, { type: 'transcript:get' }>,
+): Promise<unknown> {
+  const videoId = request.videoId;
+  if (!videoId || !/^[\w-]{11}$/.test(videoId)) return sendToYoutube(request);
+  const tried = new Set<string>();
+  return withObservedCaptions(sendToYoutube(request), () =>
+    transcriptFromObserved(videoId, request.trackId, tried),
+  );
 }
 
 async function exportPrint(
@@ -252,9 +270,10 @@ async function dispatch(
       cancelJob(request.jobId);
       return null;
     case 'video:get':
-    case 'transcript:get':
     case 'player:command':
       return sendToYoutube(request);
+    case 'transcript:get':
+      return readTranscript(request);
     case 'export:print':
       return exportPrint(request);
     default:

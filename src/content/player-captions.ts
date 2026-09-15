@@ -40,6 +40,9 @@ export async function captionsViaPlayer(
     // The module is not loaded yet, which means nothing was showing.
   }
   try {
+    // A track the player already holds is not requested again, so a response capture missed earlier
+    // would never come back. Unloading first makes the request happen now, where capture sees it.
+    player.unloadModule?.('captions');
     player.loadModule('captions');
     player.setOption('captions', 'track', {
       languageCode: track.language,

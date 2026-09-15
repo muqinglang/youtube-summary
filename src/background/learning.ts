@@ -17,25 +17,29 @@ type LearningIndex = z.infer<typeof indexSchema>;
 let embedIdentity: Promise<void> | undefined;
 let opening = Promise.resolve();
 
-export function youtubeVideoId(raw: string | undefined): string | null {
+function youtubePage(raw: string | undefined): URL | null {
   try {
     const url = new URL(raw ?? '');
-    if (
-      url.protocol !== 'https:' ||
-      !['youtube.com', 'www.youtube.com', 'm.youtube.com'].includes(url.hostname) ||
-      url.username ||
-      url.password ||
-      url.port
-    )
-      return null;
-    const id =
-      url.pathname === '/watch'
-        ? url.searchParams.get('v')
-        : url.pathname.match(/^\/(?:shorts|live)\/([A-Za-z0-9_-]{11})\/?$/)?.[1];
-    return id && videoIdSchema.safeParse(id).success ? id : null;
+    return url.protocol === 'https:' &&
+      ['youtube.com', 'www.youtube.com', 'm.youtube.com'].includes(url.hostname) &&
+      !url.username &&
+      !url.password &&
+      !url.port
+      ? url
+      : null;
   } catch {
     return null;
   }
+}
+
+export function youtubeVideoId(raw: string | undefined): string | null {
+  const url = youtubePage(raw);
+  if (!url) return null;
+  const id =
+    url.pathname === '/watch'
+      ? url.searchParams.get('v')
+      : url.pathname.match(/^\/(?:shorts|live)\/([A-Za-z0-9_-]{11})\/?$/)?.[1];
+  return id && videoIdSchema.safeParse(id).success ? id : null;
 }
 
 /** Identify only our own embedded player requests with our real extension identity. */
@@ -275,10 +279,14 @@ function enqueueOpen(
 export function openLearningFromSender(
   sender: chrome.runtime.MessageSender,
 ): Promise<{ tabId: number; reused: boolean }> {
-  const id = youtubeVideoId(sender.url);
+  // YouTube moves between videos without reloading the page, and sender.url keeps naming whatever
+  // the page first loaded, sometimes not a video at all. The tab's URL is what is on screen;
+  // sender.url only has to show that the message came from YouTube.
+  const id = youtubeVideoId(sender.tab?.url);
   const sourceTabId = sender.tab?.id;
   if (
     sender.id !== chrome.runtime.id ||
+    !youtubePage(sender.url) ||
     !id ||
     sourceTabId === undefined ||
     !Number.isInteger(sourceTabId) ||

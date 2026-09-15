@@ -183,4 +183,17 @@ describe('learning player video identity', () => {
     expect(onState).not.toHaveBeenCalled();
     expect(() => player.seek(150)).not.toThrow();
   });
+
+  it('does not post to the frame before the YouTube embed replaces its blank page', () => {
+    const handshake = vi.mocked(window.setInterval).mock.calls[0]?.[0] as () => void;
+    Object.assign(frame, { contentDocument: {} });
+    handshake();
+    expect(playerWindow.postMessage).not.toHaveBeenCalled();
+    Object.assign(frame, { contentDocument: null });
+    handshake();
+    expect(playerWindow.postMessage).toHaveBeenCalledExactlyOnceWith(
+      JSON.stringify({ event: 'listening', id: 'sidenote-player', channel: 'sidenote' }),
+      youtubeOrigin,
+    );
+  });
 });

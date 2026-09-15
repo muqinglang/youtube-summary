@@ -51,7 +51,7 @@ describe('independent learning page runtime', () => {
     id: extensionId,
     url,
     frameId: 0,
-    tab: { id: tabId } as chrome.tabs.Tab,
+    tab: { id: tabId, url } as chrome.tabs.Tab,
   });
   const extensionSender = (): chrome.runtime.MessageSender => ({
     id: extensionId,
@@ -155,6 +155,11 @@ describe('independent learning page runtime', () => {
   it.each([
     () => extensionSender(),
     () => sender(1, 'https://attacker.example/'),
+    // A tab showing a YouTube video is not enough: the message itself has to come from YouTube.
+    () => ({
+      ...sender(1, 'https://attacker.example/'),
+      tab: { id: 1, url: sourceUrl } as chrome.tabs.Tab,
+    }),
     () => sender(1, 'https://www.youtube.com/results?search_query=video'),
     () => sender(1, 'https://www.youtube.com/watch?v=invalid'),
     () => ({ ...sender(), frameId: 4 }),
@@ -171,6 +176,20 @@ describe('independent learning page runtime', () => {
     tabs.set(1, { id: 1, url: 'https://www.youtube.com/watch?v=abcdefghijk' } as chrome.tabs.Tab);
     expect((await open()).ok).toBe(false);
     expect(createTab).toHaveBeenCalledOnce();
+  });
+
+  it('opens the video on screen after YouTube changed videos without reloading the page', async () => {
+    // sender.url keeps the URL the page first loaded, which may not even be a video; the tab
+    // itself shows the video the viewer is on.
+    const next = 'abcdefghijk';
+    const nextUrl = `https://www.youtube.com/watch?v=${next}`;
+    tabs.set(1, { id: 1, url: nextUrl } as chrome.tabs.Tab);
+    snapshots.set(1, { ...video, id: next, url: nextUrl });
+    for (const firstLoaded of [sourceUrl, 'https://www.youtube.com/']) {
+      const from = { ...sender(1, firstLoaded), tab: { id: 1, url: nextUrl } as chrome.tabs.Tab };
+      expect((await open(from)).ok).toBe(true);
+    }
+    expect(createTab.mock.calls[0]?.[0].url).toContain(`videoId=${next}`);
   });
 
   it('rejects stale or mismatched native video metadata', async () => {

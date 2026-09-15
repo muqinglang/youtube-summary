@@ -265,7 +265,13 @@ export type RuntimeRequest =
   | { type: 'ai:run'; jobId: string; request: AiRequest }
   | { type: 'ai:cancel'; jobId: string }
   | { type: 'video:get'; tabId: number }
-  | { type: 'transcript:get'; tabId: number; trackId?: string }
+  | {
+      type: 'transcript:get';
+      tabId: number;
+      trackId?: string;
+      /** Lets the worker read the captions from the player's own URL if the page cannot. */
+      videoId?: string;
+    }
   | { type: 'player:command'; tabId: number; command: PlayerCommand }
   | { type: 'export:print'; video: VideoInfo; summary: Summary; prompt: string };
 

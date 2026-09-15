@@ -127,18 +127,21 @@ export class YoutubePlayer {
         this.onError('播放器连接较慢，请检查网络；字幕和 AI 功能可继续使用。');
         return;
       }
-      frame.contentWindow?.postMessage(
-        JSON.stringify({ event: 'listening', id: 'sidenote-player', channel: 'sidenote' }),
-        'https://www.youtube.com',
-      );
+      this.send({ event: 'listening' });
     }, 500);
   }
 
-  private post(func: string, args: unknown[] = []) {
+  private send(message: Record<string, unknown>) {
+    // Until the embed page arrives, the frame holds a blank page with this extension's origin, and
+    // posting to it with YouTube as the target logs an error on the extension's error page.
+    if (this.frame.contentDocument) return;
     this.frame.contentWindow?.postMessage(
-      JSON.stringify({ event: 'command', func, args, id: 'sidenote-player', channel: 'sidenote' }),
+      JSON.stringify({ ...message, id: 'sidenote-player', channel: 'sidenote' }),
       'https://www.youtube.com',
     );
+  }
+  private post(func: string, args: unknown[] = []) {
+    this.send({ event: 'command', func, args });
   }
   get matchesVideo() {
     return this.sourceMatches;

@@ -86,6 +86,7 @@ Chrome / Edge Manifest V3 扩展，把 YouTube 视频变成可检索、可复习
 | `storage`                             | 保存设置、偏好、笔记、翻译与 AI 结果缓存；API Key 默认在本机记住，可改为只保留到浏览器关闭                       |
 | `activeTab`                           | 从当前 YouTube 标签读取视频信息与字幕                                                                            |
 | `identity`                            | Google 登录，只申请 `openid email`                                                                               |
+| `webRequest`                          | 只查看发往 YouTube 字幕接口的请求地址，用播放器请求过的地址读取字幕；不拦截、不修改请求                          |
 | `declarativeNetRequestWithHostAccess` | 学习页内嵌播放所需的请求头调整                                                                                   |
 | `host_permissions`                    | `youtube.com`、`m.youtube.com`、`translate.googleapis.com`                                                       |
 | `optional_host_permissions`           | 三家 AI 服务商官方域名（保存设置时申请）、旁听服务域名（登录时申请），以及本地开发用的 `localhost` / `127.0.0.1` |

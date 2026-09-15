@@ -44,6 +44,8 @@ describe('reading captions through the page player', () => {
     const { player, calls } = fakePlayer({});
     expect(await read(player, captureAfterRequest(calls))).toBe(CAPTION);
     expect(calls).toEqual([
+      // Unloaded first, so a track the player already held is requested again where capture sees it.
+      ['unloadModule', 'captions'],
       ['loadModule', 'captions'],
       ['setOption', 'captions', 'track', { languageCode: 'en', kind: 'asr' }],
       // The viewer had captions off; reading a transcript must not leave them on.
@@ -56,13 +58,14 @@ describe('reading captions through the page player', () => {
     const { player, calls } = fakePlayer(theirs);
     await read(player, captureAfterRequest(calls));
     expect(calls.at(-1)).toEqual(['setOption', 'captions', 'track', theirs]);
-    expect(calls.some((call) => call[0] === 'unloadModule')).toBe(false);
+    // Unloaded once to force a fresh request, and not again once the viewer's track is back.
+    expect(calls.filter((call) => call[0] === 'unloadModule')).toHaveLength(1);
   });
 
   it('asks for a manual track without the automatic-captions kind', async () => {
     const { player, calls } = fakePlayer({});
     await read(player, captureAfterRequest(calls), { id: '.en', language: 'en', automatic: false });
-    expect(calls[1]).toEqual(['setOption', 'captions', 'track', { languageCode: 'en' }]);
+    expect(calls[2]).toEqual(['setOption', 'captions', 'track', { languageCode: 'en' }]);
   });
 
   it('gives up after the wait and still restores, leaving the DOM fallback to run', async () => {

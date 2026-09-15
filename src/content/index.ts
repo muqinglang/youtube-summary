@@ -47,10 +47,16 @@ async function openLearning() {
     const reply: Reply<unknown> = await chrome.runtime.sendMessage({ type: 'learning:open' });
     if (!reply?.ok)
       throw new Error(reply && !reply.ok ? reply.error : '扩展连接已断开，请刷新 YouTube。');
+    launcher.clearError();
   } catch (error) {
-    launcher.reportError(
-      error instanceof Error ? error.message : '无法打开学习页面，请刷新 YouTube 后重试。',
-    );
+    // After the extension updates, an open page still runs the old copy, which can no longer reach
+    // it. Retrying cannot help; only reloading the page brings in the new one.
+    if (!chrome.runtime?.id)
+      launcher.reportError('旁听已更新，请刷新 YouTube 页面后使用。', '旁听 · 请刷新页面');
+    else
+      launcher.reportError(
+        error instanceof Error ? error.message : '无法打开学习页面，请刷新 YouTube 后重试。',
+      );
   } finally {
     opening = false;
     launcher.setBusy(false);

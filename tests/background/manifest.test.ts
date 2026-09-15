@@ -55,6 +55,9 @@ describe('extension permissions', () => {
       'activeTab',
       'identity',
       'declarativeNetRequestWithHostAccess',
+      // Observes YouTube's caption requests only: without a blocking permission it cannot change
+      // or stop a request, and the host access above limits what it can see to YouTube.
+      'webRequest',
     ]);
   });
 });

@@ -142,7 +142,7 @@ async function request(request: RuntimeRequest): Promise<unknown> {
   if (request.type === 'transcript:get') {
     const requestId = ++transcriptRequestId;
     try {
-      const transcript = await send<Transcript>({ ...request, tabId: sourceTabId });
+      const transcript = await send<Transcript>({ ...request, tabId: sourceTabId, videoId });
       if (transcript.videoId !== videoId)
         throw new Error('原标签页已切换到其他视频，请返回当前视频后重新读取。');
       if (requestId === transcriptRequestId) {

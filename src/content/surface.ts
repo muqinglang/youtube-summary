@@ -52,9 +52,13 @@ export class LearningLauncher {
   setBusy(busy: boolean) {
     this.button.disabled = busy;
   }
-  reportError(message: string) {
+  reportError(message: string, label = '旁听 · 请重试') {
     this.button.title = message;
-    this.button.textContent = '旁听 · 请重试';
+    this.button.textContent = label;
+  }
+  clearError() {
+    this.button.title = '在独立学习页打开视频';
+    this.button.textContent = '旁听 AI';
   }
   destroy() {
     this.host.remove();
