@@ -328,7 +328,9 @@
             <p>按章节整理观点、案例和可执行建议，每条都带时间点，点一下回到原片核对。</p>
           </div>
           <button class="button primary wide" id="summarize-btn">生成视频总结</button>
-          <p class="muted center" id="summary-disclaimer">只依据这段视频的字幕；想换个侧重点，先改 Prompt。</p>
+          <p class="muted center" id="summary-disclaimer">
+            只依据这段视频的字幕；想换个侧重点，先改 Prompt。
+          </p>
         </div>
       </section>
       <section id="view-chat" class="view" role="tabpanel" aria-labelledby="tab-chat" hidden>
@@ -372,27 +374,58 @@
       <div id="job-status" class="job-overlay" hidden role="status" aria-live="polite">
         <div class="job-card">
           <div class="job-cat" aria-hidden="true">
-            <svg viewBox="0 0 116 76" class="cat">
+            <svg viewBox="0 0 160 140" class="cat" focusable="false">
+              <ellipse class="cat-shadow" cx="80" cy="128" rx="30" ry="4" />
               <g class="cat-all">
                 <g class="cat-tail">
-                  <path class="cat-stroke" d="M86 65c12 1.5 17-6.5 13.5-15.5" />
+                  <path
+                    class="cat-tail-outline"
+                    d="M98 107c27 5 34-12 26-24-4-6-10-2-7 3 6 10-1 15-16 13"
+                  />
                 </g>
-                <path class="cat-swish" d="M104 44c2.5-1.5 5-2 7.5-1.5M101 50c2.5-1.5 5-2 7.5-1.5" />
-                <path class="cat-solid" d="M32 68c0-17 12-28 28-28s28 11 28 28z" />
-                <ellipse class="cat-solid" cx="45.5" cy="65.6" rx="7.4" ry="4" />
+                <g class="cat-foot cat-foot-left">
+                  <path class="cat-solid" d="M65 108c-9 3-14 11-9 15 4 4 17 2 21-2l1-12" />
+                  <path class="cat-fine" d="m61 120 1 3m5-4 1 4" />
+                </g>
+                <g class="cat-foot cat-foot-right">
+                  <path class="cat-solid" d="M95 108c9 3 14 11 9 15-4 4-17 2-21-2l-1-12" />
+                  <path class="cat-fine" d="m99 120-1 3m-5-4-1 4" />
+                </g>
+                <path
+                  class="cat-solid"
+                  d="M62 73c-5 10-9 21-7 31 2 13 13 16 25 16s23-3 25-16c2-10-2-21-7-31"
+                />
+                <ellipse class="cat-belly" cx="80" cy="101" rx="13" ry="12" />
+                <g class="cat-paw cat-paw-left">
+                  <path
+                    class="cat-solid"
+                    d="M61 86c-4-1-6-4-8-5-4-2-7 1-6 5 1 6 6 11 12 12"
+                  />
+                  <path class="cat-fine" d="m49 85 3 1" />
+                </g>
+                <g class="cat-paw cat-paw-right">
+                  <path class="cat-solid" d="M99 86c4-1 6-4 8-5 4-2 7 1 6 5-1 6-6 11-12 12" />
+                  <path class="cat-fine" d="m111 85-3 1" />
+                </g>
                 <g class="cat-head">
-                  <path class="cat-solid cat-ear" d="M23.4 35.8q-1.2-11.4 5.4-7.2l5.6 3.4z" />
-                  <path class="cat-solid" d="M44.6 35.8q1.2-11.4-5.4-7.2L33.6 32z" />
-                  <circle class="cat-solid" cx="34" cy="46" r="15.6" />
+                  <path
+                    class="cat-solid"
+                    d="M47 43 46 20q0-5 4-2l18 13q12-4 24 0l18-13q4-3 4 2l-1 23c6 7 9 14 7 22-3 14-20 21-40 21s-37-7-40-21c-2-8 1-15 7-22Z"
+                  />
+                  <path class="cat-ear-inner" d="m52 27 1 13 10-6Zm56 0-1 13-10-6Z" />
+                  <path class="cat-fine" d="m74 32 2 6m8-6-2 6" />
                   <g class="cat-eyes">
-                    <circle class="cat-dot" cx="28" cy="45.4" r="2.1" />
-                    <circle class="cat-dot" cx="40" cy="45.4" r="2.1" />
+                    <ellipse class="cat-dot" cx="64" cy="55" rx="4" ry="5" />
+                    <ellipse class="cat-dot" cx="96" cy="55" rx="4" ry="5" />
+                    <circle class="cat-eye-shine" cx="65" cy="53.5" r="1.3" />
+                    <circle class="cat-eye-shine" cx="97" cy="53.5" r="1.3" />
                   </g>
-                  <path class="cat-dot-stroke" d="M34 50.6 31.8 52.6h4.4z" />
-                  <path class="cat-fine" d="M34 52.8v1.4m0 0c-1.4 1.5-3 1.1-3.6-.1m3.6.1c1.4 1.5 3 1.1 3.6-.1" />
-                  <path class="cat-fine" d="M10 42.2h9.4M10.4 49h8.8" />
+                  <ellipse class="cat-blush" cx="54" cy="65" rx="6" ry="3" />
+                  <ellipse class="cat-blush" cx="106" cy="65" rx="6" ry="3" />
+                  <path class="cat-dot" d="M76 63q4-2 8 0l-4 4Z" />
+                  <path class="cat-mouth" d="M80 67v3m0 0q-5 6-9 0m9 0q5 6 9 0" />
+                  <path class="cat-fine" d="m34 56 13 3m-14 6 13-1m67-5 13-3m-12 8 13 1" />
                 </g>
-                <ellipse class="cat-solid cat-paw" cx="31" cy="64.4" rx="7.4" ry="4" />
               </g>
             </svg>
           </div>
@@ -446,9 +479,15 @@
             <h3 id="export-subtitles-title">导出全部字幕</h3>
             <div class="export-choice" role="radiogroup" aria-label="字幕格式">
               <span>格式</span>
-              <label><input type="radio" name="subtitle-format" value="srt" checked /><span>SRT</span></label>
+              <label
+                ><input type="radio" name="subtitle-format" value="srt" checked /><span
+                  >SRT</span
+                ></label
+              >
               <label><input type="radio" name="subtitle-format" value="md" /><span>MD</span></label>
-              <label><input type="radio" name="subtitle-format" value="pdf" /><span>PDF</span></label>
+              <label
+                ><input type="radio" name="subtitle-format" value="pdf" /><span>PDF</span></label
+              >
             </div>
             <div class="export-choice" role="radiogroup" aria-label="字幕内容">
               <span>内容</span>
@@ -458,7 +497,9 @@
                 ></label
               >
               <label
-                ><input type="radio" name="subtitle-content" value="original" /><span>原文</span></label
+                ><input type="radio" name="subtitle-content" value="original" /><span
+                  >原文</span
+                ></label
               >
               <label
                 ><input type="radio" name="subtitle-content" value="translated" /><span
@@ -466,7 +507,9 @@
                 ></label
               >
             </div>
-            <button type="button" class="button primary wide" id="export-subtitles">导出字幕</button>
+            <button type="button" class="button primary wide" id="export-subtitles">
+              导出字幕
+            </button>
             <p id="export-subtitles-status" class="export-status" aria-live="polite" hidden></p>
           </section>
           <h3 class="export-heading">笔记与总结</h3>

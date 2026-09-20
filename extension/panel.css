@@ -1357,8 +1357,9 @@ textarea {
   inset: 0;
   z-index: 5;
   display: flex;
-  align-items: center;
+  align-items: safe center;
   justify-content: center;
+  overflow-y: auto;
   padding: 24px 20px;
   background: color-mix(in srgb, var(--bg) 90%, transparent);
   backdrop-filter: blur(3px);
@@ -1430,14 +1431,12 @@ textarea {
   color: var(--muted);
 }
 
-/* ---- Waiting kitten -------------------------------------------------------
-   One line weight throughout, filled only where a shape has to mask what is
-   behind it, so nothing ever reads as a crease. Each part is its own element
-   because each part moves: the paw taps, the ball rocks back, the tail flicks. */
+/* ---- Dancing kitten: independently animated paws, head and curled tail. ---- */
 .job-cat {
   position: relative;
-  width: 168px;
-  height: 110px;
+  flex: none;
+  width: 160px;
+  height: 140px;
 }
 .job-cat::before {
   content: '';
@@ -1446,10 +1445,9 @@ textarea {
   border-radius: 50%;
   background: radial-gradient(
     closest-side,
-    color-mix(in srgb, var(--accent) 16%, transparent),
+    color-mix(in srgb, var(--accent) 12%, transparent),
     transparent
   );
-  animation: cat-halo 3200ms ease-in-out infinite;
 }
 .cat {
   position: relative;
@@ -1459,82 +1457,162 @@ textarea {
   color: var(--accent);
   overflow: visible;
 }
-/* Filled with the card's own ground: a line drawing, but one whose shapes cover each other. */
 .cat-solid {
   fill: var(--bg);
   stroke: currentColor;
-  stroke-width: 2.4;
-  stroke-linejoin: round;
-}
-.cat-stroke,
-.cat-fine,
-.cat-swish,
-.cat-dot-stroke {
-  fill: none;
-  stroke: currentColor;
+  stroke-width: 2.8;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.cat-stroke {
-  stroke-width: 3.4;
+.cat-tail-outline {
+  fill: color-mix(in srgb, var(--accent) 18%, var(--bg));
+  stroke: currentColor;
+  stroke-width: 2.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cat-fine,
+.cat-mouth {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .cat-fine {
-  stroke-width: 1.6;
   opacity: 0.75;
 }
-.cat-dot-stroke {
-  stroke-width: 2.2;
-}
-.cat-swish {
-  stroke-width: 1.8;
-  opacity: 0.45;
-}
-.cat-dot {
+.cat-dot,
+.cat-ear-inner,
+.cat-blush,
+.cat-belly,
+.cat-shadow {
   fill: currentColor;
 }
-
+.cat-ear-inner {
+  opacity: 0.4;
+}
+.cat-blush {
+  opacity: 0.28;
+}
+.cat-belly {
+  opacity: 0.1;
+}
+.cat-eye-shine {
+  fill: var(--bg);
+}
+.cat-shadow {
+  opacity: 0.13;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: kitten-shadow 1600ms ease-in-out infinite;
+}
+/* Explicit SVG coordinates keep the joints stable as each limb rotates. */
 .cat-all,
 .cat-head,
 .cat-tail,
-.cat-eyes,
 .cat-paw,
-.cat-ear,
-.job-cat::before {
-  transform-box: fill-box;
+.cat-foot {
+  transform-box: view-box;
 }
 .cat-all {
-  transform-origin: 50% 100%;
-  animation: cat-breathe 3400ms ease-in-out infinite;
+  transform-origin: 80px 120px;
+  animation: kitten-dance 1600ms ease-in-out infinite;
 }
 .cat-head {
-  transform-origin: 50% 100%;
-  animation: cat-tilt 3400ms ease-in-out infinite;
+  transform-origin: 80px 77px;
+  animation: kitten-head 1600ms ease-in-out infinite;
 }
 .cat-tail {
-  transform-origin: 0% 100%;
-  animation: cat-wag 1500ms ease-in-out infinite;
+  transform-origin: 100px 105px;
+  animation: kitten-tail 800ms ease-in-out infinite;
+}
+.cat-paw-left {
+  transform-origin: 60px 92px;
+  animation: kitten-paw 800ms ease-in-out infinite alternate;
+}
+.cat-paw-right {
+  transform-origin: 100px 92px;
+  animation: kitten-paw 800ms ease-in-out infinite alternate-reverse;
+}
+.cat-foot-left {
+  transform-origin: 70px 110px;
+  animation: kitten-step 1600ms ease-in-out infinite;
+}
+.cat-foot-right {
+  transform-origin: 90px 110px;
+  animation: kitten-step 1600ms ease-in-out -800ms infinite;
 }
 .cat-eyes {
-  transform-origin: 50% 50%;
-  animation: cat-blink 4.4s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: cat-blink 4400ms ease-in-out infinite;
 }
-.cat-paw {
-  transform-origin: 100% 80%;
-  animation: cat-knead 3400ms ease-in-out infinite;
-}
-.cat-ear {
-  transform-origin: 50% 100%;
-  animation: cat-ear 5.2s ease-in-out infinite;
-}
-@keyframes cat-breathe {
+@keyframes kitten-dance {
   0%,
   100% {
-    transform: scale(1);
+    transform: translate(-5px, 0) rotate(-7deg);
+  }
+  25% {
+    transform: translate(0, -8px) rotate(0deg);
   }
   50% {
-    transform: scale(1.015, 1.02);
+    transform: translate(5px, 0) rotate(7deg);
+  }
+  75% {
+    transform: translate(0, -8px) rotate(0deg);
   }
 }
+@keyframes kitten-head {
+  0%,
+  100% {
+    transform: rotate(5deg);
+  }
+  50% {
+    transform: rotate(-5deg);
+  }
+}
+@keyframes kitten-tail {
+  0%,
+  100% {
+    transform: rotate(-12deg);
+  }
+  50% {
+    transform: rotate(14deg);
+  }
+}
+@keyframes kitten-paw {
+  from {
+    transform: rotate(-18deg);
+  }
+  to {
+    transform: rotate(22deg);
+  }
+}
+@keyframes kitten-step {
+  0%,
+  50%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-5px) rotate(-12deg);
+  }
+}
+@keyframes kitten-shadow {
+  0%,
+  50%,
+  100% {
+    transform: scaleX(1);
+    opacity: 0.13;
+  }
+  25%,
+  75% {
+    transform: scaleX(0.78);
+    opacity: 0.08;
+  }
+}
+/* Also used by the small AI avatar. */
 @keyframes cat-tilt {
   0%,
   100% {
@@ -1542,15 +1620,6 @@ textarea {
   }
   50% {
     transform: rotate(-2.5deg);
-  }
-}
-@keyframes cat-wag {
-  0%,
-  100% {
-    transform: rotate(-8deg);
-  }
-  50% {
-    transform: rotate(9deg);
   }
 }
 @keyframes cat-blink {
@@ -1561,39 +1630,6 @@ textarea {
   }
   96% {
     transform: scaleY(0.1);
-  }
-}
-@keyframes cat-knead {
-  0%,
-  100% {
-    transform: translate(0, 0);
-  }
-  50% {
-    transform: translate(-1px, -1px);
-  }
-}
-@keyframes cat-ear {
-  0%,
-  86%,
-  100% {
-    transform: rotate(0deg);
-  }
-  90% {
-    transform: rotate(-11deg);
-  }
-  94% {
-    transform: rotate(5deg);
-  }
-}
-@keyframes cat-halo {
-  0%,
-  100% {
-    opacity: 0.7;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.07);
   }
 }
 
@@ -1691,12 +1727,8 @@ textarea {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* With no animation to reveal them, the first frame is the one that shows. */
-  .cat-frame:first-of-type {
-    opacity: 1;
-  }
   .cat,
-  .cat-frame,
+  .cat *,
   .job-cat::before,
   .skeleton,
   .explain-waiting::before,
