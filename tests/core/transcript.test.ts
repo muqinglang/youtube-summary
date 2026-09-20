@@ -131,6 +131,43 @@ describe('parseTranscript', () => {
     expect(cues.map((item) => item.text).join(' ')).toBe(Array(60).fill('word').join(' '));
   });
 
+  it("rebuilds YouTube's own caption windows into sentences, keeping a phrase whole", () => {
+    const lines = [
+      'so much has changed in the last few years and',
+      'people keep asking me the same question what is',
+      'the vision for what you see coming next? In order',
+      "to talk about this big moment we're in with AI",
+      'I think we need to go back to video games in the',
+      'early days when the company was just starting out',
+      'because that is where the whole architecture came',
+      'from and it explains why we built things this way',
+      'which is something a lot of people still miss today',
+      'when they look at what the industry is doing now.',
+    ];
+    const cues = parseTranscript(
+      JSON.stringify({
+        events: lines.map((line, index) => ({
+          tStartMs: index * 3000,
+          dDurationMs: 3000,
+          segs: [{ utf8: line }],
+        })),
+      }),
+    );
+    // The window cut "In order | to" in half; the sentence it belongs to is put back together.
+    expect(cues[0]!.text.endsWith('next?')).toBe(true);
+    expect(cues[1]!.text.startsWith('In order to talk about')).toBe(true);
+    expect(cues.map((item) => item.text).join(' ')).toBe(lines.join(' '));
+    expect(cues.every((item) => item.text.length <= 160)).toBe(true);
+  });
+
+  it('leaves a subtitle file a person wrote cut the way they cut it', () => {
+    const blocks = Array.from(
+      { length: 10 },
+      (_, index) => `${index + 1}\n00:00:0${index},000 --> 00:00:0${index},900\nline ${index} cut mid`,
+    );
+    expect(parseTranscript(blocks.join('\n\n'))).toHaveLength(10);
+  });
+
   it('infers missing JSON3 duration from next event, retaining the final cue', () => {
     const input = JSON.stringify({
       events: [

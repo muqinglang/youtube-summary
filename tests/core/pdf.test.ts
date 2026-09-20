@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
-import { buildPdf } from '../../src/core/pdf';
+import { buildPdf, buildSubtitlePdf } from '../../src/core/pdf';
 import type { ExportDocument } from '../../src/shared/types';
 
 const font = new Uint8Array(readFileSync('extension/fonts/NotoSansSC-Subset.otf'));
@@ -96,6 +96,21 @@ describe('PDF export', () => {
     );
     expect(short.pages).toBe(1);
     expect(long.pages).toBeGreaterThan(3);
+  });
+
+  it('lays out every subtitle beside a linked timestamp, over as many pages as it takes', async () => {
+    const entries = Array.from({ length: 120 }, (_, index) => ({
+      start: index * 7,
+      end: index * 7 + 6,
+      lines: [`Sentence number ${index} of the transcript.`, `这是第 ${index} 句的译文。`],
+    }));
+    const { raw, pages } = await reopen(
+      await buildSubtitlePdf(document().video, entries, { font }),
+    );
+    expect(raw).toContain('/Subtype /Link');
+    // The last of 120 subtitles starts at 833 s.
+    expect(raw).toContain('t=833s');
+    expect(pages).toBeGreaterThan(2);
   });
 
   it('drops glyphs the subset lacks instead of failing the export', async () => {

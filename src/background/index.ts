@@ -194,7 +194,10 @@ async function dispatch(
     case 'settings:save':
       try {
         return await saveSettings(request.settings);
-      } catch {
+      } catch (error) {
+        // Our own checks already say what is wrong, in words. Anything else stays generic, so a
+        // validator's raw output can never carry part of a key or an address into the panel.
+        if (error instanceof AiError) throw error;
         throw new AiError('设置保存失败，请检查 API 地址、模型名称、语言和提示词长度。');
       }
     case 'settings:clearKey':

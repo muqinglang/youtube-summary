@@ -24,26 +24,28 @@ Chrome / Edge Manifest V3 扩展，把 YouTube 视频变成可检索、可复习
 2. 等待字幕读取完成，期间请保留原 YouTube 标签页。扩展必要时会打开原视频的「显示转录内容」读取字幕，也可以导入该视频对应的 SRT / VTT 文件。
 3. 选择目标语言即可，字幕载入后会**随播放自动逐句翻译**，无需手动点按钮。视频下方与右侧字幕列表同步显示双语，当前句高亮跟随。
 4. 需要 AI 总结或问答时，在「设置」里选 **服务商 → 模型**，填 **API Key**。扩展免费，按你在服务商那里的实际用量付费；默认在本机记住密钥，可在设置里取消勾选。
-5. 使用「导出笔记」下载 **PDF** / XMind / Markdown，都是一键直接下载。菜单里的「打印」会另开排版页调用浏览器打印。
+5. 右下角「导出」可以下载全部字幕（SRT / Markdown / PDF，双语、原文或译文）；生成总结后还能一键下载 **PDF** / XMind / Markdown 笔记。菜单里的「打印」会另开排版页调用浏览器打印。
 
 ### 双语字幕的两个引擎
 
 | 引擎                 | 说明                                                                                                                          |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| **默认字幕**（默认） | 走 Google 公共网页翻译接口 `translate.googleapis.com`，免 Key、免下载语言包、即时可用。字幕会逐条**经网络**发送到该接口翻译。 |
+| **默认字幕**（默认） | 走 Google 公共网页翻译接口，免 Key、免下载语言包、即时可用。字幕会成批**经网络**发送到该接口翻译。 |
 | **AI 字幕**          | 使用你配置的模型。为节省额度优先翻译播放位置附近，点「翻译全部」立即整片翻译。                                                |
 
 翻译结果按 `视频 + 语言 + 引擎` 缓存在本机，重开视频直接复用。可在字幕区的翻译设置里关闭自动翻译、切换引擎，或在原文 / 译文 / 双语之间切换。支持 10 种目标语言。
 
 ## 模型选择
 
-| 服务商             | 可选模型                           |
-| ------------------ | ---------------------------------- |
-| OpenAI             | GPT-4.1 mini、GPT-4.1              |
-| DeepSeek           | DeepSeek V4 Flash、DeepSeek V4 Pro |
-| Claude · Anthropic | Claude Haiku 4.5、Claude Sonnet 5  |
+| 服务商             | 可选模型                                                              |
+| ------------------ | --------------------------------------------------------------------- |
+| OpenAI             | GPT-4.1 mini、GPT-4.1                                                 |
+| DeepSeek           | DeepSeek V4 Flash、DeepSeek V4 Pro                                    |
+| opencode Zen · 按量 | Claude Haiku 4.5、Claude Sonnet 5、Gemini 3.5 Flash、GPT-5.4 mini    |
+| opencode Go · 订阅  | GLM 5.2 / 5.3 / 5.3 Flash、Qwen 3.8 Flash/Max、Kimi K3、MiniMax M3、MiMo V2.5 Pro、LongCat 2.0、DeepSeek V4.1 Flash / V4 Pro / V4 Flash（需在工作区为 Go 开启） |
+| Claude · Anthropic | Claude Haiku 4.5、Claude Sonnet 5                                     |
 
-模型目录来自 [OpenAI](https://developers.openai.com/api/docs/models/gpt-4.1-mini)、[DeepSeek](https://api-docs.deepseek.com/quick_start/pricing/)、[Claude](https://platform.claude.com/docs/en/models/overview) 官方文档（2026-09-07 核对）。扩展只会请求这三家的官方地址，不支持自定义接口地址；旧版手填配置会保留，设置页会提示重新选择服务商和模型。
+模型目录来自 [OpenAI](https://developers.openai.com/api/docs/models/gpt-4.1-mini)、[DeepSeek](https://api-docs.deepseek.com/quick_start/pricing/)、[opencode Zen](https://opencode.ai/docs/zen/)、[Claude](https://platform.claude.com/docs/en/models/overview) 官方文档（2026-09-07 核对；opencode 2026-09-20）。opencode 有两种计费，同一把 Key、**不同接口地址**：按量的 Zen 走 `https://opencode.ai/zen/v1`（要先充值），$10/月订阅的 Go 走 `https://opencode.ai/zen/go/v1`（模型目录不同）。选错会返回 403，设置页每个服务商下方写了该选哪个。Go 的每个请求都必须带 `x-opencode-session`（否则直接 `MissingSessionID`），扩展按后台运行周期生成一个稳定 id 发送；`gpt-5.6-luna` 和 `grok-4.6` 只能走 `/responses` 协议，本扩展不支持，故未收录。扩展只会请求这几家的官方地址，不支持自定义接口地址；旧版手填配置会保留，设置页会提示重新选择服务商和模型。
 
 ## 当前功能
 
@@ -57,17 +59,17 @@ Chrome / Edge Manifest V3 扩展，把 YouTube 视频变成可检索、可复习
 | 播放同步           | 当前句高亮、自动滚动、点击句子或引用跳转、手动滚动暂停跟随                                                                   |
 | AI 总结            | 处理已载入的全部字幕；长文本分段分析、分层汇总；保留可核对时间点                                                             |
 | 自定义 Prompt      | 模板、编辑和本机保存；用于实际 AI 请求及导出文档                                                                             |
-| AI 问答            | 依据字幕回答，附有效字幕时间点；当前为独立提问，不携带多轮聊天历史                                                           |
+| AI 问答            | 依据整段字幕回答，附有效字幕时间点；带上最近几轮问答，可接着追问                                                           |
 | 跨视频检索         | 在问答页切到「我的资料库」，在自己看过的所有视频里按语义找片段。**仅托管模式**，且服务端配了向量服务才会出现                 |
 | 保存到账号         | 存下的笔记和生成的 AI 结果保存在你的账号里，按账号隔离；换电脑或清除本机缓存后，打开同一视频即恢复。字幕译文只缓存在本机     |
-| 导出               | 一键下载 PDF（文字可搜索可复制、时间点可点击回视频）、真实 `.xmind`、Markdown，另可打开排版页打印；均附视频来源与所用 Prompt |
+| 导出               | 全部字幕下载为 SRT / Markdown / PDF，可选双语、原文或译文，缺的译文先补齐；总结一键下载 PDF（文字可搜索可复制、时间点可点击回视频）、真实 `.xmind`、Markdown，另可打开排版页打印；均附视频来源与所用 Prompt |
 | 任务管理           | 显示进度与已用时间、可主动取消；关闭学习标签时取消请求；原页面切换不会替换学习中的视频                                       |
 
 思维导图不再是单独的标签页，而是导出格式：`.xmind` 的树由总结内容直接推导，根节点是标题，下面是内容概览、每一章及其要点、行动与启发 —— 不看视频也能顺着导图读懂全片。
 
 ## 已知范围
 
-- **「默认字幕」会把字幕逐条发送到 Google 的公共网页翻译接口** `translate.googleapis.com/translate_a/single`。该接口是 Google 未公开文档的内部端点，可能随时变更或限流；返回 429 时会提示切换「AI 字幕」。如果不希望字幕出网，请改用「AI 字幕」并自行选择服务商。完整数据说明见 [数据与权限](docs/privacy.md)。
+- **「默认字幕」会把字幕成批发送到 Google 的公共网页翻译接口** `translate-pa.googleapis.com/v1/translateHtml`，必要时退回逐条的 `translate.googleapis.com/translate_a/single`。两者都是 Google 未公开文档的内部端点，可能随时变更或限流；返回 429 时会提示切换「AI 字幕」。如果不希望字幕出网，请改用「AI 字幕」并自行选择服务商。完整数据说明见 [数据与权限](docs/privacy.md)。
 - **已在视频 `QLLuZbuTIRc` 实站读取 2,354 条字幕**，并验证独立页播放和点击字幕跳转。该会话的字幕接口返回 HTTP 200 空正文，现通过 YouTube 自带转录面板读取。面板读取的覆盖范围仍标记为「未验证」；不能保证所有视频、账户、地区均可读取。失败时可重新读取或导入字幕。
 - 学习页保留一套视频下方字幕，初始化及重新开启学习字幕时关闭播放器原生 CC。先检查播放器公布的模块能力，缺少该能力的播放器仍可播放；用户手动打开原生 CC 后可用学习页 CC 开关重新接管。
 - 独立学习页是扩展自带页面，不需要部署网站。播放器使用 YouTube 嵌入播放；禁止嵌入的视频会明确提示返回原视频。首次字幕读取依赖原 YouTube 标签，读取成功后本次学习会话可复用字幕。
@@ -88,7 +90,7 @@ Chrome / Edge Manifest V3 扩展，把 YouTube 视频变成可检索、可复习
 | `identity`                            | Google 登录，只申请 `openid email`                                                                               |
 | `webRequest`                          | 只查看发往 YouTube 字幕接口的请求地址，用播放器请求过的地址读取字幕；不拦截、不修改请求                          |
 | `declarativeNetRequestWithHostAccess` | 学习页内嵌播放所需的请求头调整                                                                                   |
-| `host_permissions`                    | `youtube.com`、`m.youtube.com`、`translate.googleapis.com`                                                       |
+| `host_permissions`                    | `youtube.com`、`m.youtube.com`、`translate.googleapis.com`、`translate-pa.googleapis.com`                       |
 | `optional_host_permissions`           | 三家 AI 服务商官方域名（保存设置时申请）、旁听服务域名（登录时申请），以及本地开发用的 `localhost` / `127.0.0.1` |
 
 扩展不加载任何远程代码（`script-src 'self'`），没有统计 SDK。账号、笔记和 AI 结果保存在旁听服务端，详见 [数据与权限](docs/privacy.md)。

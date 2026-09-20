@@ -7,7 +7,7 @@ import type { Store } from '../store/types';
  * Bump whenever a prompt, schema or pipeline rule changes. It is part of every cache key, so a
  * change retires the old artifacts instead of serving results the current code would not produce.
  */
-export const PIPELINE_VERSION = 3;
+export const PIPELINE_VERSION = 5;
 
 async function sha256(value: unknown): Promise<string> {
   const bytes = new TextEncoder().encode(JSON.stringify(value));
@@ -37,7 +37,16 @@ export async function artifactKey(
     fingerprint,
   };
   if (request.task === 'summarize') return sha256({ ...base, prompt: request.prompt.trim() });
-  if (request.task === 'ask') return sha256({ ...base, question: request.question.trim() });
+  // Two words in one window share a fingerprint; without the term they would share an answer.
+  if (request.task === 'explain')
+    return sha256({ ...base, term: request.term.trim(), mode: request.mode ?? 'term' });
+  // The same follow-up means something else after a different conversation.
+  if (request.task === 'ask')
+    return sha256({
+      ...base,
+      question: request.question.trim(),
+      ...(request.history?.length ? { history: request.history } : {}),
+    });
   return sha256(base);
 }
 

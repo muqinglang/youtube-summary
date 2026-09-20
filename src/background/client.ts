@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { Settings } from '../shared/types';
 import { getOriginPattern, validateBaseUrl } from '../shared/endpoint';
-import { getProvider } from '../shared/providers';
+import { getProvider, type ModelProtocol } from '../shared/providers';
 
 const MAX_RESPONSE_BYTES = 2_000_000;
 /** Rate limits and server errors: keep the existing bounded, backed-off budget. */
@@ -31,6 +31,28 @@ const anthropicEnvelope = z.object({
     .max(100),
   stop_reason: z.string().nullable(),
   stop_details: z.object({ type: z.string() }).nullable().optional(),
+});
+
+/** Reasoning models answer here instead: the text sits in an output item, beside its thinking. */
+const responsesEnvelope = z.object({
+  status: z.string().max(100).nullable().optional(),
+  incomplete_details: z.object({ reason: z.string().max(200) }).nullable().optional(),
+  output: z
+    .array(
+      z.object({
+        type: z.string().max(100),
+        content: z
+          .array(
+            z.object({
+              type: z.string().max(100),
+              text: z.string().max(MAX_RESPONSE_BYTES).optional(),
+            }),
+          )
+          .max(100)
+          .optional(),
+      }),
+    )
+    .max(100),
 });
 
 const TRUNCATED_HINT =
@@ -71,8 +93,24 @@ function schemaHint(error: z.ZodError): string {
   return `Your previous reply did not match the required JSON schema. Fix exactly these problems and return the COMPLETE corrected JSON object only: ${problems.join('; ')}`;
 }
 
-function responseContent(raw: unknown, anthropic: boolean): string {
-  if (anthropic) {
+function responseContent(raw: unknown, protocol: ModelProtocol): string {
+  if (protocol === 'responses') {
+    const parsed = responsesEnvelope.safeParse(raw);
+    if (!parsed.success) throw new AiError('AI 服务返回了无效的 Responses 响应。');
+    if (parsed.data.incomplete_details?.reason.includes('max_output_tokens'))
+      throw new RepairableError('AI 输出被截断，请缩短总结要求后重试。', TRUNCATED_HINT);
+    const blocks = parsed.data.output.flatMap((item) => item.content ?? []);
+    if (blocks.some((block) => block.type === 'refusal'))
+      throw new AiError('AI 未完成此请求，请调整问题或总结要求后重试。');
+    // Reasoning items carry no text of their own, so an empty answer is a real failure.
+    const text = blocks
+      .filter((block) => block.type === 'output_text')
+      .map((block) => block.text ?? '')
+      .join('');
+    if (!text) throw new AiError('AI 服务返回了空文本。');
+    return text;
+  }
+  if (protocol === 'messages') {
     const parsed = anthropicEnvelope.safeParse(raw);
     if (!parsed.success) throw new AiError('Claude 服务返回了无效的 Messages 响应。');
     if (parsed.data.stop_reason === 'max_tokens')
@@ -92,6 +130,42 @@ function responseContent(raw: unknown, anthropic: boolean): string {
   if (choice.finish_reason === 'length')
     throw new RepairableError('AI 输出被截断，请缩短总结要求后重试。', TRUNCATED_HINT);
   return choice.message.content;
+}
+
+/**
+ * What the platform said went wrong, so "cannot connect" is something a person can act on rather
+ * than a dead end. Only the failure's own message and its causes: never a header, a body or a key.
+ * Node hides the real reason one `cause` down from "fetch failed", so the chain is followed.
+ */
+function connectionReason(error: unknown): string {
+  const reasons: string[] = [];
+  let cause: unknown = error;
+  for (let depth = 0; cause instanceof Error && depth < 3; depth += 1) {
+    if (cause.message) reasons.push(cause.message);
+    cause = (cause as { cause?: unknown }).cause;
+  }
+  return reasons.join(' · ').slice(0, 160) || '未知错误';
+}
+
+/**
+ * A provider's own words are often the only thing that says what to do — a model to opt in to, a
+ * balance to top up, a region to enable. Only a structured `error.message` is taken, never the raw
+ * body, and anything shaped like a credential is removed on the way out: an endpoint is free to
+ * echo the request back at us, and this string is shown in the panel.
+ */
+export function providerMessage(body: string, apiKey: string): string {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return '';
+  }
+  const error = (parsed as { error?: unknown }).error;
+  const message =
+    typeof error === 'object' && error !== null ? (error as { message?: unknown }).message : error;
+  if (typeof message !== 'string' || !message.trim()) return '';
+  const redacted = apiKey ? message.split(apiKey).join('***') : message;
+  return redacted.replace(/\b(?:sk|pk|api)[-_][\w-]{8,}/gi, '***').trim().slice(0, 300);
 }
 
 export function safeError(error: unknown): string {
@@ -162,6 +236,17 @@ type Attempt<T> =
   | { kind: 'repair'; error: RepairableError }
   | { kind: 'fatal'; error: AiError };
 
+/**
+ * opencode routes and caches by conversation, and its Go endpoint refuses outright a request that
+ * names none ("MissingSessionID"). One id per worker run keeps this extension's calls together,
+ * which is what the header is for: https://opencode.ai/docs/go/#where-can-i-use-it
+ */
+let conversation = '';
+function conversationId(): string {
+  conversation ||= crypto.randomUUID();
+  return conversation;
+}
+
 export class AiClient {
   private readonly fetcher: typeof globalThis.fetch;
   private readonly timeoutMs: number;
@@ -200,9 +285,15 @@ export class AiClient {
     if (!(await this.permissionCheck(getOriginPattern(baseUrl)))) {
       throw new AiError('尚未授权访问此 API 服务，请在设置中重新保存并允许访问。');
     }
-    const anthropic = this.settings.provider === 'anthropic';
+    // A protocol belongs to the model, not to the service hosting it: one gateway serves Chat
+    // Completions and Responses models side by side under the same key and base URL.
+    const protocol: ModelProtocol =
+      model?.protocol ?? (this.settings.provider === 'anthropic' ? 'messages' : 'chat');
+    const anthropic = protocol === 'messages';
     const maxTokens = Math.min(options.maxTokens ?? 6000, model?.maxOutputTokens ?? 6000);
-    const url = `${baseUrl}/${anthropic ? 'messages' : 'chat/completions'}`;
+    const path =
+      protocol === 'messages' ? 'messages' : protocol === 'responses' ? 'responses' : 'chat/completions';
+    const url = `${baseUrl}/${path}`;
     const headers: Record<string, string> = anthropic
       ? {
           'Content-Type': 'application/json',
@@ -212,6 +303,8 @@ export class AiClient {
           'anthropic-dangerous-direct-browser-access': 'true',
         }
       : { 'Content-Type': 'application/json', Authorization: `Bearer ${this.settings.apiKey}` };
+    if (this.settings.provider.startsWith('opencode'))
+      headers['x-opencode-session'] = conversationId();
 
     let httpRetries = 0;
     let repairRetries = 0;
@@ -224,7 +317,22 @@ export class AiClient {
       const jsonSystem = `${system}\nReturn exactly one complete JSON object, without markdown fences.${
         hint ? `\n\nIMPORTANT — CORRECTION FOR THIS RETRY: ${hint}` : ''
       }`;
-      const body = anthropic
+      const temperature = model?.supportsTemperature === false ? {} : { temperature: this.settings.temperature };
+      const body =
+        protocol === 'responses'
+          ? {
+              model: this.settings.model,
+              max_output_tokens: maxTokens,
+              // The system text goes in `input` rather than `instructions`: JSON mode is refused
+              // unless one of the input messages says the word "json", and this one does.
+              input: [
+                { role: 'system', content: jsonSystem },
+                { role: 'user', content: JSON.stringify(data) },
+              ],
+              text: { format: { type: 'json_object' } },
+              ...temperature,
+            }
+          : anthropic
         ? {
             model: this.settings.model,
             max_tokens: maxTokens,
@@ -237,7 +345,8 @@ export class AiClient {
           }
         : {
             model: this.settings.model,
-            temperature: this.settings.temperature,
+            // A preset model that refuses a temperature (the GPT-5 family) is sent none at all.
+            ...temperature,
             ...(this.settings.provider === 'openai'
               ? { max_completion_tokens: maxTokens, store: false }
               : { max_tokens: maxTokens }),
@@ -248,7 +357,7 @@ export class AiClient {
               { role: 'user', content: JSON.stringify(data) },
             ],
           };
-      const attempt = await this.attempt(url, headers, body, schema, signal, timeoutMs, anthropic);
+      const attempt = await this.attempt(url, headers, body, schema, signal, timeoutMs, protocol);
       if (attempt.kind === 'ok') return attempt.value;
       last = attempt.error;
       if (attempt.kind === 'http' && httpRetries < HTTP_RETRIES) {
@@ -281,7 +390,7 @@ export class AiClient {
     schema: z.ZodType<T>,
     signal: AbortSignal,
     timeoutMs: number,
-    anthropic: boolean,
+    protocol: ModelProtocol,
   ): Promise<Attempt<T>> {
     const controller = new AbortController();
     let timedOut = false;
@@ -301,22 +410,28 @@ export class AiClient {
         credentials: 'omit',
         cache: 'no-store',
       });
-      if (response.status === 429 || response.status >= 500) {
-        await response.body?.cancel();
-        return {
-          kind: 'http',
-          error: new AiError(
-            response.status === 429
-              ? 'AI 服务限流或额度不足，请稍后重试并检查账户额度。'
-              : `AI 服务请求失败（HTTP ${response.status}），请检查模型及接口兼容性。`,
-          ),
-        };
-      }
       if (!response.ok) {
-        await response.body?.cancel();
+        const said = providerMessage(await readBounded(response).catch(() => ''), this.settings.apiKey);
+        const because = said ? `服务商说明：${said}` : '';
+        if (response.status === 429 || response.status >= 500) {
+          return {
+            kind: 'http',
+            error: new AiError(
+              (response.status === 429
+                ? 'AI 服务限流或额度不足，请稍后重试并检查账户额度。'
+                : `AI 服务请求失败（HTTP ${response.status}），请检查模型及接口兼容性。`) + because,
+            ),
+          };
+        }
         if (response.status === 401 || response.status === 403)
-          throw new AiError('AI 服务拒绝访问，请检查 API Key、模型权限和账户状态。');
-        throw new AiError(`AI 服务请求失败（HTTP ${response.status}），请检查模型及接口兼容性。`);
+          throw new AiError(
+            said
+              ? `AI 服务拒绝访问。${because}`
+              : 'AI 服务拒绝访问，请检查 API Key、模型权限和账户状态。',
+          );
+        throw new AiError(
+          `AI 服务请求失败（HTTP ${response.status}），请检查模型及接口兼容性。${because}`,
+        );
       }
       const responseText = await readBounded(response);
       let raw: unknown;
@@ -325,7 +440,7 @@ export class AiClient {
       } catch {
         throw new RepairableError('AI 服务返回了无效 JSON。', INVALID_JSON_HINT);
       }
-      const content = responseContent(raw, anthropic)
+      const content = responseContent(raw, protocol)
         .trim()
         .replace(/^```(?:json)?\s*/i, '')
         .replace(/\s*```$/, '');
@@ -356,7 +471,9 @@ export class AiClient {
       if (error instanceof AiError) return { kind: 'fatal', error };
       return {
         kind: 'fatal',
-        error: new AiError('无法连接 AI 服务，请检查网络、API 地址及接口兼容性。'),
+        error: new AiError(
+          `无法连接 AI 服务（${new URL(url).host}）：${connectionReason(error)}。请检查网络、API 地址及接口兼容性。`,
+        ),
       };
     } finally {
       clearTimeout(timer);

@@ -106,6 +106,57 @@ describe('OpenAI-compatible client', () => {
     expect(safeError(new AiError('操作提示'))).toBe('操作提示');
   });
 
+  it('names what the platform said when it cannot connect, without echoing the request', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockRejectedValue(
+        Object.assign(new TypeError('Failed to fetch'), {
+          cause: new Error('net::ERR_BLOCKED_BY_CLIENT'),
+        }),
+      );
+    const client = new AiClient(settings, { fetch: fetcher, permissionCheck: async () => true });
+    const error = await client.json('', {}, schema, signal()).catch((value: unknown) => value);
+    const message = safeError(error);
+    expect(message).toContain('Failed to fetch');
+    expect(message).toContain('net::ERR_BLOCKED_BY_CLIENT');
+    expect(message).toContain(new URL(settings.baseUrl).host);
+    expect(message).not.toContain(settings.apiKey);
+  });
+
+  it('passes on what the provider said, because that is what says how to fix it', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          type: 'error',
+          error: {
+            type: 'RegionError',
+            message: 'This model requires explicit opt in: https://opencode.ai/workspace/x/go',
+          },
+        }),
+        { status: 403 },
+      ),
+    );
+    const client = new AiClient(settings, { fetch: fetcher, permissionCheck: async () => true });
+    const error = await client.json('', {}, schema, signal()).catch((value: unknown) => value);
+    expect(safeError(error)).toContain('requires explicit opt in');
+    expect(safeError(error)).toContain('opencode.ai/workspace/x/go');
+  });
+
+  it.each([
+    // An endpoint is free to echo the request back at us; none of it may reach the panel.
+    { error: { message: 'bad key private-test-key' } },
+    { error: { message: 'bad key sk-Abcdefgh12345678' } },
+    { error: 'private-test-key is invalid' },
+  ])('never lets a credential travel inside a provider message: %j', async (body) => {
+    const client = new AiClient(settings, {
+      fetch: vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(body), { status: 401 })),
+      permissionCheck: async () => true,
+    });
+    const error = await client.json('', {}, schema, signal()).catch((value: unknown) => value);
+    expect(safeError(error)).not.toContain('private-test-key');
+    expect(safeError(error)).not.toContain('sk-Abcdefgh12345678');
+  });
+
   it.each([
     new Response('not JSON'),
     new Response(JSON.stringify({ error: 'bad' })),

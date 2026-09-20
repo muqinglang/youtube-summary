@@ -15,12 +15,14 @@
   "host_permissions": [
     "https://www.youtube.com/*",
     "https://m.youtube.com/*",
-    "https://translate.googleapis.com/*"
+    "https://translate.googleapis.com/*",
+    "https://translate-pa.googleapis.com/*"
   ],
   "optional_host_permissions": [
     "https://api.openai.com/*",
     "https://api.deepseek.com/*",
     "https://api.anthropic.com/*",
+    "https://opencode.ai/*",
     "https://sidenote.fly.dev/*",
     "http://localhost/*",
     "http://127.0.0.1/*"

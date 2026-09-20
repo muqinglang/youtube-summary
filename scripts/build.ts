@@ -8,9 +8,30 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const output = resolve(root, 'dist');
 // Only the generated dist directory is replaced. Never accept arbitrary output paths.
 if (dirname(output) !== root || basename(output) !== 'dist') throw new Error('Invalid build path');
-await rm(output, { recursive: true, force: true });
-await mkdir(output, { recursive: true });
-await cp(join(root, 'extension'), output, { recursive: true });
+/**
+ * Chrome holds files in dist while a development copy is loaded there, so replacing it can fail
+ * partway and leave old and new files side by side — which loads as an extension whose page and
+ * script came from different builds, and dies on the first missing element. Retrying usually wins;
+ * saying so plainly is what matters when it does not.
+ */
+async function replaceOutput(): Promise<void> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await rm(output, { recursive: true, force: true });
+      await mkdir(output, { recursive: true });
+      await cp(join(root, 'extension'), output, { recursive: true });
+      return;
+    } catch (error) {
+      if (attempt >= 2)
+        throw new Error(
+          `无法重建 dist（${String(error)}）。dist 里现在可能同时有新旧文件，加载后面板会因缺少元素而失效。` +
+            '请先在 chrome://extensions 移除已加载的开发版，再重新构建。',
+        );
+      await new Promise((done) => setTimeout(done, 400));
+    }
+  }
+}
+await replaceOutput();
 const shared = {
   absWorkingDir: root,
   outdir: output,

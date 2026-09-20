@@ -1,5 +1,5 @@
 import { strToU8, zipSync } from 'fflate';
-import type { ExportDocument, MindMapNode, Summary } from '../shared/types';
+import type { DisplayMode, ExportDocument, MindMapNode, Summary, VideoInfo } from '../shared/types';
 import { formatTime } from './transcript';
 
 function escapeHtml(value: string): string {
@@ -19,7 +19,7 @@ function escapeMarkdown(value: string): string {
     .replace(/\r?\n/g, ' ');
 }
 
-export function sourceUrl(doc: ExportDocument, start?: number): string | undefined {
+export function sourceUrl(doc: Pick<ExportDocument, 'video'>, start?: number): string | undefined {
   let id = doc.video.id;
   if (!/^[\w-]{11}$/.test(id)) {
     try {
@@ -328,4 +328,58 @@ footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid #d8dfe3; fon
 <section><h2>总结提示词</h2><pre>${escapeHtml(doc.prompt)}</pre></section>
 <footer>由旁听生成 · 时间戳可点击返回视频对应位置。</footer>
 </main></body></html>`;
+}
+
+/** One subtitle as exported: when it is spoken, and the one or two lines chosen to show. */
+export interface SubtitleEntry {
+  start: number;
+  end: number;
+  lines: string[];
+}
+
+/** A missing translation falls back to the original, so no exported subtitle is ever blank. */
+export function subtitleLines(
+  original: string,
+  translation: string | undefined,
+  content: DisplayMode,
+): string[] {
+  const oneLine = (text: string) => text.replace(/\s+/g, ' ').trim();
+  const source = oneLine(original);
+  const translated = oneLine(translation ?? '');
+  if (!translated || content === 'original') return [source];
+  return content === 'translated' ? [translated] : [source, translated];
+}
+
+function srtTime(seconds: number): string {
+  const ms = Math.round(Math.max(0, seconds) * 1000);
+  const two = (value: number) => String(value).padStart(2, '0');
+  return `${two(Math.floor(ms / 3_600_000))}:${two(Math.floor(ms / 60_000) % 60)}:${two(Math.floor(ms / 1000) % 60)},${String(ms % 1000).padStart(3, '0')}`;
+}
+
+/** Players stack overlapping cues, so each one ends by the time the next begins. */
+export function buildSrt(entries: SubtitleEntry[]): string {
+  return entries
+    .map((entry, index) => {
+      const next = entries[index + 1]?.start ?? entry.end;
+      const end = Math.max(entry.start, Math.min(entry.end, next));
+      return `${index + 1}\n${srtTime(entry.start)} --> ${srtTime(end)}\n${entry.lines.join('\n')}\n`;
+    })
+    .join('\n');
+}
+
+export function buildSubtitleMarkdown(video: VideoInfo, entries: SubtitleEntry[]): string {
+  // Each line opens with its timestamp, so escaping inline markup (and a list or heading marker
+  // that could start a translation's line) is enough, and the text stays readable as plain text.
+  const inline = (text: string) =>
+    text.replace(/[\\`*_[\]<>]/g, '\\$&').replace(/^([#+-]|\d+[.)])(?=\s)/, '\\$1');
+  const source = sourceUrl({ video });
+  const lines = [`# ${inline(video.title)}`, ''];
+  if (video.author) lines.push(`作者：${inline(video.author)}`, '');
+  lines.push(`来源：${source ? `[YouTube](${source})` : '无有效视频链接'}`, '');
+  for (const entry of entries) {
+    const href = sourceUrl({ video }, entry.start);
+    const time = href ? `[${formatTime(entry.start)}](${href})` : formatTime(entry.start);
+    lines.push(`**${time}** ${entry.lines.map(inline).join('  \n')}`, '');
+  }
+  return lines.join('\n');
 }

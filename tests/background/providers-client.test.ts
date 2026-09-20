@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { AiClient, safeError } from '../../src/background/client';
+import { AiClient, AiError, safeError } from '../../src/background/client';
 import { DEFAULT_SETTINGS } from '../../src/background/settings';
 import { PROVIDERS } from '../../src/shared/providers';
 import type { Settings } from '../../src/shared/types';
@@ -38,16 +38,29 @@ describe('built-in provider protocols', () => {
         apiKey: 'private-key',
         temperature: 1.8,
       };
-      const isClaude = provider.id === 'anthropic';
-      const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
-        isClaude
-          ? claudeResponse({ ok: true })
-          : new Response(
-              JSON.stringify({
-                choices: [{ message: { content: '{"ok":true}' }, finish_reason: 'stop' }],
-              }),
-            ),
-      );
+      const protocol = model.protocol ?? (provider.id === 'anthropic' ? 'messages' : 'chat');
+      const isClaude = protocol === 'messages';
+      const answers = {
+        messages: () => claudeResponse({ ok: true }),
+        // A reasoning model puts its answer in an output item, beside the thinking it kept.
+        responses: () =>
+          new Response(
+            JSON.stringify({
+              status: 'completed',
+              output: [
+                { type: 'reasoning' },
+                { type: 'message', content: [{ type: 'output_text', text: '{"ok":true}' }] },
+              ],
+            }),
+          ),
+        chat: () =>
+          new Response(
+            JSON.stringify({
+              choices: [{ message: { content: '{"ok":true}' }, finish_reason: 'stop' }],
+            }),
+          ),
+      };
+      const fetcher = vi.fn<typeof fetch>().mockResolvedValue(answers[protocol]());
       const permissionCheck = vi.fn(async () => true);
       const client = new AiClient(settings, { fetch: fetcher, permissionCheck });
       await expect(
@@ -59,7 +72,13 @@ describe('built-in provider protocols', () => {
         ),
       ).resolves.toEqual({ ok: true });
       const [url, options] = fetcher.mock.calls[0]!;
-      expect(url).toBe(`${provider.baseUrl}/${isClaude ? 'messages' : 'chat/completions'}`);
+      const path =
+        protocol === 'messages'
+          ? 'messages'
+          : protocol === 'responses'
+            ? 'responses'
+            : 'chat/completions';
+      expect(url).toBe(`${provider.baseUrl}/${path}`);
       expect(permissionCheck).toHaveBeenCalledWith(`${new URL(provider.baseUrl).origin}/*`);
       expect(options).toMatchObject({
         method: 'POST',
@@ -69,7 +88,9 @@ describe('built-in provider protocols', () => {
       });
       const body = JSON.parse(String(options?.body)) as Record<string, unknown>;
       expect(body.model).toBe(model.id);
-      const outputLimit = Number(body.max_tokens ?? body.max_completion_tokens);
+      const outputLimit = Number(
+        body.max_tokens ?? body.max_completion_tokens ?? body.max_output_tokens,
+      );
       expect(outputLimit).toBe(6000);
       expect(outputLimit).toBeLessThanOrEqual(model.maxOutputTokens);
       if (isClaude) {
@@ -89,24 +110,69 @@ describe('built-in provider protocols', () => {
         if (model.supportsTemperature) expect(body.temperature).toBe(1);
         else expect(body).not.toHaveProperty('temperature');
       } else {
+        // opencode's Go endpoint refuses a request that names no conversation, and Zen uses the
+        // same id for prompt caching, so both carry one and every other provider carries none.
+        const session = provider.id.startsWith('opencode')
+          ? { 'x-opencode-session': expect.stringMatching(/^[0-9a-f-]{36}$/) as unknown as string }
+          : {};
         expect(options?.headers).toEqual({
           'Content-Type': 'application/json',
           Authorization: 'Bearer private-key',
+          ...session,
         });
+        if (model.supportsTemperature) expect(body.temperature).toBe(1.8);
+        else expect(body).not.toHaveProperty('temperature');
+        if (protocol === 'responses') {
+          // JSON mode here is refused unless an input message says the word "json", so the system
+          // text travels in `input` rather than in `instructions`.
+          expect(body.text).toEqual({ format: { type: 'json_object' } });
+          expect(body.input).toEqual([
+            { role: 'system', content: expect.stringContaining('JSON') as unknown as string },
+            { role: 'user', content: '{"source":"Untrusted transcript"}' },
+          ]);
+          expect(body).not.toHaveProperty('messages');
+          expect(body).not.toHaveProperty('instructions');
+          return;
+        }
         expect(body.response_format).toEqual({ type: 'json_object' });
-        expect(body.temperature).toBe(1.8);
-        if (provider.id === 'deepseek') {
-          expect(body.thinking).toEqual({ type: 'disabled' });
-          expect(body).toHaveProperty('max_tokens');
-          expect(body).not.toHaveProperty('max_completion_tokens');
-        } else {
+        if (provider.id === 'openai') {
           expect(body).toHaveProperty('max_completion_tokens');
           expect(body).not.toHaveProperty('max_tokens');
           expect(body.store).toBe(false);
+        } else {
+          expect(body).toHaveProperty('max_tokens');
+          expect(body).not.toHaveProperty('max_completion_tokens');
+          if (provider.id === 'deepseek') expect(body.thinking).toEqual({ type: 'disabled' });
         }
       }
     },
   );
+
+  it.each([
+    { status: 'incomplete', incomplete_details: { reason: 'max_output_tokens' }, output: [] },
+    {
+      status: 'completed',
+      output: [{ type: 'message', content: [{ type: 'refusal', text: 'no' }] }],
+    },
+    { status: 'completed', output: [{ type: 'reasoning' }] },
+    { output: 'not a list' },
+  ])('rejects truncated, refused or empty Responses output: %j', async (payload) => {
+    const client = new AiClient(
+      {
+        ...DEFAULT_SETTINGS,
+        provider: 'opencode-go',
+        baseUrl: 'https://opencode.ai/zen/go/v1',
+        model: 'grok-4.6',
+        apiKey: 'private-key',
+      },
+      {
+        fetch: vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(payload))),
+        permissionCheck: async () => true,
+        retryDelayMs: 0,
+      },
+    );
+    await expect(client.json('', {}, schema, signal())).rejects.toBeInstanceOf(AiError);
+  });
 
   it.each([
     { provider: 'anthropic', baseUrl: 'https://attacker.example/v1' },

@@ -251,7 +251,7 @@
       </section>
       <section id="view-guide" class="view" role="tabpanel" aria-labelledby="tab-guide" hidden>
         <div class="view-tools">
-          <span>带着问题看，理解更深</span
+          <span>AI 依据字幕提出，点「答案」展开</span
           ><button id="guide-refresh" class="text-button" data-generate-guide hidden>
             重新生成
           </button>
@@ -266,10 +266,7 @@
         <div id="guide-empty" class="scroll empty" tabindex="0">
           <div class="empty-mark">?</div>
           <h2>先带着问题，再看视频</h2>
-          <p>
-            由 AI
-            依据字幕提出几个关键问题。看的时候留意答案，比看完再回想记得牢。答案默认收起，想核对时再展开。
-          </p>
+          <p>AI 读完整片字幕，提出几个关键问题。带着它们看，比看完再回想记得牢。</p>
           <button class="button" data-generate-guide>生成引导问题</button>
         </div>
       </section>
@@ -300,7 +297,10 @@
       </section>
       <section id="view-notes" class="view" role="region" aria-label="笔记" hidden>
         <div class="view-tools">
-          <span>记下来的，才是你的 · 保存在你的账号</span>
+          <div class="engine-toggle" role="group" aria-label="笔记范围">
+            <button id="notes-scope-video" class="engine-tab" aria-selected="true">本视频</button
+            ><button id="notes-scope-all" class="engine-tab" aria-selected="false">全部视频</button>
+          </div>
           <span class="chapter-heading-actions"
             ><button id="notes-clear" class="text-button" hidden>清空</button
             ><span id="notes-count"></span
@@ -318,17 +318,17 @@
       </section>
       <section id="view-summary" class="view" role="tabpanel" aria-labelledby="tab-summary" hidden>
         <div class="view-tools">
-          <span>理解内容，留下重点</span
+          <span>按章节整理，每条都能点回原片</span
           ><button id="prompt-open" class="button small">自定义 Prompt</button>
         </div>
         <div class="scroll summary-scroll">
           <div id="summary-content" class="empty">
             <div class="empty-mark">AI</div>
-            <h2>把完整视频，变成清晰笔记</h2>
-            <p>读取字幕后，生成带时间点的章节总结、核心观点和行动建议。</p>
+            <h2>把整片视频，读成一页笔记</h2>
+            <p>按章节整理观点、案例和可执行建议，每条都带时间点，点一下回到原片核对。</p>
           </div>
           <button class="button primary wide" id="summarize-btn">生成视频总结</button>
-          <p class="muted center" id="summary-disclaimer">总结将使用当前字幕与自定义 Prompt。</p>
+          <p class="muted center" id="summary-disclaimer">只依据这段视频的字幕；想换个侧重点，先改 Prompt。</p>
         </div>
       </section>
       <section id="view-chat" class="view" role="tabpanel" aria-labelledby="tab-chat" hidden>
@@ -336,7 +336,7 @@
           <div class="empty chat-welcome">
             <div class="empty-mark">AI</div>
             <h2>带着问题，深入理解</h2>
-            <p>回答以当前视频字幕为依据，并提供可回看的时间点。</p>
+            <p>只依据这段视频的内容回答，并给出可以回看的时间点。</p>
             <div class="suggestions">
               <button data-question="这段视频最重要的三个观点是什么？">
                 最重要的三个观点是什么？ <span>↗</span></button
@@ -372,32 +372,31 @@
       <div id="job-status" class="job-overlay" hidden role="status" aria-live="polite">
         <div class="job-card">
           <div class="job-cat" aria-hidden="true">
-            <svg viewBox="0 0 48 48" class="cat">
-              <g class="cat-dance">
-                <path class="cat-tail" d="M35 37c6.5 1 9.5-3.5 8.2-8.6" />
-                <g class="cat-body">
-                  <path class="cat-fill" d="M12.5 41c0-7.2 5.2-12.4 11.5-12.4S35.5 33.8 35.5 41z" />
-                  <ellipse class="cat-paw cat-paw-l" cx="18.4" cy="40.4" rx="3.3" ry="2.3" />
-                  <ellipse class="cat-paw cat-paw-r" cx="29.6" cy="40.4" rx="3.3" ry="2.3" />
+            <svg viewBox="0 0 116 76" class="cat">
+              <g class="cat-all">
+                <g class="cat-tail">
+                  <path class="cat-stroke" d="M86 65c12 1.5 17-6.5 13.5-15.5" />
                 </g>
+                <path class="cat-swish" d="M104 44c2.5-1.5 5-2 7.5-1.5M101 50c2.5-1.5 5-2 7.5-1.5" />
+                <path class="cat-solid" d="M32 68c0-17 12-28 28-28s28 11 28 28z" />
+                <ellipse class="cat-solid" cx="45.5" cy="65.6" rx="7.4" ry="4" />
                 <g class="cat-head">
-                  <path class="cat-fill" d="M15 14.5 16.2 6l7.2 5.2z" />
-                  <path class="cat-fill" d="M33 14.5 31.8 6l-7.2 5.2z" />
-                  <circle class="cat-fill" cx="24" cy="19.2" r="9.6" />
+                  <path class="cat-solid cat-ear" d="M23.4 35.8q-1.2-11.4 5.4-7.2l5.6 3.4z" />
+                  <path class="cat-solid" d="M44.6 35.8q1.2-11.4-5.4-7.2L33.6 32z" />
+                  <circle class="cat-solid" cx="34" cy="46" r="15.6" />
                   <g class="cat-eyes">
-                    <circle cx="20.4" cy="18.6" r="1.5" />
-                    <circle cx="27.6" cy="18.6" r="1.5" />
+                    <circle class="cat-dot" cx="28" cy="45.4" r="2.1" />
+                    <circle class="cat-dot" cx="40" cy="45.4" r="2.1" />
                   </g>
-                  <path class="cat-nose" d="M24 22.4 22.5 23.7h3z" />
-                  <path
-                    class="cat-whiskers"
-                    d="M11.8 17.4h4.2M11.8 21h4.2M36.2 17.4H32M36.2 21H32"
-                  />
+                  <path class="cat-dot-stroke" d="M34 50.6 31.8 52.6h4.4z" />
+                  <path class="cat-fine" d="M34 52.8v1.4m0 0c-1.4 1.5-3 1.1-3.6-.1m3.6.1c1.4 1.5 3 1.1 3.6-.1" />
+                  <path class="cat-fine" d="M10 42.2h9.4M10.4 49h8.8" />
                 </g>
+                <ellipse class="cat-solid cat-paw" cx="31" cy="64.4" rx="7.4" ry="4" />
               </g>
             </svg>
           </div>
-          <p id="job-label" class="job-label">正在处理…</p>
+          <p id="job-label" class="job-label">正在处理</p>
           <div
             id="job-progress"
             class="job-track"
@@ -428,8 +427,8 @@
           id="export-open"
           disabled
           aria-expanded="false"
-          title="导出笔记"
-          aria-label="导出笔记"
+          title="导出字幕和笔记"
+          aria-label="导出字幕和笔记"
         >
           <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
             <path
@@ -443,6 +442,34 @@
           </svg>
         </button>
         <div id="export-menu" class="export-menu" hidden>
+          <section class="export-subtitles" aria-labelledby="export-subtitles-title">
+            <h3 id="export-subtitles-title">导出全部字幕</h3>
+            <div class="export-choice" role="radiogroup" aria-label="字幕格式">
+              <span>格式</span>
+              <label><input type="radio" name="subtitle-format" value="srt" checked /><span>SRT</span></label>
+              <label><input type="radio" name="subtitle-format" value="md" /><span>MD</span></label>
+              <label><input type="radio" name="subtitle-format" value="pdf" /><span>PDF</span></label>
+            </div>
+            <div class="export-choice" role="radiogroup" aria-label="字幕内容">
+              <span>内容</span>
+              <label
+                ><input type="radio" name="subtitle-content" value="bilingual" checked /><span
+                  >双语</span
+                ></label
+              >
+              <label
+                ><input type="radio" name="subtitle-content" value="original" /><span>原文</span></label
+              >
+              <label
+                ><input type="radio" name="subtitle-content" value="translated" /><span
+                  >译文</span
+                ></label
+              >
+            </div>
+            <button type="button" class="button primary wide" id="export-subtitles">导出字幕</button>
+            <p id="export-subtitles-status" class="export-status" aria-live="polite" hidden></p>
+          </section>
+          <h3 class="export-heading">笔记与总结</h3>
           <button data-export="pdf">
             <b>PDF</b><span>PDF<small>可搜索、可复制的中文排版</small></span></button
           ><button data-export="xmind">
@@ -532,11 +559,15 @@
       <div class="prompt-presets">
         <button class="button small" data-preset="learn">深度学习</button
         ><button class="button small" data-preset="quick">快速概览</button
-        ><button class="button small" data-preset="action">行动清单</button>
+        ><button class="button small" data-preset="action">行动清单</button
+        ><button class="button small" data-preset="claims">观点与依据</button
+        ><button class="button small" data-preset="facts">数字与事实</button>
       </div>
-      <label for="prompt-text">你的总结要求</label
+      <label for="prompt-text">你想看到什么样的总结</label
       ><textarea id="prompt-text" rows="8" maxlength="8000"></textarea>
-      <p class="hint">你的要求会用于分段分析和全片汇总。导出结构由系统统一整理。</p>
+      <p class="hint">
+        写清楚重点放在哪、写给谁看、想要多详细。章节划分和时间点不受影响，改的是总结的内容和写法。
+      </p>
       <div class="dialog-actions">
         <button class="text-button" data-preset="learn">恢复默认</button
         ><button class="button primary" id="save-prompt">保存 Prompt</button>
@@ -563,6 +594,14 @@
       aria-label="划词解释"
       hidden
     ></div>
+    <aside id="explain-panel" class="explain-panel" role="dialog" aria-label="AI 解释">
+      <div class="explain-panel-head">
+        <span id="explain-panel-title">AI 解释</span>
+        <button id="explain-panel-clip" class="button small">存为笔记</button
+        ><button id="explain-close" class="icon-button explain-close" aria-label="关闭">✕</button>
+      </div>
+      <div id="explain-panel-body" class="explain-panel-body scroll" tabindex="0"></div>
+    </aside>
     <div id="toast" role="status" aria-live="polite"></div>
   </body>
 </html>

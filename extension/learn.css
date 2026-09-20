@@ -578,3 +578,34 @@ h1 {
     scroll-behavior: auto !important;
   }
 }
+
+/* The caption under the player answers a click like the list does: a word opens the dictionary,
+   and this asks about the whole line. Out of the way until the caption is hovered. */
+.subtitles {
+  position: relative;
+}
+#original {
+  cursor: pointer;
+}
+.caption-explain {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  padding: 3px 9px;
+  border: 1px solid var(--border, #303437);
+  border-radius: 999px;
+  background: rgb(0 0 0 / 35%);
+  color: var(--muted, #a6adaf);
+  font-size: 11px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.14s ease;
+}
+.subtitles:hover .caption-explain,
+.caption-explain:focus-visible {
+  opacity: 1;
+}
+.caption-explain:hover {
+  color: var(--accent, #edc65b);
+  border-color: var(--accent, #edc65b);
+}

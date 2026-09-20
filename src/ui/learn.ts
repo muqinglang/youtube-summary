@@ -196,6 +196,18 @@ function on(selector: string, handler: () => void | Promise<unknown>, event = 'c
       .catch((cause: unknown) => error(errorMessage(cause)));
   });
 }
+/**
+ * The word under the pointer, read from the text node itself so the caption stays plain text.
+ * The same technique the subtitle list uses, and the same segmenter it is paginated with.
+ */
+function wordAtPoint(x: number, y: number): string {
+  const caret = document.caretPositionFromPoint(x, y);
+  const node = caret?.offsetNode;
+  if (!caret || node?.nodeType !== Node.TEXT_NODE) return '';
+  const part = words.segment(node.textContent ?? '').containing(caret.offset);
+  return part?.isWordLike ? part.segment : '';
+}
+
 function panelAction(action: string, value?: string | boolean) {
   panel.contentWindow?.postMessage(
     { type: 'sidenote:learning-action', action, value },
@@ -302,6 +314,13 @@ async function initialize() {
   on('#settings', () => panelAction('settings'));
   on('#guide', () => panelAction('guide'));
   on('#captions-toggle', () => panelAction('captions', !(preferences?.overlayEnabled ?? true)));
+  // A word here is as good a place to ask about as one in the list beside it.
+  $('#original').addEventListener('click', (event) => {
+    if (!(window.getSelection()?.isCollapsed ?? true)) return;
+    const word = wordAtPoint(event.clientX, event.clientY);
+    if (word) panelAction('lookup', word);
+  });
+  on('#explain-caption', () => panelAction('explain-line'));
   on('#focus-toggle', () => {
     const focused = document.body.classList.toggle('focus-mode');
     $('#focus-toggle').setAttribute('aria-pressed', String(focused));

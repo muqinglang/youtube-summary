@@ -159,6 +159,12 @@ test.beforeAll(async () => {
   context.on('console', (message) => {
     if (message.type() === 'error') diagnostics.push(message.text());
   });
+  // Google's free translate endpoint rate-limits a machine that runs this suite often. Refusing
+  // every request the same way keeps runs repeatable, and exercises the way out a viewer is
+  // offered when it happens: switching to AI subtitles.
+  await context.route('https://translate.googleapis.com/**', (route) =>
+    route.fulfill({ status: 429, body: '' }),
+  );
   const media = silentMedia();
   await context.route('https://www.youtube.com/**', async (route) => {
     const url = new URL(route.request().url());
@@ -227,7 +233,7 @@ test.beforeAll(async () => {
     video.pause();
   });
   await openLearning();
-  await expect(panel.locator('#source-state')).toHaveText('已读取原生字幕');
+  await expect(panel.locator('#source-state')).toHaveText('已读取字幕');
 });
 test.afterAll(async () => {
   await context?.close();
@@ -419,8 +425,8 @@ test('independent learning page: source untouched, embedded playback, real API, 
 
   await panel.locator('#tab-transcript').click();
   await openSubtitleSettings();
-  // 'auto' resolves to the browser's built-in Google engine, whose availability depends on the
-  // machine's downloaded language packs. This block exercises AI translation, so pick it.
+  // 'auto' resolves to Google, which this run refuses with a rate limit. Switching to AI must still
+  // translate: a cancelled Google run once restarted mid-switch and swallowed 翻译全部.
   await panel.locator('#engine-ai').click();
   await panel.locator('#translate-btn').click();
   await expect(panel.locator('.translation')).toHaveCount(4);
@@ -439,6 +445,23 @@ test('independent learning page: source untouched, embedded playback, real API, 
   await panel.locator('#display-mode').selectOption('bilingual');
   await expect(learning.locator('#original')).toBeVisible();
   await expect(learning.locator('#translated')).toBeVisible();
+  // Every subtitle downloads in one file, each original paired with its own translation.
+  await panel.locator('#export-open').click();
+  await panel.getByRole('radio', { name: 'SRT' }).check();
+  await panel.getByRole('radio', { name: '双语' }).check();
+  const subtitleDownloading = learning.waitForEvent('download');
+  await panel.locator('#export-subtitles').click();
+  const subtitleDownload = await subtitleDownloading;
+  expect(subtitleDownload.suggestedFilename()).toMatch(/字幕\.srt$/);
+  // Text downloads start with a byte-order mark so Windows editors read them as UTF-8.
+  const srt = (await readFile(await subtitleDownload.path(), 'utf8')).replace(
+    String.fromCharCode(0xfeff),
+    '',
+  );
+  expect(srt).toMatch(
+    /^1\n00:00:00,000 --> 00:00:10,000\nStart with a clear question\.\n译文 \d+：Start with a clear question\.\n/,
+  );
+  expect(srt.match(/ --> /g)).toHaveLength(4);
   // A cue longer than its row is shown a piece at a time, never clipped, and the piece shown
   // follows playback through the cue.
   const showCaption = (original: string, translated: string, start: number, end: number) =>
@@ -600,7 +623,7 @@ test('provider and model dropdowns use fixed official endpoints and matching nat
   for (const preset of presets) {
     await learning.locator('#settings').click();
     await expect(panel.locator('input#base-url')).toHaveCount(0);
-    await expect(panel.locator('#provider option')).toHaveCount(3);
+    await expect(panel.locator('#provider option')).toHaveCount(5);
     await panel.locator('#provider').selectOption(preset.id);
     await expect(panel.locator('#test-connection')).toBeDisabled();
     await expect(panel.locator('#model')).toHaveValue(preset.defaultModel);
@@ -694,13 +717,20 @@ test('API errors and cancellation recover; imported captions remain honest; clos
   await panel.locator('#ask-btn').click();
   await expect(panel.locator('#notice')).toContainText('AI 服务拒绝访问');
   await expect(panel.locator('#ask-btn')).toBeEnabled();
+  // A failed question leaves no half-finished reply, and goes back into the box to retry.
+  await expect(panel.locator('.answer.is-pending')).toHaveCount(0);
+  await expect(panel.locator('#question')).toHaveValue('错误恢复测试：这段视频的证据是什么？');
   provider.setMode('normal');
   await panel.locator('#ask-btn').click();
-  await expect(panel.locator('.answer')).toHaveCount(2);
+  await expect(panel.locator('.answer:not(.is-pending)')).toHaveCount(2);
   provider.setMode('hold');
   await panel.locator('#question').fill('取消测试：请提供更多解释。');
   await panel.locator('#ask-btn').click();
   await expect.poll(() => provider.held.size).toBe(1);
+  // A question waits inside the conversation, not behind the full-panel waiting card.
+  await expect(panel.locator('.answer.is-pending')).toBeVisible();
+  await expect(panel.locator('#job-status')).toBeHidden();
+  await expect(panel.locator('#question')).toHaveValue('');
   await expect(learning.locator('#settings')).toBeDisabled();
   await expect(panel.locator('#settings-open')).toBeDisabled();
   await learning.locator('#settings').evaluate((button: HTMLButtonElement) => button.click());
@@ -715,8 +745,9 @@ test('API errors and cancellation recover; imported captions remain honest; clos
   });
   await expect(panel.locator('#settings-dialog')).not.toBeVisible();
   expect(provider.held.size).toBe(1);
-  await panel.locator('#cancel-job').click();
-  await expect(panel.locator('#job-status')).not.toBeVisible();
+  await panel.getByRole('button', { name: '停止回答' }).click();
+  await expect(panel.locator('.answer.is-pending')).toHaveCount(0);
+  await expect(panel.locator('#question')).toHaveValue('取消测试：请提供更多解释。');
   await expect(panel.locator('#ask-btn')).toBeEnabled();
   await expect.poll(() => provider.held.size).toBe(0);
   await expect(learning.locator('#settings')).toBeEnabled();
@@ -729,10 +760,13 @@ test('API errors and cancellation recover; imported captions remain honest; clos
   });
   await expect(panel.locator('#source-state')).toHaveText('已导入字幕');
   await expect(panel.locator('.cue')).toHaveCount(2);
-  await expect(panel.locator('#export-open')).toBeDisabled();
+  // Imported subtitles export straight away; the note formats wait for a summary.
+  await panel.locator('#export-open').click();
+  await expect(panel.locator('#export-subtitles')).toBeEnabled();
+  await expect(panel.locator('[data-export="pdf"]')).toBeDisabled();
   await panel.locator('#tab-summary').click();
   await panel.locator('#summarize-btn').click();
-  await expect(panel.locator('.result-badge')).toHaveText('当前字幕范围总结');
+  await expect(panel.locator('.result-badge')).toHaveText('部分内容总结');
   await learning.close();
   await expect(source.locator('iframe')).toHaveCount(0);
   await expect(source.locator('html')).not.toHaveAttribute('data-sidenote-open');
@@ -742,7 +776,7 @@ test('API errors and cancellation recover; imported captions remain honest; clos
 
 test('source SPA changes cannot replace the learning video; closing the learning tab cancels its active API task', async () => {
   await openLearning();
-  await expect(panel.locator('#source-state')).toHaveText('已读取原生字幕');
+  await expect(panel.locator('#source-state')).toHaveText('已读取字幕');
   await expect(panel.locator('.cue')).toHaveCount(4);
   provider.setMode('hold');
   await panel.locator('#tab-chat').click();
@@ -761,7 +795,8 @@ test('source SPA changes cannot replace the learning video; closing the learning
   ).toHaveCount(1);
   await expect(source.locator('#sidenote-launcher')).toHaveCount(1);
   expect(await originalLauncher.evaluate((launcher) => launcher.isConnected)).toBe(true);
-  await expect(panel.locator('#question')).toHaveValue('独立学习保留测试：请解释当前视频。');
+  await expect(panel.locator('.user-message').last()).toHaveText('独立学习保留测试：请解释当前视频。');
+  await expect(panel.locator('.answer.is-pending')).toBeVisible();
   expect(provider.held.size).toBe(1);
 
   await source.evaluate(() => {
@@ -806,7 +841,7 @@ test('source SPA changes cannot replace the learning video; closing the learning
   await expect(panel.locator('#video-title')).toHaveText(VIDEO_TITLE);
   await expect(learning.locator('#lesson-title')).toHaveText(VIDEO_TITLE);
   expect(provider.held.size).toBe(1);
-  await panel.locator('#cancel-job').click();
+  await panel.getByRole('button', { name: '停止回答' }).click();
   await expect.poll(() => provider.held.size).toBe(0);
   await panel.locator('#tab-transcript').click();
   await openSubtitleSettings();
@@ -833,7 +868,7 @@ test('empty timedtext and delayed tracks recover through the native modern trans
   source = await context.newPage();
   await source.goto('https://www.youtube.com/watch?v=' + FALLBACK_ID);
   await openLearning(FALLBACK_TITLE);
-  await expect(panel.locator('#source-state')).toHaveText('已读取原生字幕');
+  await expect(panel.locator('#source-state')).toHaveText('已读取字幕');
   await expect(panel.locator('.cue')).toHaveCount(4);
   await panel.locator('#tab-chapters').click();
   await expect(panel.locator('.chapter-card')).toHaveCount(0);
@@ -869,7 +904,7 @@ test('empty timedtext and delayed tracks recover through the native modern trans
   ).toBe(0);
   await panel.locator('#tab-summary').click();
   await panel.locator('#summarize-btn').click();
-  await expect(panel.locator('.result-badge')).toHaveText('当前字幕范围总结');
+  await expect(panel.locator('.result-badge')).toHaveText('部分内容总结');
   await panel.locator('#tab-chapters').click();
   await expect(panel.locator('.chapter-card')).toHaveCount(SUMMARY.sections.length);
   await expect(panel.locator('#chapter-source')).toContainText('AI 总结章节');
@@ -915,5 +950,33 @@ test('choosing AI without a configured key opens settings and sends nothing', as
   await expect(panel.locator('#notice')).toContainText('Key');
   await expect(panel.locator('#engine-google')).toHaveAttribute('aria-selected', 'true');
   expect(provider.calls).toHaveLength(beforeCalls);
+  expect(browserErrors).toEqual([]);
+});
+
+// Last on purpose: this one closes and reopens the learning page, and the tests above share it.
+test('a note survives closing the learning page, and shows under its own video again', async () => {
+  // The test before this one leaves the settings dialog open over the panel; start from a clean page.
+  await learning.close();
+  await openLearning();
+  await expect(panel.locator('#source-state')).toHaveText('已读取字幕');
+  await panel.locator('#tab-transcript').click();
+  await panel.locator('#clip-current').click();
+  await panel.locator('#tab-notes').click();
+  await expect(panel.locator('.clip-card')).toHaveCount(1);
+  const kept = await panel.locator('.clip-card .clip-text').textContent();
+  expect(kept?.trim()).toBeTruthy();
+
+  // Reopening is where this used to break: loading a video started a transcript load, and the
+  // note list was discarded as stale before it ever painted.
+  await learning.close();
+  await openLearning();
+  await expect(panel.locator('#source-state')).toHaveText('已读取字幕');
+  await panel.locator('#tab-notes').click();
+  await expect(panel.locator('.clip-card')).toHaveCount(1);
+  await expect(panel.locator('.clip-card .clip-text')).toHaveText(kept!.trim());
+  await expect(panel.locator('#notes-count')).toHaveText('1 条');
+
+  await panel.locator('#notes-clear').click();
+  await expect(panel.locator('.clip-card')).toHaveCount(0);
   expect(browserErrors).toEqual([]);
 });

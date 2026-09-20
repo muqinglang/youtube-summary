@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { PublicSettings, Settings } from '../shared/types';
 import { validateBaseUrl } from '../shared/endpoint';
 import { getProvider, inferProvider } from '../shared/providers';
+import { AiError } from './client';
 import { DEFAULT_HOSTED_URL, isAllowedHostedUrl, SUBSCRIPTION_ENABLED } from '../shared/hosted';
 export { getOriginPattern, validateBaseUrl } from '../shared/endpoint';
 
@@ -34,8 +35,8 @@ export const DEFAULT_SETTINGS: Settings = {
   translationEngine: 'auto',
   autoTranslate: true,
   targetLanguage: '简体中文',
-  prompt:
-    '请完整总结视频中的核心观点、章节、案例和可执行建议，保留相关时间戳。只依据视频内容，不编造信息。',
+  // The 深度学习 preset, so the default and the button that restores it say the same thing.
+  prompt: '面向第一次接触这个话题的人：把每章的观点讲透，遇到术语先解释再用，保留讲者给出的例子和数字。',
   temperature: 0.3,
 };
 
@@ -44,7 +45,7 @@ const settingsSchema = z.object({
   serverUrl: z.string().max(2000).refine(isAllowedHostedUrl, '托管服务地址不在允许列表中。'),
   sessionToken: z.string().trim().max(4096),
   accountEmail: z.string().trim().max(320),
-  provider: z.enum(['openai', 'deepseek', 'anthropic', 'custom']),
+  provider: z.enum(['openai', 'deepseek', 'anthropic', 'opencode', 'opencode-go', 'custom']),
   baseUrl: z.string().max(2000),
   model: z.string().trim().max(200),
   apiKey: z.string().trim().max(8192),
@@ -133,7 +134,13 @@ export async function saveSettings(patch: Partial<Settings>): Promise<PublicSett
 
 async function updateSettings(patch: Partial<Settings>): Promise<PublicSettings> {
   const parsed = settingsSchema.partial().safeParse(patch);
-  if (!parsed.success) throw new Error('设置格式不正确，请检查翻译方式、模型、语言和提示词长度。');
+  if (!parsed.success) {
+    // The panel is read from disk on every load, this worker only when the extension is reloaded.
+    // So a provider the panel offers and this worker has never heard of means exactly one thing.
+    if (patch.provider && !settingsSchema.shape.provider.safeParse(patch.provider).success)
+      throw new AiError('这个服务商需要更新后的扩展，请到 chrome://extensions 刷新扩展后重试。');
+    throw new AiError('设置格式不正确，请检查翻译方式、模型、语言和提示词长度。');
+  }
   const current = await readSettings();
   const suppliedBaseUrl =
     parsed.data.baseUrl === undefined ? undefined : validateBaseUrl(parsed.data.baseUrl);
@@ -144,13 +151,13 @@ async function updateSettings(patch: Partial<Settings>): Promise<PublicSettings>
       : current.provider);
   const provider = getProvider(providerId);
   if (provider && suppliedBaseUrl !== undefined && suppliedBaseUrl !== provider.baseUrl)
-    throw new Error('此提供商使用固定 API 地址，请重新选择提供商。');
+    throw new AiError('此提供商使用固定 API 地址，请重新选择提供商。');
   const baseUrl = provider?.baseUrl ?? suppliedBaseUrl ?? current.baseUrl;
   const providerChanged = providerId !== current.provider;
   const model =
     parsed.data.model ?? (providerChanged && provider ? provider.defaultModel : current.model);
   if (provider && !provider.models.some((option) => option.id === model))
-    throw new Error('所选模型不属于此提供商，请从模型列表中重新选择。');
+    throw new AiError('所选模型不属于此提供商，请从模型列表中重新选择。');
   const originChanged = new URL(baseUrl).origin !== new URL(current.baseUrl).origin;
   // A blank key field means "keep existing". A dedicated action clears the key.
   // Changing providers never silently sends the previous provider's credential.

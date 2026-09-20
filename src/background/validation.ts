@@ -85,7 +85,9 @@ export const aiRequestSchema: z.ZodType<AiRequest> = z.discriminatedUnion('task'
     task: z.literal('explain'),
     video: videoSchema,
     transcript: transcriptSchema,
-    term: z.string().trim().min(1).max(200),
+    // Long enough for a whole subtitle line, which is what sentence mode sends.
+    term: z.string().trim().min(1).max(600),
+    mode: z.enum(['term', 'word', 'sentence']).optional(),
     language,
   }),
   z.object({ task: z.literal('translate'), transcript: transcriptSchema, language }),
@@ -94,6 +96,10 @@ export const aiRequestSchema: z.ZodType<AiRequest> = z.discriminatedUnion('task'
     video: videoSchema,
     transcript: transcriptSchema,
     question: z.string().trim().min(1).max(4000),
+    history: z
+      .array(z.object({ question: z.string().max(4000), answer: z.string().max(4000) }))
+      .max(8)
+      .optional(),
     language,
   }),
 ]);
@@ -272,7 +278,7 @@ export const glossarySchema: z.ZodType<Glossary> = z.object({
 });
 
 export const explanationSchema: z.ZodType<Explanation> = z.object({
-  term: outputText(200),
+  term: outputText(600),
   kind: z
     .preprocess(
       (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value),
@@ -280,6 +286,17 @@ export const explanationSchema: z.ZodType<Explanation> = z.object({
     )
     .catch('term'),
   meaning: outputText(1200),
+  phonetic: outputText(100, false).optional(),
+  senses: outputArray(
+    z.object({
+      pos: outputText(40, false),
+      gloss: outputText(300),
+      definition: outputText(600, false),
+      example: outputText(400, false),
+      exampleTranslation: outputText(400, false),
+    }),
+    6,
+  ).optional(),
 });
 
 export const answerSchema = z.object({

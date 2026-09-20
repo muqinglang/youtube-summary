@@ -110,13 +110,35 @@ export interface Clip {
   translation: string;
   comment: string;
   createdAt: string;
+  /** Absent on notes kept before the list could show every video at once. */
+  videoId?: string;
+  videoTitle?: string;
 }
+
+/** What a dictionary lists under a word, alongside how this video uses it. */
+export interface WordSense {
+  /** A short part-of-speech tag: n. / v. / adj. / adv. / phrase. */
+  pos: string;
+  /** The meaning in the language the viewer reads in. */
+  gloss: string;
+  /** The meaning in the word's own language. */
+  definition: string;
+  example: string;
+  exampleTranslation: string;
+}
+
+/** What the viewer asked to have explained: a word, a whole subtitle line, or a marked term. */
+export type ExplainMode = 'term' | 'word' | 'sentence';
 
 /** One term explained on demand, from the cues around where the viewer selected it. */
 export interface Explanation {
   term: string;
   kind: TermKind;
+  /** Always present: what it means here, in this video, which a dictionary cannot tell you. */
   meaning: string;
+  /** IPA, for a word the viewer tapped. Empty for a phrase, a name or a whole line. */
+  phonetic?: string;
+  senses?: WordSense[];
 }
 
 /** A question to hold in mind before watching, plus where the video answers it. */
@@ -134,7 +156,19 @@ export interface Answer {
   citations: { start: number; label: string }[];
 }
 
-export type AiProvider = 'openai' | 'deepseek' | 'anthropic' | 'custom';
+/** One earlier question in a conversation, with the answer that was shown for it. */
+export interface ChatTurn {
+  question: string;
+  answer: string;
+}
+
+export type AiProvider =
+  | 'openai'
+  | 'deepseek'
+  | 'anthropic'
+  | 'opencode'
+  | 'opencode-go'
+  | 'custom';
 
 /** One retrieved passage from another video in the account's library. */
 export interface LibraryMatch {
@@ -228,10 +262,20 @@ export type AiRequest =
       /** Only the cues around the selection: an explanation does not need the whole video. */
       transcript: Transcript;
       term: string;
+      /** Absent means a marked glossary term, as before word and sentence lookup existed. */
+      mode?: ExplainMode;
       language: string;
     }
   | { task: 'translate'; transcript: Transcript; language: string }
-  | { task: 'ask'; video: VideoInfo; transcript: Transcript; question: string; language: string };
+  | {
+      task: 'ask';
+      video: VideoInfo;
+      transcript: Transcript;
+      question: string;
+      /** Earlier turns, oldest first, so a follow-up question can refer back to them. */
+      history?: ChatTurn[];
+      language: string;
+    };
 
 /** `notice` reports partial coverage: work that succeeded is returned with what was missed. */
 export type AiResult =

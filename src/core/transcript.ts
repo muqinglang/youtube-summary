@@ -170,12 +170,23 @@ const PAUSE_SECONDS = 0.6;
 const SOFT_WIDTH = 80;
 /** …and at this width regardless. */
 const HARD_WIDTH = 120;
+/** Words left after a break, below which the break is not worth making. */
+const MIN_TAIL_WORDS = 3;
 /** A silence this long ends a sentence even without a full stop. */
 const SILENCE_SECONDS = 2;
 /** How long a cue stays up after its last word begins, unless the next one begins sooner. */
 const HOLD_SECONDS = 2;
 const SENTENCE_END = /[.!?。！？…]["'”’)\]]*$/u;
 const CLAUSE_END = /[,，;；:：、]["'”’)\]]*$/u;
+/**
+ * A line must not end on a word that only means something together with the next one: "in order |
+ * to" reads as two fragments. A break landing after one of these is carried to the word after it.
+ */
+const DANGLING = new Set(
+  ('a an the and or but nor of to in on at by for with from into onto as than that this these those ' +
+    'is are was were be been being am not no if so because about over under between through during ' +
+    'per via vs while when where which who whom whose what how').split(' '),
+);
 const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u;
 
 /** Roughly the room text takes on screen: a CJK character is about two Latin ones wide. */
@@ -214,14 +225,25 @@ function splitClauses(sentence: Word[]): Word[][] {
   return clauses;
 }
 
+function dangles(word: Word | undefined): boolean {
+  return Boolean(word && DANGLING.has(word.text.replace(/[^\p{L}']/gu, '').toLowerCase()));
+}
+
 function splitRuns(clause: Word[]): Word[][] {
   const runs: Word[][] = [[]];
   let width = 0;
   for (const [index, word] of clause.entries()) {
     const gap = index ? word.time - clause[index - 1]!.time : 0;
-    if (width >= HARD_WIDTH || (width >= SOFT_WIDTH && gap >= PAUSE_SECONDS)) {
-      runs.push([]);
-      width = 0;
+    // A break with almost nothing after it leaves a line of one or two words, which reads worse
+    // than the slightly longer line it came from.
+    const tail = clause.length - index <= MIN_TAIL_WORDS;
+    if (!tail && (width >= HARD_WIDTH || (width >= SOFT_WIDTH && gap >= PAUSE_SECONDS))) {
+      // Words the break would strand go with the next line instead ("in order | to" -> "| in order to").
+      const run = runs.at(-1)!;
+      const carried: Word[] = [];
+      while (carried.length < 2 && run.length > 1 && dangles(run.at(-1))) carried.unshift(run.pop()!);
+      runs.push(carried);
+      width = carried.reduce((total, item) => total + textWidth(item.text), 0);
     }
     runs.at(-1)!.push(word);
     width += textWidth(word.text);
@@ -253,6 +275,36 @@ function sentenceCues(words: Word[]): Cue[] {
     const end = Math.min(next, piece.at(-1)!.time + HOLD_SECONDS);
     return { id: `cue-${index}`, start, end: Math.max(end, start + 0.1), text: joinWords(piece) };
   });
+}
+
+/** Below this share of cues ending on a full stop, a track was cut by a machine, not for a reader. */
+const AUTHORED_ENDINGS = 0.3;
+
+/**
+ * YouTube cuts its own caption events wherever the display window filled, so "in order | to" lands
+ * in two cues and a sentence is never whole. Those are rebuilt into sentences the same way word-timed
+ * speech is, spreading each cue's words evenly across it since only the cue's own times are known.
+ * A subtitle file a person wrote is already cut where a reader needs it, and is left alone.
+ */
+function reflowCues(cues: Cue[]): Cue[] {
+  if (cues.length < 8) return cues;
+  const ended = cues.filter((cue) => SENTENCE_END.test(cue.text.trim())).length;
+  if (ended / cues.length >= AUTHORED_ENDINGS) return cues;
+  const words: Word[] = [];
+  for (const cue of cues) {
+    const parts = cue.text.split(/\s+/).filter(Boolean);
+    const step = parts.length > 1 ? Math.max(0, cue.end - cue.start) / parts.length : 0;
+    // Splitting on whitespace took the separating spaces away; a cue's own words carry them back,
+    // and only its first word needs the one YouTube leaves off an event.
+    parts.forEach((part, index) =>
+      words.push({
+        time: cue.start + step * index,
+        text: index ? ` ${part}` : part,
+        opensEvent: index === 0,
+      }),
+    );
+  }
+  return words.length ? sentenceCues(words) : cues;
 }
 
 function parseJson3(text: string): Cue[] {
@@ -318,7 +370,9 @@ function parseJson3(text: string): Cue[] {
       wordTimed = true;
   });
   // A person's captions are already cut where a reader needs them; recognised speech is not.
-  return wordTimed ? sentenceCues(words.sort((a, b) => a.time - b.time)) : cues;
+  return wordTimed
+    ? sentenceCues(words.sort((a, b) => a.time - b.time))
+    : reflowCues(normalizeCues(cues));
 }
 
 function xmlText(nodes: unknown, depth = 0): string {
@@ -389,7 +443,7 @@ function parseXml(text: string): Cue[] {
     }
   };
   walk(root.transcript ?? root.timedtext, 0);
-  return cues;
+  return reflowCues(normalizeCues(cues));
 }
 
 export function parseTranscript(text: string, format?: Format): Cue[] {

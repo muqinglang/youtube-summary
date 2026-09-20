@@ -1,5 +1,11 @@
 import '../shared/zod-setup';
-import { buildMarkdown, buildXMind } from '../core/exports';
+import {
+  buildMarkdown,
+  buildSrt,
+  buildSubtitleMarkdown,
+  buildXMind,
+  subtitleLines,
+} from '../core/exports';
 import { findCueIndex, formatTime, parseTranscript } from '../core/transcript';
 import { getOriginPattern } from '../shared/endpoint';
 import { getProvider, PROVIDERS } from '../shared/providers';
@@ -10,9 +16,11 @@ import type {
   AiProvider,
   AiResult,
   Answer,
+  ChatTurn,
   Clip,
   Cue,
   ExportDocument,
+  ExplainMode,
   Explanation,
   Glossary,
   GlossaryTerm,
@@ -28,6 +36,7 @@ import type {
   RuntimeEvent,
   Summary,
   Transcript,
+  WordSense,
   VideoChapter,
   VideoInfo,
   LibraryMatch,
@@ -36,16 +45,19 @@ import type {
 import { cacheKey, clearCache, readCache, writeCache } from './cache';
 import {
   pushClips,
+  readAllClips,
   readClips,
   syncClips,
+  syncNoteIndex,
   uploadLegacyClips,
   writeClips,
   type Cloud,
+  type VideoClips,
 } from './notes';
 import { downloadFile, element as $, errorMessage, escapeHtml as esc } from './dom';
 import { runJob, send } from './runtime';
 import { googleTranslateUrl, resolveTranslationEngine } from './google-translate';
-import { translateCuesCloud } from './cloud-translate';
+import { lookupWord, translateCuesCloud, type WordEntry } from './cloud-translate';
 
 const VIEWS = ['guide', 'transcript', 'chapters', 'glossary', 'notes', 'summary', 'chat'] as const;
 type Tab = (typeof VIEWS)[number];
@@ -68,12 +80,20 @@ if (workspace) document.body.classList.add('workspace-panel');
 const rawTabId = params.get('tabId');
 const tabId = rawTabId === null ? -1 : Number(rawTabId);
 const WINDOW_SIZE = 100;
+/**
+ * What each one asks for has to be something a reader can see in the result: a different focus, a
+ * different shape, a different length. Rules the model already follows — stay in the video, keep
+ * the timestamps honest — are in the system prompt, and repeating them here only costs words.
+ */
 const PRESETS = {
   learn:
-    '请完整总结视频中的核心观点、章节、案例和可执行建议，保留相关时间戳。面向初学者解释重要概念，只依据视频内容，不编造信息。',
-  quick: '请用简洁语言概括完整视频，重点提炼三个核心观点。保留关键例子和时间戳，省略重复铺垫。',
+    '面向第一次接触这个话题的人：把每章的观点讲透，遇到术语先解释再用，保留讲者给出的例子和数字。',
+  quick: '用最少的字说清楚：三个核心观点，每个一句话，再加一句这段视频值不值得完整看。',
   action:
-    '请把视频整理成可执行的行动清单。每条说明要做什么、如何开始，并保留对应时间戳。不添加视频未提及的承诺或事实。',
+    '只要能上手做的事：每条写清做什么、第一步怎么开始、需要什么条件。视频没讲怎么做的，就不要写成行动。',
+  claims:
+    '把主张和依据分开写：每个观点后面列出讲者给的证据（数据、案例、亲身经历），只有说法没有依据的，标一句「未给出依据」。',
+  facts: '抓硬信息：数字、时间、金额、公司和人名、提到的研究或产品，每一条都写清它说明的是什么。',
 };
 
 const state: {
@@ -86,6 +106,8 @@ const state: {
   guide?: Guide;
   glossary?: Glossary;
   clips: Clip[];
+  /** Whether the notes view shows this video's notes or everything kept on this machine. */
+  notesScope: 'video' | 'all';
   summaryPrompt: string;
   tab: Tab;
   query: string;
@@ -104,6 +126,7 @@ const state: {
   jobTask?: AiRequest['task'];
 } = {
   translations: {},
+  notesScope: 'video',
   summaryPrompt: '',
   tab: 'transcript',
   query: '',
@@ -126,6 +149,7 @@ let savingTranslationEngine = false;
 const attemptedTrackSets = new Set<string>();
 let lastPreferences = '';
 let testingConnection = false;
+let exportingSubtitles = false;
 let connectionFormVersion = 0;
 interface ChapterEntry extends VideoChapter {
   density?: number;
@@ -386,7 +410,7 @@ function renderGuide(): void {
       answer.className = 'guide-answer';
       answer.id = `guide-answer-${index}`;
       answer.hidden = true;
-      answer.textContent = item.answer || '字幕中没有给出明确答案，请到对应时间点自行判断。';
+      answer.textContent = item.answer || '视频里没有正面回答这个问题，可以跳到这个时间点自己看看。';
 
       card.append(row, jump, answer);
       return card;
@@ -453,7 +477,118 @@ function renderGlossary(): void {
   );
 }
 
+/** Notes from other videos, opened and edited the same way as this video's own. */
+function renderVideoClips(video: { videoId: string; title: string; clips: Clip[] }): HTMLElement[] {
+  const head = document.createElement('div');
+  head.className = 'clip-group';
+  const title = document.createElement('span');
+  title.className = 'clip-group-title';
+  title.textContent = video.title || video.videoId;
+  const count = document.createElement('span');
+  count.textContent = `${video.clips.length} 条`;
+  head.append(title, count);
+  const cards = video.clips.map((clip) => {
+    const card = document.createElement('div');
+    card.className = 'clip-card';
+    const row = document.createElement('div');
+    row.className = 'clip-head';
+    const url = watchUrl(video.videoId, clip.start);
+    if (video.videoId === state.video?.id) {
+      const jump = document.createElement('button');
+      jump.className = 'term-jump';
+      jump.dataset.seek = String(clip.start);
+      jump.textContent = `${formatTime(clip.start)} ↗`;
+      row.append(jump);
+    } else if (url) {
+      const link = document.createElement('a');
+      link.className = 'term-jump';
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noreferrer noopener';
+      link.textContent = `${formatTime(clip.start)} ↗`;
+      row.append(link);
+    }
+    const remove = document.createElement('button');
+    remove.className = 'text-button clip-remove';
+    remove.dataset.unclip = noteRef(video.videoId, clip.id);
+    remove.textContent = '删除';
+    row.append(remove);
+    const text = document.createElement('p');
+    text.className = 'clip-text';
+    text.textContent = clip.text;
+    card.append(row, text);
+    if (clip.translation) {
+      const line = document.createElement('p');
+      line.className = 'clip-translation';
+      line.textContent = clip.translation;
+      card.append(line);
+    }
+    const comment = document.createElement('button');
+    comment.className = clip.comment ? 'clip-comment-open' : 'clip-comment-open is-empty';
+    comment.dataset.note = noteRef(video.videoId, clip.id);
+    comment.textContent = clip.comment || '写下你的想法…';
+    card.append(comment);
+    return card;
+  });
+  return [head, ...cards];
+}
+
+/** How many of the account's other videos one visit to this view will fetch. */
+const NOTE_PULL_LIMIT = 30;
+
+function paintAllClips(videos: VideoClips[], titles: Map<string, string>, status = ''): void {
+  const total = videos.reduce((count, video) => count + video.clips.length, 0);
+  $('#notes-list').hidden = !total;
+  $('#notes-empty').hidden = Boolean(total);
+  $('#notes-count').textContent = status || (total ? `${videos.length} 个视频 · ${total} 条` : '');
+  $<HTMLButtonElement>('#notes-clear').hidden = true;
+  $('#notes-list').replaceChildren(
+    ...videos.flatMap((video) =>
+      renderVideoClips({ ...video, title: video.title || titles.get(video.videoId) || '' }),
+    ),
+  );
+}
+
+/**
+ * This machine's notes paint first, then the account's index says which other videos have notes
+ * and those are fetched. The account stores one item per video and cannot list them, so the index
+ * is the only way a machine that never opened a video knows there is anything to ask for.
+ */
+async function renderAllClips(): Promise<void> {
+  const titles = new Map<string, string>();
+  let videos = await readAllClips();
+  if (state.notesScope !== 'all') return;
+  paintAllClips(videos, titles);
+  const known = await syncNoteIndex(cloud);
+  if (state.notesScope !== 'all') return;
+  for (const video of known) titles.set(video.videoId, video.title);
+  const missing = known
+    .filter((video) => !videos.some((held) => held.videoId === video.videoId))
+    .slice(0, NOTE_PULL_LIMIT);
+  if (!missing.length) return paintAllClips(videos, titles);
+  paintAllClips(videos, titles, `正在从账号载入另外 ${missing.length} 个视频的笔记…`);
+  for (const video of missing) {
+    if (state.notesScope !== 'all') return;
+    // One unreachable video must not stop the rest from arriving.
+    await syncClips(video.videoId, cloud).catch(() => undefined);
+  }
+  videos = await readAllClips();
+  if (state.notesScope !== 'all') return;
+  paintAllClips(videos, titles);
+}
+
+function setNotesScope(scope: 'video' | 'all'): void {
+  state.notesScope = scope;
+  $('#notes-scope-video').setAttribute('aria-selected', String(scope === 'video'));
+  $('#notes-scope-all').setAttribute('aria-selected', String(scope === 'all'));
+  renderClips();
+}
+
 function renderClips(): void {
+  if (state.notesScope === 'all') {
+    void renderAllClips().catch((error: unknown) => notice(errorMessage(error), true));
+    return;
+  }
   const list = $('#notes-list');
   const clips = state.clips;
   list.hidden = !clips.length;
@@ -474,7 +609,7 @@ function renderClips(): void {
       jump.textContent = `${formatTime(clip.start)} ↗`;
       const remove = document.createElement('button');
       remove.className = 'text-button clip-remove';
-      remove.dataset.unclip = clip.id;
+      remove.dataset.unclip = noteRef(state.video?.id ?? '', clip.id);
       remove.textContent = '删除';
       head.append(jump, remove);
 
@@ -489,13 +624,12 @@ function renderClips(): void {
         card.append(translation);
       }
 
-      const comment = document.createElement('textarea');
-      comment.className = 'clip-comment';
-      comment.rows = 2;
-      comment.maxLength = 2000;
-      comment.placeholder = '写下你的想法…';
-      comment.value = clip.comment;
-      comment.dataset.comment = clip.id;
+      // A two-row edit box turned every note into a form and a long AI explanation into a
+      // scrollbar. The card reads; the drawer, which has the room, is where it is written.
+      const comment = document.createElement('button');
+      comment.className = clip.comment ? 'clip-comment-open' : 'clip-comment-open is-empty';
+      comment.dataset.note = noteRef(state.video?.id ?? '', clip.id);
+      comment.textContent = clip.comment || '写下你的想法…';
       card.append(comment);
       return card;
     }),
@@ -513,9 +647,11 @@ const cloud: Cloud = {
  * machine's copy first so the list paints at once, then the account's if that one is newer.
  */
 async function loadClips(videoId: string): Promise<void> {
-  const version = state.loadVersion;
   const show = (clips: Clip[]) => {
-    if (version !== state.loadVersion || state.video?.id !== videoId) return;
+    // Which video these belong to is the only thing that can make them stale. loadVersion counts
+    // transcript loads, and updateVideo() starts one right after calling this — so guarding on it
+    // discarded every result, and a video's notes never came back after it was reopened.
+    if (state.video?.id !== videoId) return;
     // Re-rendering an unchanged list would take focus from a comment being typed.
     if (JSON.stringify(clips) === JSON.stringify(state.clips)) return;
     state.clips = clips;
@@ -525,19 +661,74 @@ async function loadClips(videoId: string): Promise<void> {
   show(await syncClips(videoId, cloud));
 }
 
-async function persistClips(): Promise<void> {
-  if (!state.video) return;
-  const videoId = state.video.id;
-  await writeClips(videoId, state.clips);
+/**
+ * A note names the video it belongs to, so editing one from the 全部视频 list is the same work as
+ * editing one from this video: read that video's notes, write them back, push them up.
+ */
+function noteRef(videoId: string, id: string): string {
+  return `${videoId}|${id}`;
+}
+
+async function clipsOf(videoId: string): Promise<Clip[]> {
+  return videoId === state.video?.id ? state.clips : await readClips(videoId);
+}
+
+async function saveClips(videoId: string, clips: Clip[]): Promise<void> {
+  if (videoId === state.video?.id) state.clips = clips;
+  renderClips();
+  await writeClips(videoId, clips);
   // Already safe on this machine. If the upload fails, the next sync finds these newer and retries.
   void pushClips(videoId, cloud).catch(() => undefined);
+  // And the account's index learns what this video now holds, so another machine sees it too.
+  void syncNoteIndex(cloud).catch(() => undefined);
+}
+
+async function persistClips(): Promise<void> {
+  if (!state.video) return;
+  await saveClips(state.video.id, state.clips);
+}
+
+async function removeClip(ref: string): Promise<void> {
+  const [videoId = '', id = ''] = ref.split('|');
+  if (!videoId || !id) return;
+  const clips = await clipsOf(videoId);
+  await saveClips(
+    videoId,
+    clips.filter((clip) => clip.id !== id),
+  );
+}
+
+async function editComment(ref: string, comment: string): Promise<void> {
+  const [videoId = '', id = ''] = ref.split('|');
+  if (!videoId || !id) return;
+  const clips = await clipsOf(videoId);
+  const clip = clips.find((item) => item.id === id);
+  if (!clip || clip.comment === comment) return;
+  await saveClips(
+    videoId,
+    clips.map((item) => (item === clip ? { ...item, comment } : item)),
+  );
 }
 
 /** Keeps the line, its translation and where it came from, so a note stands on its own later. */
-async function addClip(start: number, text: string, translation: string): Promise<void> {
+async function addClip(
+  start: number,
+  text: string,
+  translation: string,
+  comment = '',
+): Promise<void> {
   if (!state.video || !text.trim()) return;
-  if (state.clips.some((clip) => clip.start === start && clip.text === text)) {
-    toast('这一条已经在笔记里了');
+  const kept = state.clips.find((clip) => clip.start === start && clip.text === text);
+  if (kept) {
+    // Explaining a line that is already a note is worth something: it fills in what was empty.
+    if (!comment || kept.comment) {
+      toast('这一条已经在笔记里了');
+      return;
+    }
+    kept.comment = comment;
+    renderClips();
+    await persistClips();
+    toast('已把 AI 解释补进这条笔记');
     return;
   }
   state.clips = [
@@ -547,8 +738,10 @@ async function addClip(start: number, text: string, translation: string): Promis
       start,
       text: text.trim(),
       translation: translation.trim(),
-      comment: '',
+      comment,
       createdAt: new Date().toISOString(),
+      videoId: state.video.id,
+      videoTitle: state.video.title,
     },
   ].sort((a, b) => a.start - b.start);
   renderClips();
@@ -599,13 +792,40 @@ async function generateGuide({ quiet = false } = {}): Promise<void> {
  * behind a button. Silent on purpose: an unconfigured key must not pop the settings dialog just
  * because a video was opened, and a cache hit costs nothing on a video seen before.
  */
-async function autoGenerateGuide(version: number): Promise<void> {
-  if (state.guide || state.job || state.loading) return;
-  if (!aiReady(state.settings) || version !== state.loadVersion) return;
-  try {
-    await generateGuide({ quiet: true });
-  } catch {
-    // Nobody asked for this run, so nobody should be told it failed.
+/**
+ * Whatever was already generated for this video, put back on screen. Only reads: this machine's
+ * cache first, then the account's copy, never a provider — opening a video must not spend anyone's
+ * credits, and an automatic run would also hold the one job slot the next click needs.
+ */
+async function restoreSavedResults(version: number): Promise<void> {
+  const settings = state.settings;
+  const video = state.video;
+  const transcript = state.transcript;
+  if (!settings || !video || !transcript || !aiReady(settings)) return;
+  const language = $<HTMLSelectElement>('#target-language').value;
+  const context = { video, transcript, language };
+  const requests: AiRequest[] = [
+    { task: 'guide', ...context },
+    { task: 'outline', ...context },
+    { task: 'glossary', ...context },
+    { task: 'summarize', ...context, prompt: settings.prompt },
+  ];
+  for (const request of requests) {
+    if (version !== state.loadVersion) return;
+    const found = await findSaved(request, settings).catch(() => undefined);
+    if (!found || version !== state.loadVersion) continue;
+    if (found.task === 'guide') {
+      state.guide = found.guide;
+      renderGuide();
+    } else if (found.task === 'outline') {
+      state.outline = found.outline;
+      renderChapters();
+    } else if (found.task === 'glossary') {
+      state.glossary = found.glossary;
+      renderGlossary();
+    } else if (found.task === 'summarize') {
+      renderSummary(found.summary);
+    }
   }
 }
 
@@ -747,13 +967,14 @@ function resetResults(): void {
   state.summaryPrompt = '';
   $('#summary-content').className = 'empty';
   $('#summary-content').innerHTML =
-    '<div class="empty-mark">AI</div><h2>把视频，变成清晰笔记</h2><p>生成带时间点的章节总结、核心观点和行动建议。</p>';
-  $<HTMLButtonElement>('#export-open').disabled = true;
+    '<div class="empty-mark">AI</div><h2>把整片视频，读成一页笔记</h2><p>按章节整理观点、案例和可执行建议，每条都带时间点。</p>';
+  syncExportMenu();
   $('#summarize-btn').textContent = '生成视频总结';
 }
 
 function resetVideo(): void {
   state.loadVersion++;
+  closeExplainPanel();
   attemptedTrackSets.clear();
   state.job?.abort();
   cancelTranslator();
@@ -860,7 +1081,7 @@ function installTranscript(transcript: Transcript): void {
   resetResults();
   setFollow(true);
   $('#cue-count').textContent = String(transcript.cues.length);
-  $('#source-state').textContent = transcript.source === 'import' ? '已导入字幕' : '已读取原生字幕';
+  $('#source-state').textContent = transcript.source === 'import' ? '已导入字幕' : '已读取字幕';
   const first = transcript.cues[0];
   const last = transcript.cues.at(-1);
   $('#caption-range').textContent =
@@ -877,7 +1098,7 @@ function installTranscript(transcript: Transcript): void {
   void primeTranslations(version).finally(() => {
     if (version === state.loadVersion) maybeTranslate();
   });
-  void autoGenerateGuide(version);
+  void restoreSavedResults(version).catch(() => undefined);
 }
 
 function setFollow(follow: boolean): void {
@@ -907,25 +1128,39 @@ function glossaryMarks(cues: Cue[]): Map<number, GlossaryTerm[]> {
  * Ranges are collected against the clean text and spliced in one pass. Wrapping them one at a
  * time would let a later term match inside an earlier term's title attribute.
  */
-function markTerms(escaped: string, terms: GlossaryTerm[]): string {
+function markTerms(escaped: string, terms: GlossaryTerm[], lookup = ''): string {
   const haystack = escaped.toLocaleLowerCase();
-  const ranges: { at: number; end: number; term: GlossaryTerm }[] = [];
+  const ranges: { at: number; end: number; className: string; title: string }[] = [];
+  // The word just looked up is marked first, so a glossary term never takes its place.
+  const needle = esc(lookup).toLocaleLowerCase();
+  const found = needle ? haystack.indexOf(needle) : -1;
+  if (found >= 0)
+    ranges.push({
+      at: found,
+      end: found + needle.length,
+      className: 'word-hit',
+      title: `正在解释「${lookup}」`,
+    });
   for (const term of terms) {
-    const needle = esc(term.term).toLocaleLowerCase();
-    if (!needle) continue;
-    const at = haystack.indexOf(needle);
+    const text = esc(term.term).toLocaleLowerCase();
+    if (!text) continue;
+    const at = haystack.indexOf(text);
     if (at < 0) continue;
-    const end = at + needle.length;
+    const end = at + text.length;
     // A term already covered by an earlier mark is skipped rather than nested.
     if (ranges.some((range) => at < range.end && range.at < end)) continue;
-    ranges.push({ at, end, term });
+    ranges.push({
+      at,
+      end,
+      className: 'term-mark',
+      title: `${TERM_LABELS[term.kind]} · ${term.meaning || '字幕中没有给出解释。'}`,
+    });
   }
   ranges.sort((a, b) => a.at - b.at);
   let output = '';
   let cursor = 0;
-  for (const { at, end, term } of ranges) {
-    const hint = `${TERM_LABELS[term.kind]} · ${term.meaning || '字幕中没有给出解释。'}`;
-    output += `${escaped.slice(cursor, at)}<span class="term-mark" title="${esc(hint)}">${escaped.slice(at, end)}</span>`;
+  for (const { at, end, className, title } of ranges) {
+    output += `${escaped.slice(cursor, at)}<span class="${className}" title="${esc(title)}">${escaped.slice(at, end)}</span>`;
     cursor = end;
   }
   return output + escaped.slice(cursor);
@@ -1014,58 +1249,481 @@ function occurrences(term: string): number[] {
   return found;
 }
 
-function renderExplanation(explanation: Explanation): void {
-  const bubble = $('#explain-bubble');
-  const head = document.createElement('div');
-  head.className = 'explain-head';
-  const kind = document.createElement('span');
-  kind.className = 'term-kind';
-  kind.textContent = TERM_LABELS[explanation.kind];
-  const name = document.createElement('span');
-  name.className = 'term-name';
-  name.textContent = explanation.term;
-  head.append(kind, name);
-  const meaning = document.createElement('p');
-  meaning.className = 'explain-meaning';
-  meaning.textContent = explanation.meaning;
-  bubble.replaceChildren(head, meaning);
-  const spots = occurrences(explanation.term);
-  if (spots.length > 1) {
-    const row = document.createElement('div');
-    row.className = 'explain-spots';
-    const label = document.createElement('span');
-    label.textContent = `全片提到 ${spots.length}${spots.length >= 8 ? '+' : ''} 次`;
-    row.append(label);
-    for (const start of spots) {
-      const jump = document.createElement('button');
-      jump.className = 'term-jump';
-      jump.dataset.seek = String(start);
-      jump.textContent = formatTime(start);
-      row.append(jump);
-    }
-    bubble.append(row);
+/**
+ * A word is read straight from the text node under the pointer, so the subtitle list keeps its
+ * plain markup: no per-word spans to render, to search around, or to keep in step with term marks.
+ * Intl.Segmenter also knows where a word ends in scripts that do not write spaces.
+ */
+const segmenter = new Intl.Segmenter(undefined, { granularity: 'word' });
+
+function wordAtPoint(x: number, y: number): string {
+  const caret = document.caretPositionFromPoint(x, y);
+  const node = caret?.offsetNode;
+  if (!caret || node?.nodeType !== Node.TEXT_NODE) return '';
+  const part = segmenter.segment(node.textContent ?? '').containing(caret.offset);
+  return part?.isWordLike ? part.segment : '';
+}
+
+const SPEAKER_ICON =
+  '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.2 4.6 5H2.4A.9.9 0 0 0 1.5 6v4a.9.9 0 0 0 .9.9h2.2L8 13.8zM11 5.4a3.6 3.6 0 0 1 0 5.2M12.9 3.3a6.3 6.3 0 0 1 0 9.4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+
+/** Chrome speaks it on the machine: no service to call, no key, and it works offline. */
+function speak(text: string, lang: string): void {
+  try {
+    speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = lang;
+    speechSynthesis.speak(utterance);
+  } catch {
+    // A machine with no installed voice simply stays quiet.
   }
 }
 
-async function explainSelection(): Promise<void> {
+/** The subtitle's own language, so a French video is not read out in English. */
+function speechLang(): string {
+  const language = state.transcript?.language?.trim() || 'en';
+  return language.toLowerCase().startsWith('en') && !language.includes('-') ? 'en-US' : language;
+}
+
+function speakButton(text: string, label: string): HTMLButtonElement {
+  const button = document.createElement('button');
+  button.className = 'speak-button';
+  button.dataset.speak = text;
+  button.title = label;
+  button.setAttribute('aria-label', label);
+  button.innerHTML = SPEAKER_ICON;
+  return button;
+}
+
+/** What the drawer is explaining, so a reply for something else can no longer overwrite it. */
+let explainSubject:
+  | {
+      term: string;
+      cue: number;
+      mode: ExplainMode;
+      /** From a dictionary, in a moment. */
+      entry?: WordEntry;
+      /** From the model, a second or two later: which of those senses this line is using. */
+      explanation?: Explanation;
+    }
+  | undefined;
+
+function closeExplainPanel(): void {
+  $('#explain-panel').classList.remove('is-open');
+  const marked = explainSubject;
+  explainSubject = undefined;
+  // The mark says which word the drawer is explaining, so it goes when the drawer does.
+  if (marked && state.transcript) renderTranscript();
+}
+
+/** The line it came from: what makes this a video dictionary rather than a dictionary. */
+function sourceQuote(cue: Cue): HTMLElement {
+  const quote = document.createElement('button');
+  quote.className = 'explain-source';
+  quote.dataset.seek = String(cue.start);
+  const time = document.createElement('time');
+  time.textContent = formatTime(cue.start);
+  const text = document.createElement('span');
+  text.className = 'explain-source-text';
+  text.textContent = cue.text;
+  quote.append(time, text);
+  const translation = state.translations[cue.id];
+  if (translation) {
+    const line = document.createElement('span');
+    line.className = 'explain-source-translation';
+    line.textContent = translation;
+    quote.append(line);
+  }
+  return quote;
+}
+
+function explainSection(label: string, text: string): HTMLElement {
+  const block = document.createElement('section');
+  block.className = 'explain-section';
+  const heading = document.createElement('h3');
+  heading.textContent = label;
+  const body = document.createElement('p');
+  body.className = 'explain-meaning';
+  body.textContent = text;
+  block.append(heading, body);
+  return block;
+}
+
+function renderSense(sense: WordSense): HTMLElement {
+  const card = document.createElement('div');
+  card.className = 'sense-card';
+  const head = document.createElement('div');
+  head.className = 'sense-head';
+  if (sense.pos) {
+    const pos = document.createElement('span');
+    pos.className = 'sense-pos';
+    pos.textContent = sense.pos;
+    head.append(pos);
+  }
+  const gloss = document.createElement('span');
+  gloss.className = 'sense-gloss';
+  gloss.textContent = sense.gloss;
+  head.append(gloss);
+  card.append(head);
+  for (const [className, value] of [
+    ['sense-definition', sense.definition],
+    ['sense-example', sense.example],
+    ['sense-example-translation', sense.exampleTranslation],
+  ] as const) {
+    if (!value) continue;
+    const line = document.createElement('p');
+    line.className = className;
+    line.textContent = value;
+    if (className === 'sense-example') line.append(speakButton(value, '朗读这句例句'));
+    card.append(line);
+  }
+  return card;
+}
+
+function occurrenceRow(spots: number[]): HTMLElement {
+  const row = document.createElement('div');
+  row.className = 'explain-spots';
+  const label = document.createElement('span');
+  label.textContent = `全片提到 ${spots.length}${spots.length >= 8 ? '+' : ''} 次`;
+  row.append(label);
+  for (const start of spots) {
+    const jump = document.createElement('button');
+    jump.className = 'term-jump';
+    jump.dataset.seek = String(start);
+    jump.textContent = formatTime(start);
+    row.append(jump);
+  }
+  return row;
+}
+
+function renderExplanation(explanation: Explanation, cue: Cue | undefined, mode: ExplainMode): void {
+  const parts: HTMLElement[] = [];
+  if (mode !== 'sentence') {
+    const head = document.createElement('div');
+    head.className = 'word-head';
+    const name = document.createElement('h2');
+    name.className = 'word-name';
+    name.textContent = explanation.term;
+    head.append(name, speakButton(explanation.term, `朗读「${explanation.term}」`));
+    if (explanation.phonetic) {
+      const phonetic = document.createElement('span');
+      phonetic.className = 'word-phonetic';
+      phonetic.textContent = explanation.phonetic;
+      head.append(phonetic);
+    }
+    const kind = document.createElement('span');
+    kind.className = 'term-kind';
+    kind.textContent = TERM_LABELS[explanation.kind];
+    head.append(kind);
+    parts.push(head);
+  }
+  if (cue) parts.push(sourceQuote(cue));
+  parts.push(
+    explainSection(mode === 'sentence' ? '这句话在说什么' : '在这句里', explanation.meaning),
+  );
+  const senses = explanation.senses ?? [];
+  if (senses.length) {
+    const block = document.createElement('section');
+    block.className = 'explain-section';
+    const heading = document.createElement('h3');
+    heading.textContent = '词典释义';
+    block.append(heading, ...senses.map(renderSense));
+    parts.push(block);
+  }
+  const spots = mode === 'sentence' ? [] : occurrences(explanation.term);
+  if (spots.length > 1) parts.push(occurrenceRow(spots));
+  $('#explain-panel-body').replaceChildren(...parts);
+}
+
+function skeletonLine(width: string): HTMLElement {
+  const line = document.createElement('div');
+  line.className = 'skeleton skeleton-line';
+  line.style.width = width;
+  return line;
+}
+
+function waitingLine(label: string): HTMLElement {
+  const line = document.createElement('p');
+  line.className = 'explain-waiting';
+  line.textContent = label;
+  return line;
+}
+
+function explainBlock(label: string, ...body: HTMLElement[]): HTMLElement {
+  const block = document.createElement('section');
+  block.className = 'explain-section';
+  const heading = document.createElement('h3');
+  heading.textContent = label;
+  block.append(heading, ...body);
+  return block;
+}
+
+/**
+ * Painted as soon as a word is clicked and again as each half lands: the dictionary entry, which
+ * takes a moment, and the model's line about which sense this sentence uses, which takes longer.
+ * Waiting for both before showing anything is what made a lookup feel slow.
+ */
+function renderWordCard(subject: NonNullable<typeof explainSubject>, cue: Cue | undefined): void {
+  const { term, entry, explanation } = subject;
+  const parts: HTMLElement[] = [];
+  const head = document.createElement('div');
+  head.className = 'word-head';
+  const name = document.createElement('h2');
+  name.className = 'word-name';
+  name.textContent = explanation?.term || term;
+  head.append(name, speakButton(term, `朗读「${term}」`));
+  if (entry?.phonetic) {
+    const phonetic = document.createElement('span');
+    phonetic.className = 'word-phonetic';
+    phonetic.textContent = `/${entry.phonetic}/`;
+    head.append(phonetic);
+  }
+  if (entry?.translation) {
+    const gloss = document.createElement('span');
+    gloss.className = 'word-gloss';
+    gloss.textContent = entry.translation;
+    head.append(gloss);
+  }
+  parts.push(head);
+  if (cue) parts.push(sourceQuote(cue));
+  parts.push(
+    explainBlock(
+      '在这句里',
+      explanation
+        ? (() => {
+            const meaning = document.createElement('p');
+            meaning.className = 'explain-meaning';
+            meaning.textContent = explanation.meaning;
+            return meaning;
+          })()
+        : waitingLine('AI 正在看这句话怎么用它'),
+    ),
+  );
+  const senses = entry?.senses ?? [];
+  if (senses.length)
+    parts.push(
+      explainBlock(
+        '词典释义',
+        ...senses.map((sense) => {
+          const card = document.createElement('div');
+          card.className = 'sense-card';
+          const line = document.createElement('div');
+          line.className = 'sense-head';
+          if (sense.pos) {
+            const pos = document.createElement('span');
+            pos.className = 'sense-pos';
+            pos.textContent = sense.pos;
+            line.append(pos);
+          }
+          const gloss = document.createElement('span');
+          gloss.className = 'sense-gloss';
+          gloss.textContent = sense.glosses.join('；');
+          line.append(gloss);
+          card.append(line);
+          return card;
+        }),
+      ),
+    );
+  else if (!entry) parts.push(explainBlock('词典释义', skeletonLine('70%'), skeletonLine('52%')));
+  const spots = occurrences(term);
+  if (spots.length > 1) parts.push(occurrenceRow(spots));
+  $('#explain-panel-body').replaceChildren(...parts);
+}
+
+/**
+ * The shape of the answer, sweeping while it is fetched: for a word, its own name is already
+ * known, so it is shown for real and only what is still unknown is drawn as a placeholder.
+ */
+function explainSkeleton(
+  term: string,
+  mode: ExplainMode,
+): { parts: HTMLElement[]; fail: (message: string) => void } {
+  const parts: HTMLElement[] = [];
+  const status = document.createElement('p');
+  status.className = 'explain-waiting';
+  status.textContent = mode === 'sentence' ? '正在解释这一句' : '正在查词典';
+  if (mode !== 'sentence') {
+    const head = document.createElement('div');
+    head.className = 'word-head';
+    const name = document.createElement('h2');
+    name.className = 'word-name';
+    name.textContent = term;
+    const chip = document.createElement('span');
+    chip.className = 'skeleton skeleton-chip';
+    head.append(name, chip);
+    parts.push(head);
+  }
+  parts.push(status);
+  const body = document.createElement('div');
+  body.append(skeletonLine('100%'), skeletonLine('92%'), skeletonLine('60%'));
+  parts.push(body);
+  if (mode !== 'sentence') {
+    for (const width of ['100%', '78%']) {
+      const card = document.createElement('div');
+      card.className = 'skeleton-card';
+      card.append(skeletonLine('40%'), skeletonLine(width), skeletonLine('66%'));
+      parts.push(card);
+    }
+  }
+  return {
+    parts,
+    fail: (message: string) => {
+      status.className = 'explain-meaning';
+      status.textContent = message;
+      for (const part of parts) if (part !== status && !part.contains(status)) part.remove();
+    },
+  };
+}
+
+/**
+ * One explanation, waiting where the answer will appear rather than over the video: the drawer
+ * slides in with the line already in it, and the placeholder is replaced in place.
+ */
+async function explainInPanel(term: string, cueIndex: number, mode: ExplainMode): Promise<void> {
   const cues = state.transcript?.cues;
-  if (!cues || !state.video || !state.transcript || !selectedTerm) return;
-  const centre = selectedCue >= 0 ? selectedCue : 0;
-  const bubble = $('#explain-bubble');
-  const pending = document.createElement('p');
-  pending.className = 'explain-meaning';
-  pending.textContent = '正在解释…';
-  bubble.replaceChildren(pending);
+  if (!cues || !state.video || !state.transcript || !term.trim()) return;
+  hideExplain();
+  const subject: NonNullable<typeof explainSubject> = { term, cue: cueIndex, mode };
+  explainSubject = subject;
+  renderTranscript();
+  const cue = cues[cueIndex];
+  $('#explain-panel').classList.add('is-open');
+  $('#explain-panel-title').textContent = mode === 'sentence' ? 'AI 解释这一句' : 'AI 词典';
+  let waiting: { parts: HTMLElement[]; fail: (message: string) => void } | undefined;
+  if (mode === 'word') {
+    renderWordCard(subject, cue);
+    // The dictionary half owes nothing to the model and arrives in a fraction of the time.
+    void lookupWord(term, $<HTMLSelectElement>('#target-language').value, new AbortController().signal)
+      .then((entry) => {
+        if (explainSubject !== subject) return;
+        subject.entry = entry;
+        renderWordCard(subject, cue);
+      })
+      .catch(() => {
+        if (explainSubject === subject && !subject.entry) {
+          subject.entry = { translation: '', phonetic: '', senses: [] };
+          renderWordCard(subject, cue);
+        }
+      });
+  } else {
+    waiting = explainSkeleton(term, mode);
+    $('#explain-panel-body').replaceChildren(...(cue ? [sourceQuote(cue)] : []), ...waiting.parts);
+  }
+  $('#explain-panel-body').scrollTop = 0;
+  const centre = cueIndex >= 0 ? cueIndex : 0;
   const result = await run({
     task: 'explain',
     video: state.video,
     // A window around the selection: enough context to be specific, small enough to be quick.
     transcript: { ...state.transcript, cues: cues.slice(Math.max(0, centre - 8), centre + 9) },
-    term: selectedTerm,
+    term: term.slice(0, 600),
+    mode,
     language: $<HTMLSelectElement>('#target-language').value,
   });
-  if (result?.task !== 'explain') return hideExplain();
-  renderExplanation(result.explanation);
+  if (explainSubject !== subject) return;
+  const failure = state.job ? '正在处理另一个任务，完成后再试一次。' : '这次没有取到解释，请再试一次。';
+  if (result?.task !== 'explain') {
+    if (!waiting) {
+      // The dictionary half may already be on screen; only the model's line is missing.
+      subject.explanation = { term, kind: 'term', meaning: failure };
+      renderWordCard(subject, cue);
+      return;
+    }
+    waiting.fail(failure);
+    return;
+  }
+  subject.explanation = result.explanation;
+  if (mode === 'word') renderWordCard(subject, cue);
+  else renderExplanation(result.explanation, cue, mode);
+}
+
+async function explainSelection(): Promise<void> {
+  // A selection with a space in it is a phrase, and a phrase has no dictionary entry to look up.
+  await explainInPanel(selectedTerm, selectedCue, /\s/.test(selectedTerm) ? 'term' : 'word');
+}
+
+/**
+ * One note in the drawer: the line it came from, then everything written about it, in a box with
+ * the room to read and to write. Saving is the same debounce the list used.
+ */
+async function openNote(ref: string): Promise<void> {
+  const [videoId = '', id = ''] = ref.split('|');
+  const clip = (await clipsOf(videoId)).find((item) => item.id === id);
+  if (!clip) return;
+  const here = videoId === state.video?.id;
+  explainSubject = undefined;
+  $('#explain-panel').classList.add('is-open');
+  $('#explain-panel-title').textContent = '笔记';
+  const quote = document.createElement(here ? 'button' : 'div');
+  quote.className = 'explain-source';
+  // Another video's note cannot seek this player, so it links out to where it was taken instead.
+  if (here) quote.dataset.seek = String(clip.start);
+  const time = document.createElement('time');
+  time.textContent = formatTime(clip.start);
+  const text = document.createElement('span');
+  text.className = 'explain-source-text';
+  text.textContent = clip.text;
+  quote.append(time, text);
+  if (clip.translation) {
+    const line = document.createElement('span');
+    line.className = 'explain-source-translation';
+    line.textContent = clip.translation;
+    quote.append(line);
+  }
+  const label = document.createElement('h3');
+  label.textContent = '我的想法与 AI 解释';
+  const comment = document.createElement('textarea');
+  comment.className = 'note-comment';
+  comment.maxLength = 2000;
+  comment.placeholder = '写下你的想法…';
+  comment.value = clip.comment;
+  comment.dataset.comment = ref;
+  const remove = document.createElement('button');
+  remove.className = 'text-button clip-remove';
+  remove.dataset.unclip = ref;
+  remove.textContent = '删除这条笔记';
+  const parts: HTMLElement[] = [quote, label, comment, remove];
+  if (!here) {
+    const url = watchUrl(videoId, clip.start);
+    if (url) {
+      const open = document.createElement('a');
+      open.className = 'term-jump';
+      open.href = url;
+      open.target = '_blank';
+      open.rel = 'noreferrer noopener';
+      open.textContent = `在 YouTube 打开 ${formatTime(clip.start)} ↗`;
+      parts.splice(1, 0, open);
+    }
+  }
+  $('#explain-panel-body').replaceChildren(...parts);
+  $('#explain-panel-body').scrollTop = 0;
+  comment.focus();
+}
+
+/** The explanation is the reason the note is worth keeping, so it is what the note carries. */
+function explanationNote(explanation: Explanation, mode: ExplainMode): string {
+  const lines: string[] = [];
+  if (mode !== 'sentence')
+    lines.push(`${explanation.term}${explanation.phonetic ? ` ${explanation.phonetic}` : ''}`);
+  lines.push(explanation.meaning);
+  for (const sense of explanation.senses ?? [])
+    lines.push(
+      `${sense.pos ? `${sense.pos} ` : ''}${sense.gloss}${sense.definition ? ` · ${sense.definition}` : ''}`,
+    );
+  return lines.join('\n');
+}
+
+/** A bare word is no use in a notebook, so a sentence is kept as the line it was. */
+async function clipExplained(): Promise<void> {
+  const subject = explainSubject;
+  const cue = state.transcript?.cues[subject?.cue ?? -1];
+  if (!subject || !cue) return;
+  await addClip(
+    cue.start,
+    subject.mode === 'sentence' ? cue.text : subject.term,
+    state.translations[cue.id] ?? '',
+    subject.explanation ? explanationNote(subject.explanation, subject.mode) : '',
+  );
 }
 
 function renderTranscript(): void {
@@ -1087,7 +1745,11 @@ function renderTranscript(): void {
     const cue = cues[index];
     if (!cue) continue;
     const marked = marks.get(index);
-    const source = marked ? markTerms(esc(cue.text), marked) : esc(cue.text);
+    const lookup = explainSubject?.mode === 'word' && explainSubject.cue === index
+      ? explainSubject.term
+      : '';
+    const source =
+      marked || lookup ? markTerms(esc(cue.text), marked ?? [], lookup) : esc(cue.text);
     const original =
       state.displayMode !== 'translated' ? `<span class="original">${source}</span>` : '';
     const translated =
@@ -1096,10 +1758,10 @@ function renderTranscript(): void {
         : '';
     const pending =
       !original && !translated
-        ? '<span class="translation">尚未翻译，请点击上方「翻译」。</span>'
+        ? '<span class="translation">还没有译文，可在字幕设置里点「翻译全部」。</span>'
         : '';
     parts.push(
-      `<div class="cue-row"><button class="cue${index === state.activeCue ? ' active' : ''}" data-cue="${index}" data-seek="${cue.start}"${index === state.activeCue ? ' aria-current="true"' : ''}><time>${formatTime(cue.start)}</time>${original}${translated}${pending}</button><button class="cue-copy" data-copy-cue="${index}" title="复制整句" aria-label="复制这一句">⧉</button></div>`,
+      `<div class="cue-row"><button class="cue${index === state.activeCue ? ' active' : ''}" data-cue="${index}" data-seek="${cue.start}"${index === state.activeCue ? ' aria-current="true"' : ''}><time>${formatTime(cue.start)}</time>${original}${translated}${pending}</button><button class="cue-copy cue-explain" data-explain-cue="${index}" title="让 AI 解释这一句" aria-label="让 AI 解释这一句">✦</button><button class="cue-copy" data-copy-cue="${index}" title="复制整句" aria-label="复制这一句">⧉</button></div>`,
     );
   }
   if (state.windowStart + WINDOW_SIZE < indices.length)
@@ -1175,10 +1837,10 @@ function renderSummary(summary: Summary): void {
     )
     .join('');
   $('#summary-content').innerHTML =
-    `<span class="result-badge">${state.transcript?.coverage === 'complete' ? '视频字幕总结' : '当前字幕范围总结'}</span><h2 class="summary-title">${esc(summary.title)}</h2><p class="summary-overview">${esc(summary.overview)}</p>${sections}<section class="takeaways"><h3>带走这些收获</h3><ol>${summary.takeaways.map((point) => `<li>${esc(point)}</li>`).join('')}</ol></section>`;
+    `<span class="result-badge">${state.transcript?.coverage === 'complete' ? '全片总结' : '部分内容总结'}</span><h2 class="summary-title">${esc(summary.title)}</h2><p class="summary-overview">${esc(summary.overview)}</p>${sections}<section class="takeaways"><h3>行动与启发</h3><ol>${summary.takeaways.map((point) => `<li>${esc(point)}</li>`).join('')}</ol></section>`;
   $('#summarize-btn').textContent = '重新生成总结';
   $('#summary-disclaimer').textContent = 'AI 可能出错，可点击时间点核对视频原文。';
-  $<HTMLButtonElement>('#export-open').disabled = false;
+  syncExportMenu();
 }
 
 function updateActions(): void {
@@ -1222,42 +1884,62 @@ function updateActions(): void {
   $<HTMLSelectElement>('#target-language').disabled = Boolean(state.job);
   $<HTMLButtonElement>('#prompt-open').disabled = Boolean(state.job);
   $<HTMLButtonElement>('#settings-open').disabled = Boolean(state.job);
-  // Translation paints subtitles as it goes, and an explanation is a two-second aside; neither
-  // should be hidden behind the full-panel waiting card.
+  // Translation paints subtitles as it goes, an explanation is a two-second aside, and a question
+  // is answered inside the conversation; none of them belongs behind the full-panel waiting card.
   $('#job-status').hidden =
-    !state.job || state.jobTask === 'translate' || state.jobTask === 'explain';
+    !state.job ||
+    state.jobTask === 'translate' ||
+    state.jobTask === 'explain' ||
+    state.jobTask === 'ask';
+  syncExportMenu();
   publishPreferences();
 }
 
-/** Minutes-long waits need something to read, so the card rotates honest notes about the work. */
-const WAITING_NOTES = [
-  '正在逐段读完整片字幕，再汇总成笔记。',
-  '视频越长段数越多，可以先去忙别的，回来结果还在。',
-  '结果会保存到你的账号，换台电脑打开同一个视频也能直接看。',
-  '个别段落读取失败会自动跳过，不影响其余部分。',
-  '所有时间点都来自真实字幕，生成后可以点开核对。',
-];
-const NOTE_INTERVAL_MS = 9000;
 let jobTicker = 0;
 let jobStartedAt = 0;
-let noteIndex = -1;
+let jobDone = 0;
+let jobTotal = 0;
 
 function formatElapsed(ms: number): string {
   const seconds = Math.max(0, Math.floor(ms / 1000));
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
+
+/** Deliberately coarse: an estimate from a handful of segments is not worth a precise-looking number. */
+function formatRemaining(ms: number): string {
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 60) return `${Math.max(10, Math.ceil(seconds / 10) * 10)} 秒`;
+  return `${Math.max(1, Math.round(seconds / 60))} 分钟`;
+}
+/** Past this, the number stops being information and starts being a threat. */
+const LONG_WAIT_MS = 55 * 60_000;
+
+/**
+ * The only thing worth telling someone who is waiting is how much longer. How the work is divided
+ * up, and what it does when a part of it fails, is the code's business, not theirs.
+ */
+function waitingHint(elapsed: number): string {
+  if (jobTotal > 1 && jobDone >= jobTotal) return '正在汇总，马上就好';
+  // Sitting on "estimating" for a minute is worse than a rough number, so one finished piece is
+  // enough to quote from — rounded hard enough that being a little off does not show.
+  if (jobTotal <= 1 || jobDone < 1) return '正在读这段视频…';
+  const remaining = (elapsed / jobDone) * (jobTotal - jobDone);
+  // "116 分钟" reads as a wrong number rather than as a long wait, and it is not that precise.
+  if (remaining >= LONG_WAIT_MS) return '这段视频很长，要 1 小时以上；换更快的模型会明显缩短';
+  return `大约还要 ${formatRemaining(remaining)}`;
+}
+
 function tickJob(): void {
   const elapsed = Date.now() - jobStartedAt;
   $('#job-elapsed').textContent = `已用 ${formatElapsed(elapsed)}`;
-  const next = Math.floor(elapsed / NOTE_INTERVAL_MS) % WAITING_NOTES.length;
-  if (next !== noteIndex) {
-    noteIndex = next;
-    $('#job-hint').textContent = WAITING_NOTES[next]!;
-  }
+  const pendingTime = document.querySelector('.answer.is-pending .pending-time');
+  if (pendingTime) pendingTime.textContent = formatElapsed(elapsed);
+  $('#job-hint').textContent = waitingHint(elapsed);
 }
 function startJobTicker(): void {
   jobStartedAt = Date.now();
-  noteIndex = -1;
+  jobDone = 0;
+  jobTotal = 0;
   clearInterval(jobTicker);
   tickJob();
   jobTicker = window.setInterval(tickJob, 1000);
@@ -1269,15 +1951,72 @@ function stopJobTicker(): void {
 
 function updateProgress(progress: JobProgress): void {
   $('#job-label').textContent = progress.label;
+  const pendingLabel = document.querySelector('.answer.is-pending .pending-label');
+  if (pendingLabel) pendingLabel.textContent = progress.label;
   const total = Math.max(1, progress.total);
   const completed = Math.min(Math.max(0, progress.completed), total);
+  jobTotal = progress.total;
+  jobDone = completed;
   // Before the first batch reports back there is no real ratio to show.
   const unknown = progress.total <= 1;
   const ratio = unknown ? 0 : completed / total;
   $('#job-progress').classList.toggle('is-indeterminate', unknown);
   $('#job-progress').setAttribute('aria-valuenow', String(Math.round(ratio * 100)));
   $('#job-bar').style.width = unknown ? '' : `${(ratio * 100).toFixed(1)}%`;
-  $('#job-step').textContent = unknown ? '' : `${completed} / ${total} 段`;
+  $('#job-step').textContent = unknown ? '' : `${Math.round(ratio * 100)}%`;
+}
+
+/**
+ * What makes two requests the same piece of work. The video, its subtitles, the language and the
+ * prompt decide that — not the model that happened to run it. A summary belongs to the account and
+ * the video: changing model, or moving to another machine, must not hide what is already there.
+ */
+function resultKey(request: AiRequest, settings: PublicSettings, legacy = false): Promise<string> {
+  const identity =
+    'video' in request
+      ? {
+          ...request,
+          video: {
+            id: request.video.id,
+            title: request.video.title,
+            url: request.video.url,
+            duration: request.video.duration,
+          },
+        }
+      : request;
+  return cacheKey({
+    request: identity,
+    // Results kept before this were filed under the model too, and are still found under it once.
+    ...(legacy
+      ? {
+          model: settings.model,
+          baseUrl: settings.baseUrl,
+          temperature: settings.temperature,
+        }
+      : {}),
+    // 2: outline sections gained density and kind, so version 1 entries render blank badges.
+    version: 3,
+  });
+}
+
+/**
+ * What the account already holds for this request, under the current key or the one used before
+ * the model stopped being part of it. Anything found under the old key is re-filed under the new
+ * one, so the next lookup is direct and the result survives the next model change.
+ */
+async function findSaved(
+  request: AiRequest,
+  settings: PublicSettings,
+): Promise<AiResult | undefined> {
+  const key = await resultKey(request, settings);
+  const found = await savedResult(key, request.task);
+  if (found) return found;
+  const older = await savedResult(await resultKey(request, settings, true), request.task);
+  if (older) {
+    await writeCache(key, older).catch(() => undefined);
+    void cloud.put(key, older, Date.now()).catch(() => undefined);
+  }
+  return older;
 }
 
 /** This machine's cache first; failing that, a copy the account kept from another machine. */
@@ -1321,27 +2060,8 @@ async function run(request: AiRequest, force = false): Promise<AiResult | undefi
   notice('');
   $('#google-web-fallback').hidden = true;
   try {
-    const identity =
-      'video' in request
-        ? {
-            ...request,
-            video: {
-              id: request.video.id,
-              title: request.video.title,
-              url: request.video.url,
-              duration: request.video.duration,
-            },
-          }
-        : request;
-    const key = await cacheKey({
-      request: identity,
-      model: settings.model,
-      baseUrl: settings.baseUrl,
-      temperature: settings.temperature,
-      // 2: outline sections gained density and kind, so version 1 entries render blank badges.
-      version: 3,
-    });
-    const cached = force ? undefined : await savedResult(key, request.task);
+    const key = await resultKey(request, settings);
+    const cached = force ? undefined : await findSaved(request, settings);
     if (cached && !controller.signal.aborted && version === state.loadVersion) {
       toast('已使用保存的结果，无需重复处理');
       if (cached.notice) notice(cached.notice);
@@ -1414,6 +2134,8 @@ async function generateOutline(): Promise<void> {
 
 // ---- Progressive, playback-driven translation (Trancy-style bilingual subtitles) ----
 const AI_CHUNK = 24;
+/** Google answers a whole group in one request, so its batches are worth filling. */
+const GOOGLE_CHUNK = 100;
 const LOOKAHEAD = 60;
 const MIN_BATCH = 12;
 let translator: AbortController | undefined;
@@ -1499,10 +2221,15 @@ function needsTranslation(cue: Cue | undefined): cue is Cue {
   return Boolean(cue && !state.translations[cue.id] && !skippedTranslations.has(cue.id));
 }
 
+function batchSize(): number {
+  return currentEngine() === 'google' ? GOOGLE_CHUNK : AI_CHUNK;
+}
+
 function collectUntranslated(cues: Cue[], from: number, to: number): Cue[] {
   const out: Cue[] = [];
   const end = Math.min(cues.length, to);
-  for (let index = Math.max(0, from); index < end && out.length < AI_CHUNK; index += 1) {
+  const limit = batchSize();
+  for (let index = Math.max(0, from); index < end && out.length < limit; index += 1) {
     const cue = cues[index];
     if (needsTranslation(cue)) out.push(cue);
   }
@@ -1514,14 +2241,15 @@ function nextBatch(): Cue[] | undefined {
   const cues = state.transcript?.cues;
   if (!cues?.length) return undefined;
   const active = Math.max(0, state.activeCue);
-  const ahead = collectUntranslated(cues, active, active + LOOKAHEAD);
+  const span = Math.max(LOOKAHEAD, batchSize());
+  const ahead = collectUntranslated(cues, active, active + span);
   if (ahead.length) return ahead;
   const behind = collectUntranslated(cues, active - 40, active);
   if (behind.length) return behind;
   // Free cloud Google fills the whole video (like Trancy); paid AI stays near the playhead.
   if (!translateAll && currentEngine() !== 'google') return undefined;
   const first = cues.findIndex((cue) => needsTranslation(cue));
-  return first < 0 ? undefined : collectUntranslated(cues, first, first + LOOKAHEAD);
+  return first < 0 ? undefined : collectUntranslated(cues, first, first + span);
 }
 
 function untranslatedInWindow(): number {
@@ -1549,7 +2277,9 @@ function mergeTranslations(map: Record<string, string>, force = false): void {
 }
 
 function maybeTranslate(): void {
-  if (translator || !state.transcript || translationHalted) return;
+  // Mid-switch the settings still name the engine being left, and a run started now (a cancelled
+  // run restarting, a playback tick) would keep translating with it after the switch.
+  if (translator || !state.transcript || translationHalted || savingTranslationEngine) return;
   if (!autoTranslateOn() && !translateAll) return;
   if (!engineReady(currentEngine())) return;
   const activeMissing = needsTranslation(state.transcript.cues[state.activeCue]);
@@ -1796,21 +2526,66 @@ function appendLibraryResults(query: string, matches: LibraryMatch[]): void {
   $('#messages').scrollTo({ top: $('#messages').scrollHeight, behavior: 'smooth' });
 }
 
+/** Earlier exchanges sent along with a question, so a follow-up can refer back to them. */
+const HISTORY_TURNS = 4;
+/** The mascot's head gives answers a face; while a reply is pending it tilts and glances about. */
+const ANSWER_HEAD = `<div class="answer-head"><span class="ai-avatar" aria-hidden="true"><svg viewBox="10 4 28 28"><g class="avatar-head"><path class="cat-fill" d="M15 14.5 16.2 6l7.2 5.2z"/><path class="cat-fill" d="M33 14.5 31.8 6l-7.2 5.2z"/><circle class="cat-fill" cx="24" cy="19.2" r="9.6"/><g class="avatar-eyes"><circle cx="20.4" cy="18.6" r="1.5"/><circle cx="27.6" cy="18.6" r="1.5"/></g><path class="cat-nose" d="M24 22.4 22.5 23.7h3z"/><path class="cat-whiskers" d="M11.8 17.4h4.2M11.8 21h4.2M36.2 17.4H32M36.2 21H32"/></g></svg></span><span class="answer-label">旁听 AI</span></div>`;
+
 async function ask(question: string): Promise<void> {
   question = question.trim();
   if (!question || state.job) return;
-  const result = await run({ task: 'ask', ...aiContext(), question });
-  if (result?.task !== 'ask') return;
-  document.querySelector('.chat-welcome')?.remove();
-  appendAnswer(question, result.answer);
-  $<HTMLTextAreaElement>('#question').value = '';
+  const history = chatHistory();
+  const request: AiRequest = {
+    task: 'ask',
+    ...aiContext(),
+    question,
+    ...(history.length ? { history } : {}),
+  };
+  const messages = $('#messages');
+  const welcome = messages.querySelector('.chat-welcome');
+  welcome?.remove();
+  // As in any conversation, the question and a reply visibly being worked on appear at once.
+  const item = appendExchange(question);
+  const input = $<HTMLTextAreaElement>('#question');
+  if (input.value.trim() === question) input.value = '';
+  const result = await run(request);
+  if (result?.task === 'ask') {
+    fillAnswer(item, result.answer);
+    return;
+  }
+  // A new video reset the conversation while this waited: nothing of it is on screen any more.
+  if (!item.isConnected) return;
+  // Failed, cancelled or never started: take the exchange back and return the question to the box.
+  item.remove();
+  if (welcome && !messages.querySelector('section')) messages.prepend(welcome);
+  if (!input.value.trim()) input.value = question;
 }
 
-function appendAnswer(question: string, answer: Answer): void {
+function appendExchange(question: string): HTMLElement {
   const item = document.createElement('section');
-  item.innerHTML = `<div class="user-message">${esc(question)}</div><div class="answer"><span class="answer-label">旁听 AI</span><p>${esc(answer.text)}</p>${answer.citations.map((citation) => `<button class="citation" data-seek="${citation.start}">${formatTime(citation.start)} · ${esc(citation.label)} ↗</button>`).join('')}</div>`;
+  item.innerHTML = `<div class="user-message">${esc(question)}</div><div class="answer is-pending" aria-busy="true">${ANSWER_HEAD}<div class="pending"><span class="pending-label">正在准备内容…</span><span class="pending-time" aria-hidden="true"></span><button type="button" class="text-button stop-answer">停止回答</button></div></div>`;
+  item.querySelector('.stop-answer')?.addEventListener('click', () => state.job?.abort());
   $('#messages').append(item);
   $('#messages').scrollTo({ top: $('#messages').scrollHeight, behavior: 'smooth' });
+  return item;
+}
+
+function fillAnswer(item: HTMLElement, answer: Answer): void {
+  item.classList.add('exchange');
+  const reply = item.querySelector('.answer');
+  if (reply)
+    reply.outerHTML = `<div class="answer">${ANSWER_HEAD}<p>${esc(answer.text)}</p>${answer.citations.map((citation) => `<button class="citation" data-seek="${citation.start}">${formatTime(citation.start)} · ${esc(citation.label)} ↗</button>`).join('')}</div>`;
+  $('#messages').scrollTo({ top: $('#messages').scrollHeight, behavior: 'smooth' });
+}
+
+/** The answered exchanges on screen, oldest first; answers are trimmed to keep the call small. */
+function chatHistory(): ChatTurn[] {
+  return [...document.querySelectorAll('#messages .exchange')]
+    .slice(-HISTORY_TURNS)
+    .map((item) => ({
+      question: item.querySelector('.user-message')?.textContent ?? '',
+      answer: (item.querySelector('.answer p')?.textContent ?? '').slice(0, 2000),
+    }));
 }
 
 function exportDocument(): ExportDocument {
@@ -1836,6 +2611,91 @@ function clipsMarkdown(): string {
   return lines.join('\n');
 }
 
+/** The bundled subset font is ~1.5 MB, so it is fetched only when a PDF is actually exported. */
+async function pdfFont(): Promise<Uint8Array> {
+  const response = await fetch(chrome.runtime.getURL('fonts/NotoSansSC-Subset.otf'));
+  if (!response.ok) throw new Error('中文字体加载失败，无法生成 PDF。');
+  return new Uint8Array(await response.arrayBuffer());
+}
+
+/** Subtitles export as soon as there are any; the note formats need a summary. */
+function syncExportMenu(): void {
+  const cues = Boolean(state.transcript?.cues.length);
+  $<HTMLButtonElement>('#export-open').disabled = !cues && !state.summary;
+  $<HTMLButtonElement>('#export-subtitles').disabled = !cues || exportingSubtitles;
+  document.querySelectorAll<HTMLButtonElement>('[data-export]').forEach((item) => {
+    item.disabled = item.dataset.export !== 'clips' && !state.summary;
+  });
+}
+
+function subtitleChoice(name: 'subtitle-format' | 'subtitle-content'): string {
+  return document.querySelector<HTMLInputElement>(`input[name="${name}"]:checked`)?.value ?? '';
+}
+
+function untranslatedCount(): number {
+  return state.transcript?.cues.filter((cue) => !state.translations[cue.id]).length ?? 0;
+}
+
+/** Says before the click what exporting translations involves, so the wait is no surprise. */
+function describeSubtitleExport(): void {
+  if (exportingSubtitles) return;
+  const missing = subtitleChoice('subtitle-content') === 'original' ? 0 : untranslatedCount();
+  const status = $('#export-subtitles-status');
+  status.textContent = missing
+    ? `还有 ${missing} 句没有译文，导出时会先用${currentEngine() === 'ai' ? ' AI ' : ' Google '}翻译补齐。`
+    : '';
+  status.hidden = !missing;
+}
+
+async function exportSubtitles(): Promise<void> {
+  const { transcript, video } = state;
+  if (!transcript?.cues.length || !video || exportingSubtitles) return;
+  const content = subtitleChoice('subtitle-content') as DisplayMode;
+  const format = subtitleChoice('subtitle-format');
+  const status = $('#export-subtitles-status');
+  exportingSubtitles = true;
+  syncExportMenu();
+  try {
+    if (content !== 'original' && untranslatedCount()) {
+      if (!engineReady(currentEngine())) {
+        // Opens settings and says what is missing; there is no translation to wait for.
+        forceTranslateAll();
+        return;
+      }
+      forceTranslateAll();
+      // 翻译全部 runs on the panel's own translator: wait out its sweep, however it ends.
+      while (translator && state.transcript === transcript) {
+        const total = transcript.cues.length;
+        status.hidden = false;
+        status.textContent = `正在翻译 ${total - untranslatedCount()} / ${total} 句，完成后自动下载…`;
+        await new Promise((resolve) => window.setTimeout(resolve, 400));
+      }
+      if (state.transcript !== transcript) return;
+    }
+    const entries = transcript.cues.map((cue) => ({
+      start: cue.start,
+      end: cue.end,
+      lines: subtitleLines(cue.text, state.translations[cue.id], content),
+    }));
+    const name = `${video.title} 字幕`;
+    if (format === 'pdf') {
+      const [{ buildSubtitlePdf }, font] = await Promise.all([import('../core/pdf'), pdfFont()]);
+      const pdf = await buildSubtitlePdf(video, entries, { font });
+      downloadFile(`${name}.pdf`, pdf, 'application/pdf');
+    } else if (format === 'md') {
+      const markdown = buildSubtitleMarkdown(video, entries);
+      downloadFile(`${name}.md`, markdown, 'text/markdown;charset=utf-8');
+    } else downloadFile(`${name}.srt`, buildSrt(entries), 'application/x-subrip;charset=utf-8');
+    const missing = content === 'original' ? 0 : untranslatedCount();
+    if (missing) notice(`有 ${missing} 句没能翻译，导出的字幕里这些句子只有原文。`, true);
+    closeExport();
+  } finally {
+    exportingSubtitles = false;
+    syncExportMenu();
+    describeSubtitleExport();
+  }
+}
+
 async function exportNotes(format: string): Promise<void> {
   closeExport();
   if (format === 'clips') {
@@ -1849,14 +2709,8 @@ async function exportNotes(format: string): Promise<void> {
   }
   const doc = exportDocument();
   if (format === 'pdf') {
-    // The bundled subset font is ~1.5 MB, so it is fetched only when a PDF is actually exported.
-    const [{ buildPdf }, response] = await Promise.all([
-      import('../core/pdf'),
-      fetch(chrome.runtime.getURL('fonts/NotoSansSC-Subset.otf')),
-    ]);
-    if (!response.ok) throw new Error('中文字体加载失败，无法生成 PDF。');
-    const pdf = await buildPdf(doc, { font: new Uint8Array(await response.arrayBuffer()) });
-    downloadFile(`${doc.summary.title}.pdf`, pdf, 'application/pdf');
+    const [{ buildPdf }, font] = await Promise.all([import('../core/pdf'), pdfFont()]);
+    downloadFile(`${doc.summary.title}.pdf`, await buildPdf(doc, { font }), 'application/pdf');
   } else if (format === 'print') {
     await send({
       type: 'export:print',
@@ -1997,7 +2851,7 @@ function renderProviderModels(savedModel?: string): void {
   model.disabled = !provider;
   $<HTMLButtonElement>('#save-settings').disabled = !provider;
   $('#provider-hint').textContent = provider
-    ? '直连 ' + provider.label + ' 官方服务，地址已内置。模型可用性取决于你的账户权限。'
+    ? (provider.note ?? '直连官方服务，地址已内置。模型可用性取决于你的账户权限。')
     : '原有配置已保留。请选择服务商与模型，并填写对应 Key 后更新。';
 }
 
@@ -2131,16 +2985,32 @@ function bindEvents(): void {
     }
     if ('clipSelection' in data)
       void clipSelection().catch((error: unknown) => notice(errorMessage(error), true));
+    if (data.note) {
+      void openNote(data.note).catch((error: unknown) => notice(errorMessage(error), true));
+      return;
+    }
     if (data.unclip) {
-      state.clips = state.clips.filter((clip) => clip.id !== data.unclip);
-      renderClips();
-      void persistClips().catch((error: unknown) => notice(errorMessage(error), true));
+      if (explainSubject === undefined) closeExplainPanel();
+      void removeClip(data.unclip).catch((error: unknown) => notice(errorMessage(error), true));
     }
     if ('explain' in data) {
       void explainSelection().catch((error: unknown) => {
         hideExplain();
         notice(errorMessage(error), true);
       });
+    }
+    if (data.speak) {
+      speak(data.speak, speechLang());
+      return;
+    }
+    if (data.explainCue !== undefined) {
+      const index = Number(data.explainCue);
+      const cue = state.transcript?.cues[index];
+      if (cue)
+        void explainInPanel(cue.text, index, 'sentence').catch((error: unknown) =>
+          notice(errorMessage(error), true),
+        );
+      return;
     }
     if (data.cue !== undefined && (window.getSelection()?.isCollapsed ?? true)) {
       honourSeekUntil = Date.now() + SEEK_GRACE_MS;
@@ -2207,8 +3077,33 @@ function bindEvents(): void {
   $('#transcript-list').addEventListener('mouseup', () => window.setTimeout(offerExplain, 0));
   $('#transcript-list').addEventListener('scroll', hideExplain, { passive: true });
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') hideExplain();
+    if (event.key !== 'Escape') return;
+    if ($('#explain-panel').classList.contains('is-open')) closeExplainPanel();
+    hideExplain();
   });
+  on('#explain-close', 'click', closeExplainPanel);
+  on('#explain-panel-clip', 'click', () =>
+    clipExplained().catch((error: unknown) => notice(errorMessage(error), true)),
+  );
+  on('#notes-scope-video', 'click', () => setNotesScope('video'));
+  on('#notes-scope-all', 'click', () => setNotesScope('all'));
+  // Capture: a word beats the row's own seek, which is still what the rest of the row does.
+  $('#transcript-list').addEventListener(
+    'click',
+    (event) => {
+      const original = (event.target as Element | null)?.closest<HTMLElement>('.cue .original');
+      const row = original?.closest<HTMLElement>('[data-cue]');
+      if (!row || !(window.getSelection()?.isCollapsed ?? true)) return;
+      const word = wordAtPoint(event.clientX, event.clientY);
+      if (!word) return;
+      event.stopPropagation();
+      event.preventDefault();
+      void explainInPanel(word, Number(row.dataset.cue), 'word').catch((error: unknown) =>
+        notice(errorMessage(error), true),
+      );
+    },
+    true,
+  );
   document.addEventListener('mousedown', (event) => {
     const target = event.target as Element | null;
     if (!target?.closest('#explain-bubble')) hideExplain();
@@ -2220,17 +3115,15 @@ function bindEvents(): void {
     await persistClips();
     toast('笔记已清空');
   });
-  $('#notes-list').addEventListener('input', (event) => {
+  $('#explain-panel-body').addEventListener('input', (event) => {
     const target = event.target as HTMLTextAreaElement;
-    const id = target.dataset.comment;
-    if (!id) return;
-    const clip = state.clips.find((item) => item.id === id);
-    if (!clip) return;
-    clip.comment = target.value;
+    const ref = target.dataset.comment;
+    if (!ref) return;
+    const comment = target.value;
     // Typing should not write on every keystroke; the save rides the next idle callback.
     clearTimeout(commentSaveTimer);
     commentSaveTimer = window.setTimeout(() => {
-      void persistClips().catch((error: unknown) => notice(errorMessage(error), true));
+      void editComment(ref, comment).catch((error: unknown) => notice(errorMessage(error), true));
     }, 600);
   });
   on('#skip-filler', 'click', () => {
@@ -2400,7 +3293,10 @@ function bindEvents(): void {
     const menu = $('#export-menu');
     menu.hidden = !menu.hidden;
     $('#export-open').setAttribute('aria-expanded', String(!menu.hidden));
+    describeSubtitleExport();
   });
+  on('#export-menu', 'change', describeSubtitleExport);
+  on('#export-subtitles', 'click', exportSubtitles);
   on('#panel-close', 'click', async () => {
     state.job?.abort();
     if (tabId < 0) window.close();
@@ -2442,6 +3338,17 @@ function bindEvents(): void {
       if (event.data?.type === 'sidenote:learning-action') {
         if (event.data.action === 'settings') $('#settings-open').click();
         if (event.data.action === 'guide') $('#guide-open').click();
+        if (event.data.action === 'lookup' && typeof event.data.value === 'string')
+          void explainInPanel(event.data.value, state.activeCue, 'word').catch((error: unknown) =>
+            notice(errorMessage(error), true),
+          );
+        if (event.data.action === 'explain-line') {
+          const cue = state.transcript?.cues[state.activeCue];
+          if (cue)
+            void explainInPanel(cue.text, state.activeCue, 'sentence').catch((error: unknown) =>
+              notice(errorMessage(error), true),
+            );
+        }
         if (event.data.action === 'captions' && typeof event.data.value === 'boolean') {
           $<HTMLInputElement>('#overlay-enabled').checked = event.data.value;
           updatePlayback();
@@ -2509,8 +3416,20 @@ async function initialize(): Promise<void> {
     on('#sign-in', 'click', signIn);
     return;
   }
-  bindEvents();
-  bindGuide();
+  try {
+    bindEvents();
+    bindGuide();
+  } catch (error) {
+    // A control this panel needs is missing, which means panel.html and panel.js came from
+    // different builds. Every button would be dead and the header would sit on its placeholder,
+    // looking like a video that never connects. Raw DOM here: the helpers are what just failed.
+    const title = document.querySelector('#video-title');
+    if (title) title.textContent = '扩展文件版本不一致';
+    const list = document.querySelector('#transcript-list');
+    if (list)
+      list.textContent = '面板文件和程序来自不同的构建，请到 chrome://extensions 重新加载扩展。';
+    throw error;
+  }
   updateActions();
   $<HTMLInputElement>('#auto-translate').checked = state.settings.autoTranslate !== false;
   updateActions();

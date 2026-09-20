@@ -64,7 +64,14 @@ function number(name: string, value: string | undefined, fallback: number): numb
   return parsed;
 }
 
-const PROVIDERS = new Set<AiProvider>(['openai', 'deepseek', 'anthropic', 'custom']);
+const PROVIDERS = new Set<AiProvider>([
+  'openai',
+  'deepseek',
+  'anthropic',
+  'opencode',
+  'opencode-go',
+  'custom',
+]);
 
 /**
  * The value shipped in .env.example. It is 33 characters, so a length check waves it through,

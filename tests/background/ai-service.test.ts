@@ -285,6 +285,107 @@ describe('AI workflows', () => {
     expect(snapped.answer.citations[0]!.start).toBe(10);
   });
 
+  it('answers from the whole transcript in one call, transcript first and follow-ups after', async () => {
+    const longCues = Array.from({ length: 5 }, (_, index) => ({
+      id: `cue-${index}`,
+      start: index * 10,
+      end: index * 10 + 9,
+      text: `${index} ${'a'.repeat(9000)}`,
+    }));
+    // About 45K tokens: one call for a preset model, well past a custom endpoint's lower limit.
+    const chineseCues = longCues.map((cue) => ({ ...cue, text: '汉'.repeat(9000) }));
+    const history = [{ question: 'What comes first?', answer: 'The first idea.' }];
+    const client = clientReturning({ text: 'Answer.', citations: [{ start: 41, label: 'Late' }] });
+    const progress = vi.fn();
+    const result = await runAi(
+      {
+        task: 'ask',
+        video,
+        transcript: transcript(chineseCues),
+        language: 'zh',
+        question: 'And the last one?',
+        history,
+      },
+      DEFAULT_SETTINGS,
+      signal(),
+      progress,
+      client,
+    );
+    // Five fragments used to cost five digest calls before the answer even began.
+    expect(client.json).toHaveBeenCalledTimes(1);
+    const data = vi.mocked(client.json).mock.calls[0]![1] as Record<string, unknown>;
+    expect((data.sourceCues as Cue[]).map((cue) => cue.id)).toEqual(longCues.map((cue) => cue.id));
+    expect(data.conversation).toEqual(history);
+    // What changes between questions comes last, so a provider can cache the transcript prefix.
+    expect(Object.keys(data)).toEqual([
+      'videoTitle',
+      'language',
+      'sourceCues',
+      'conversation',
+      'question',
+    ]);
+    if (result.task !== 'ask') throw new Error('expected answer');
+    expect(result.answer.citations[0]!.start).toBe(40);
+    expect(progress).toHaveBeenLastCalledWith({ completed: 1, total: 1, label: '回答完成' });
+    // A custom endpoint takes the same single call while the transcript stays under its lower limit.
+    const custom = clientReturning({ text: 'Answer.', citations: [] });
+    await runAi(
+      { task: 'ask', video, transcript: transcript(longCues), language: 'zh', question: 'Why?' },
+      { ...DEFAULT_SETTINGS, provider: 'custom' },
+      signal(),
+      undefined,
+      custom,
+    );
+    expect(custom.json).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    {
+      // One call for a preset model, but past what an endpoint of unknown size is trusted with.
+      reason: 'a custom endpoint given a long transcript',
+      settings: { ...DEFAULT_SETTINGS, provider: 'custom' as const },
+      source: Array.from({ length: 5 }, (_, index) => ({
+        id: `cue-${index}`,
+        start: index * 10,
+        end: index * 10 + 9,
+        text: '汉'.repeat(9000),
+      })),
+    },
+    {
+      reason: 'a transcript too long for one call',
+      settings: DEFAULT_SETTINGS,
+      source: Array.from({ length: 11 }, (_, index) => ({
+        id: `cue-${index}`,
+        start: index * 5,
+        end: index * 5 + 4,
+        text: '汉'.repeat(9500),
+      })),
+    },
+  ])('reads fragments before answering for $reason', async ({ settings, source }) => {
+    let digests = 0;
+    let answers = 0;
+    const client: JsonClient = {
+      json: async <T>(_system: string, data: unknown, schema: z.ZodType<T>) => {
+        if (!Object.is(schema, digestSchema)) {
+          answers += 1;
+          return schema.parse({ text: 'Answer.', citations: [] });
+        }
+        digests += 1;
+        const first = (data as { sourceCues: Cue[] }).sourceCues[0]!;
+        return schema.parse({ overview: 'Digest', notes: [{ start: first.start, text: 'Note' }] });
+      },
+    };
+    await runAi(
+      { task: 'ask', video, transcript: transcript(source), language: 'zh', question: 'Why?' },
+      settings,
+      signal(),
+      undefined,
+      client,
+    );
+    expect(digests).toBe(source.length);
+    expect(answers).toBe(1);
+  });
+
   it('does not send mismatched, empty or duplicate transcripts to a provider', async () => {
     const client = clientReturning(summary());
     const mismatch = request();
@@ -407,7 +508,7 @@ describe('glossary', () => {
     );
     if (result.task !== 'glossary') throw new Error('expected glossary');
     expect(result.glossary.terms.length).toBeGreaterThan(0);
-    expect(result.notice).toContain('1 段未能提取');
+    expect(result.notice).toContain('术语可能不全');
   });
 });
 
@@ -444,8 +545,9 @@ describe('long-video resilience', () => {
     // Every fragment is still attempted; the failed one does not abort the run.
     expect(digests()).toBe(5);
     expect(result.summary).toBeDefined();
-    expect(result.notice).toContain('5 段');
-    expect(result.notice).toContain('1 段');
+    // What was lost is reported; how the work was divided up to lose it is not the reader's problem.
+    expect(result.notice).toContain('结果可能不完整');
+    expect(result.notice).not.toMatch(/\d+ 段/);
   });
 
   it('reports no gap when every fragment succeeds', async () => {
@@ -528,7 +630,7 @@ describe('long-video resilience', () => {
     );
     if (result.task !== 'translate') throw new Error('expected translations');
     expect(result.translations).toEqual({ a: '译:a' });
-    expect(result.notice).toContain('1 段未能翻译');
+    expect(result.notice).toContain('没能翻译');
   });
 });
 

@@ -7,9 +7,13 @@
   --text: #efefed;
   --muted: #a6adaf;
   --accent: #edc65b;
+  /* The UI cuts of these faces are hinted for small sizes, which is where CJK goes blurry. */
   font:
-    14px/1.6 'Segoe UI',
+    14px/1.6 'Segoe UI Variable Text',
+    'Segoe UI',
+    'Microsoft YaHei UI',
     'Microsoft YaHei',
+    'PingFang SC',
     sans-serif;
   color: var(--text);
   background: var(--bg);
@@ -69,7 +73,7 @@ textarea {
 }
 input::placeholder,
 textarea::placeholder {
-  color: #989fa2;
+  color: #aab2b5;
 }
 input[type='checkbox'] {
   accent-color: var(--accent);
@@ -215,7 +219,7 @@ textarea {
   display: flex;
   align-items: center;
   gap: 11px;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
   margin-top: 8px;
 }
@@ -268,7 +272,7 @@ textarea {
   color: var(--accent);
   background: #373120;
   border-radius: 3px;
-  font-size: 9px;
+  font-size: 11px;
   padding: 1px 4px;
   margin-left: 3px;
 }
@@ -304,7 +308,7 @@ textarea {
   width: 0;
   flex: 1;
   padding: 7px 5px;
-  font-size: 10px;
+  font-size: 11px;
 }
 .transcript-settings .arrow {
   color: #969d9f;
@@ -429,7 +433,7 @@ textarea {
 .settings-drawer .translation-hint {
   margin: 2px 0 0;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.6;
 }
 .google-web-fallback {
@@ -437,7 +441,7 @@ textarea {
   flex-direction: column;
   gap: 3px;
   margin: 2px 0 0;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
 }
 .google-web-fallback button {
@@ -469,7 +473,7 @@ textarea {
 .display-tools select {
   background: transparent;
   padding: 3px;
-  font-size: 10px;
+  font-size: 11px;
 }
 .inline-check {
   display: flex;
@@ -479,7 +483,7 @@ textarea {
   color: var(--muted);
 }
 .display-tools .inline-check {
-  font-size: 10px;
+  font-size: 11px;
 }
 .display-tools #font-size {
   margin-left: auto;
@@ -584,7 +588,7 @@ textarea {
   align-items: center;
   padding: 9px 17px;
   border-top: 1px solid #24292b;
-  font-size: 9px;
+  font-size: 11px;
   flex: none;
 }
 .transcript-footer span {
@@ -702,7 +706,7 @@ textarea {
   margin-bottom: 8px;
 }
 .clip-remove {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
 }
 .clip-remove:hover {
@@ -720,7 +724,8 @@ textarea {
   color: var(--muted);
   overflow-wrap: anywhere;
 }
-.clip-comment {
+/* Reading, in the list. A card is not a form: writing happens in the drawer. */
+.clip-comment-open {
   width: 100%;
   margin-top: 9px;
   padding: 7px 9px;
@@ -729,7 +734,31 @@ textarea {
   background: #121617;
   color: var(--text);
   font-size: 11.5px;
-  line-height: 1.7;
+  line-height: 1.8;
+  text-align: left;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  /* The clamp alone leaves a sliver of the fourth line when the line height rounds up. */
+  max-height: calc(1.8em * 3);
+  overflow: hidden;
+}
+.clip-comment-open.is-empty {
+  color: var(--muted);
+}
+.clip-comment-open:hover {
+  border-color: var(--accent);
+}
+/* Writing, in the drawer, where the height is the point. */
+.note-comment {
+  width: 100%;
+  min-height: 220px;
+  padding: 11px 12px;
+  border-radius: 8px;
+  background: var(--bg);
+  font-size: 13.5px;
+  line-height: 1.9;
   resize: vertical;
 }
 
@@ -776,7 +805,7 @@ textarea {
   margin-top: 9px;
   padding-top: 8px;
   border-top: 1px dashed var(--border);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
 }
 
@@ -815,7 +844,7 @@ textarea {
   padding: 1px 7px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  font-size: 9px;
+  font-size: 11px;
   color: var(--muted);
 }
 .term-name {
@@ -830,7 +859,7 @@ textarea {
   border-radius: 999px;
   background: var(--raised);
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
@@ -883,7 +912,7 @@ textarea {
   padding: 1px 7px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  font-size: 9px;
+  font-size: 11px;
   color: var(--muted);
 }
 /* Dimmed rather than hidden: the viewer should still see what 「只看干货」 will skip. */
@@ -946,7 +975,7 @@ textarea {
   padding: 2px 9px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
   white-space: nowrap;
 }
@@ -962,7 +991,7 @@ textarea {
   border-radius: 999px;
   background: var(--raised);
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
@@ -1029,7 +1058,7 @@ textarea {
   white-space: pre-line;
 }
 .result-badge {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--accent);
   border: 1px solid #4d452e;
   background: #262319;
@@ -1060,7 +1089,7 @@ textarea {
 }
 .section-time {
   color: var(--accent);
-  font-size: 10px;
+  font-size: 11px;
   margin-bottom: 9px;
 }
 .section-time:hover {
@@ -1078,7 +1107,7 @@ textarea {
 }
 .muted {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.8;
   margin: 10px 0;
 }
@@ -1127,7 +1156,7 @@ textarea {
 }
 .answer .answer-label {
   color: var(--accent);
-  font-size: 10px;
+  font-size: 11px;
 }
 .answer p {
   font-size: 13px;
@@ -1144,7 +1173,95 @@ textarea {
   padding: 5px 8px;
   border-radius: 5px;
   margin: 0 5px 5px 0;
-  font-size: 10px;
+  font-size: 11px;
+}
+.answer-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.answer-head .answer-label {
+  font-size: 11px;
+  font-weight: 600;
+}
+.ai-avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.ai-avatar svg {
+  width: 20px;
+  height: 20px;
+  overflow: visible;
+}
+.avatar-eyes circle {
+  fill: currentColor;
+}
+.avatar-head,
+.avatar-eyes {
+  transform-box: fill-box;
+}
+/* A question is answered inside the conversation, not behind the waiting card. While it is, an arc
+   circles the face and the cat tilts its head and glances about, beside what is happening, for
+   how long, and a way to stop. */
+.is-pending .ai-avatar::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: var(--accent);
+  animation: avatar-spin 0.9s linear infinite;
+}
+.is-pending .avatar-head {
+  transform-origin: 50% 100%;
+  animation: cat-tilt 1800ms ease-in-out infinite;
+}
+.is-pending .avatar-eyes {
+  animation: avatar-glance 2.4s ease-in-out infinite;
+}
+@keyframes avatar-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes avatar-glance {
+  0%,
+  15%,
+  100% {
+    transform: translateX(0);
+  }
+  30%,
+  50% {
+    transform: translateX(-1.5px);
+  }
+  65%,
+  85% {
+    transform: translateX(1.5px);
+  }
+}
+.answer .pending {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.pending-time {
+  font-variant-numeric: tabular-nums;
+}
+.stop-answer {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
 }
 /* Outside the composer on purpose: `#question-form > div` styles the send bar, and a second
    child div would pick that up. */
@@ -1160,7 +1277,7 @@ textarea {
   color: var(--muted);
   padding: 4px 11px;
   border-radius: 999px;
-  font-size: 10px;
+  font-size: 11px;
 }
 .scope-chip[aria-pressed='true'] {
   border-color: var(--accent);
@@ -1196,7 +1313,7 @@ textarea {
 }
 .library-result .library-where {
   display: block;
-  font-size: 9px;
+  font-size: 11px;
   color: var(--muted);
   margin-top: 6px;
 }
@@ -1224,7 +1341,7 @@ textarea {
   background: var(--surface);
 }
 #question-form > div > span {
-  font-size: 9px;
+  font-size: 11px;
   color: var(--muted);
 }
 #ask-btn {
@@ -1256,10 +1373,6 @@ textarea {
   gap: 12px;
   width: min(320px, 100%);
   text-align: center;
-}
-.job-cat {
-  width: 104px;
-  height: 104px;
 }
 .job-label {
   font-size: 14px;
@@ -1317,128 +1430,281 @@ textarea {
   color: var(--muted);
 }
 
-/* ---- Dancing cat --------------------------------------------------------- */
+/* ---- Waiting kitten -------------------------------------------------------
+   One line weight throughout, filled only where a shape has to mask what is
+   behind it, so nothing ever reads as a crease. Each part is its own element
+   because each part moves: the paw taps, the ball rocks back, the tail flicks. */
+.job-cat {
+  position: relative;
+  width: 168px;
+  height: 110px;
+}
+.job-cat::before {
+  content: '';
+  position: absolute;
+  inset: -12% -6%;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--accent) 16%, transparent),
+    transparent
+  );
+  animation: cat-halo 3200ms ease-in-out infinite;
+}
 .cat {
+  position: relative;
+  display: block;
   width: 100%;
   height: 100%;
-  display: block;
-  overflow: visible;
   color: var(--accent);
+  overflow: visible;
 }
-.cat-fill {
-  fill: color-mix(in srgb, var(--accent) 20%, transparent);
+/* Filled with the card's own ground: a line drawing, but one whose shapes cover each other. */
+.cat-solid {
+  fill: var(--bg);
   stroke: currentColor;
-  stroke-width: 1.7;
+  stroke-width: 2.4;
   stroke-linejoin: round;
 }
-.cat-eyes circle,
-.cat-nose {
+.cat-stroke,
+.cat-fine,
+.cat-swish,
+.cat-dot-stroke {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cat-stroke {
+  stroke-width: 3.4;
+}
+.cat-fine {
+  stroke-width: 1.6;
+  opacity: 0.75;
+}
+.cat-dot-stroke {
+  stroke-width: 2.2;
+}
+.cat-swish {
+  stroke-width: 1.8;
+  opacity: 0.45;
+}
+.cat-dot {
   fill: currentColor;
 }
-.cat-whiskers {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.2;
-  stroke-linecap: round;
-  opacity: 0.5;
-}
-.cat-tail {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2.6;
-  stroke-linecap: round;
-}
-.cat-paw {
-  fill: color-mix(in srgb, var(--accent) 38%, transparent);
-  stroke: currentColor;
-  stroke-width: 1.2;
-}
-.cat-dance,
+
+.cat-all,
 .cat-head,
 .cat-tail,
 .cat-eyes,
-.cat-paw {
+.cat-paw,
+.cat-ear,
+.job-cat::before {
   transform-box: fill-box;
 }
-.cat-dance {
-  transform-origin: 50% 96%;
-  animation: cat-bop 900ms ease-in-out infinite;
+.cat-all {
+  transform-origin: 50% 100%;
+  animation: cat-breathe 3400ms ease-in-out infinite;
 }
 .cat-head {
   transform-origin: 50% 100%;
-  animation: cat-tilt 1800ms ease-in-out infinite;
+  animation: cat-tilt 3400ms ease-in-out infinite;
 }
 .cat-tail {
   transform-origin: 0% 100%;
-  animation: cat-wag 700ms ease-in-out infinite;
+  animation: cat-wag 1500ms ease-in-out infinite;
 }
 .cat-eyes {
   transform-origin: 50% 50%;
-  animation: cat-blink 4.2s ease-in-out infinite;
+  animation: cat-blink 4.4s ease-in-out infinite;
 }
 .cat-paw {
-  transform-origin: 50% 50%;
-  animation: cat-tap 900ms ease-in-out infinite;
+  transform-origin: 100% 80%;
+  animation: cat-knead 3400ms ease-in-out infinite;
 }
-.cat-paw-r {
-  animation-delay: 450ms;
+.cat-ear {
+  transform-origin: 50% 100%;
+  animation: cat-ear 5.2s ease-in-out infinite;
 }
-@keyframes cat-bop {
+@keyframes cat-breathe {
   0%,
   100% {
-    transform: translateY(0) rotate(-3.5deg);
+    transform: scale(1);
   }
   50% {
-    transform: translateY(-3px) rotate(3.5deg);
+    transform: scale(1.015, 1.02);
   }
 }
 @keyframes cat-tilt {
   0%,
   100% {
-    transform: rotate(5deg);
+    transform: rotate(2.5deg);
   }
   50% {
-    transform: rotate(-5deg);
+    transform: rotate(-2.5deg);
   }
 }
 @keyframes cat-wag {
   0%,
   100% {
-    transform: rotate(-14deg);
+    transform: rotate(-8deg);
   }
   50% {
-    transform: rotate(14deg);
+    transform: rotate(9deg);
   }
 }
 @keyframes cat-blink {
   0%,
-  90%,
+  93%,
   100% {
     transform: scaleY(1);
   }
-  94% {
+  96% {
     transform: scaleY(0.1);
   }
 }
-@keyframes cat-tap {
+@keyframes cat-knead {
   0%,
   100% {
-    transform: translateY(0);
+    transform: translate(0, 0);
   }
   50% {
-    transform: translateY(-1.6px);
+    transform: translate(-1px, -1px);
   }
 }
+@keyframes cat-ear {
+  0%,
+  86%,
+  100% {
+    transform: rotate(0deg);
+  }
+  90% {
+    transform: rotate(-11deg);
+  }
+  94% {
+    transform: rotate(5deg);
+  }
+}
+@keyframes cat-halo {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.07);
+  }
+}
+
+/* ---- Waiting for one explanation ------------------------------------------
+   The shape of the answer, sweeping, so the drawer looks like it is filling in
+   rather than sitting empty. */
+.skeleton {
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    var(--raised) 20%,
+    color-mix(in srgb, var(--accent) 14%, var(--raised)) 50%,
+    var(--raised) 80%
+  );
+  background-size: 220% 100%;
+  animation: skeleton-sweep 1.3s linear infinite;
+}
+.skeleton-line {
+  height: 12px;
+  margin-top: 9px;
+}
+.skeleton-chip {
+  display: inline-block;
+  width: 74px;
+  height: 17px;
+  vertical-align: middle;
+}
+.skeleton-card {
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.skeleton-card .skeleton-line:first-child {
+  margin-top: 0;
+}
+@keyframes skeleton-sweep {
+  to {
+    background-position: -220% 0;
+  }
+}
+.explain-waiting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--accent);
+}
+.explain-waiting::before {
+  content: '';
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-top-color: var(--accent);
+  animation: spin 800ms linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- Pronunciation --------------------------------------------------------
+   Chrome speaks it locally, so this is a button and not a network request. */
+.speak-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  flex: none;
+}
+.speak-button svg {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+.speak-button:hover,
+.speak-button.is-speaking {
+  color: var(--accent);
+  background: var(--raised);
+}
+.sense-example {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+.sense-example .speak-button {
+  width: 20px;
+  height: 20px;
+  margin-top: -1px;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .cat-dance,
-  .cat-head,
-  .cat-tail,
-  .cat-eyes,
-  .cat-paw,
+  /* With no animation to reveal them, the first frame is the one that shows. */
+  .cat-frame:first-of-type {
+    opacity: 1;
+  }
+  .cat,
+  .cat-frame,
+  .job-cat::before,
+  .skeleton,
+  .explain-waiting::before,
   .job-track.is-indeterminate .job-bar {
     animation: none;
   }
 }
+
 .app-footer {
   display: flex;
   justify-content: space-between;
@@ -1448,7 +1714,7 @@ textarea {
   flex: none;
 }
 .app-footer > span {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
 }
 /* The two views that left the tab bar. Styled as a pair of quiet entries rather than tabs, so
@@ -1474,7 +1740,7 @@ textarea {
 }
 .footer-tab small {
   color: var(--accent);
-  font-size: 9px;
+  font-size: 11px;
 }
 .app-footer .button {
   font-size: 11px;
@@ -1568,9 +1834,11 @@ body.signed-out .sign-in-gate {
   border-radius: 10px;
   box-shadow: 0 12px 35px #0009;
   width: 255px;
+  max-height: calc(100vh - 80px);
+  overflow: auto;
   z-index: 10;
 }
-.export-menu button {
+.export-menu [data-export] {
   width: 100%;
   display: flex;
   align-items: center;
@@ -1579,11 +1847,11 @@ body.signed-out .sign-in-gate {
   padding: 11px 8px;
   border-radius: 6px;
 }
-.export-menu button:hover {
+.export-menu [data-export]:hover:not(:disabled) {
   background: #33393b;
 }
-.export-menu b {
-  font-size: 10px;
+.export-menu [data-export] b {
+  font-size: 11px;
   color: var(--accent);
   border: 1px solid #686246;
   padding: 9px 5px;
@@ -1591,14 +1859,75 @@ body.signed-out .sign-in-gate {
   text-align: center;
   border-radius: 4px;
 }
-.export-menu span {
+.export-menu [data-export] span {
   font-size: 12px;
 }
-.export-menu small {
+.export-menu [data-export] small {
   display: block;
   color: var(--muted);
   margin-top: 4px;
-  font-size: 10px;
+  font-size: 11px;
+}
+/* Subtitles need no summary, so they come first, with Trancy-style format and content choices. */
+.export-subtitles {
+  display: grid;
+  gap: 9px;
+  padding: 6px 8px 12px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid #3a3f41;
+}
+.export-menu h3 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.export-heading {
+  padding: 4px 8px 2px;
+}
+.export-choice {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+}
+.export-choice > span {
+  width: 30px;
+  color: var(--muted);
+}
+.export-choice label {
+  position: relative;
+  flex: 1;
+}
+.export-choice input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.export-choice label span {
+  display: block;
+  padding: 5px 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  text-align: center;
+  color: var(--muted);
+}
+.export-choice input:checked + span {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.export-choice input:focus-visible + span {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.export-status {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--muted);
 }
 dialog {
   background: #1c1f20;
@@ -1742,7 +2071,7 @@ dialog .text-button {
     gap: 6px;
   }
   .display-tools .inline-check {
-    font-size: 9px;
+    font-size: 11px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1753,4 +2082,253 @@ dialog .text-button {
     animation: none !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ---- AI 解释抽屉 ----------------------------------------------------------
+   Slides in from the right edge, over the subtitle list it was opened from,
+   leaving the video alone. Kept in the layout rather than hidden, so opening
+   and closing it can be animated. */
+.explain-panel {
+  position: fixed;
+  z-index: 45;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(380px, 100%);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: -8px 0 28px rgb(0 0 0 / 45%);
+  transform: translateX(102%);
+  visibility: hidden;
+  transition:
+    transform 0.18s ease,
+    visibility 0.18s;
+}
+.explain-panel.is-open {
+  transform: translateX(0);
+  visibility: visible;
+}
+.explain-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 10px 11px 16px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 7%, var(--surface)),
+    var(--surface)
+  );
+}
+/* The title leads, the way out sits at the far end: a close button beside a title reads as part
+   of it, and this one is the last thing in the row instead. */
+#explain-panel-title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.02em;
+}
+.explain-close {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: 13px;
+  color: var(--muted);
+}
+.explain-close:hover {
+  background: var(--raised);
+  color: var(--text);
+}
+.explain-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.word-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.word-name {
+  font-size: 24px;
+  line-height: 1.3;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.word-phonetic {
+  font-size: 13px;
+  color: var(--accent);
+}
+/* The plain translation, beside the word: the one thing a reader wants before anything else. */
+.word-gloss {
+  font-size: 14px;
+  color: var(--text);
+}
+/* The line it came from, and a way back to it. */
+.explain-source {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+.explain-source time {
+  display: inline-block;
+  margin-bottom: 6px;
+  font:
+    11px/1.6 Consolas,
+    monospace;
+  color: var(--accent);
+}
+.explain-source-text {
+  display: block;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--text);
+}
+.explain-source-translation {
+  display: block;
+  margin-top: 4px;
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: var(--muted);
+}
+.explain-section h3 {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 7px;
+  letter-spacing: 0.04em;
+}
+/* What this line does with the word is the point of the card, so it is the part that is framed. */
+.explain-section:first-of-type .explain-meaning {
+  padding: 10px 12px;
+  border-left: 2px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, var(--accent) 7%, var(--bg));
+}
+.word-head {
+  padding-bottom: 2px;
+}
+.sense-card {
+  display: flex;
+  gap: 9px;
+  align-items: baseline;
+}
+.sense-head {
+  display: contents;
+}
+.explain-panel .explain-meaning {
+  font-size: 13.5px;
+  line-height: 1.9;
+}
+.explain-pending {
+  font-size: 13px;
+  color: var(--muted);
+}
+.sense-card {
+  padding: 10px 0;
+  border-top: 1px dashed var(--border);
+}
+.sense-card:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+.sense-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+.sense-pos {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--raised);
+  color: var(--accent);
+  font-size: 11px;
+}
+.sense-gloss {
+  font-size: 14px;
+  color: var(--text);
+}
+.sense-definition {
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: var(--muted);
+}
+.sense-example {
+  margin-top: 6px;
+  padding-left: 9px;
+  border-left: 2px solid var(--border);
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: var(--text);
+}
+.sense-example-translation {
+  padding-left: 9px;
+  border-left: 2px solid var(--border);
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--muted);
+}
+/* A word in the original is a lookup, so the pointer says so before it is clicked. */
+.cue .original {
+  cursor: pointer;
+}
+/* The word the drawer is explaining, marked where it was clicked: a flash of colour on the way in,
+   then a standing accent so the line still shows which word the answer is about. */
+.word-hit {
+  color: var(--accent);
+  border-bottom: 2px solid var(--accent);
+  border-radius: 3px;
+  animation: word-hit 460ms ease-out;
+}
+@keyframes word-hit {
+  0% {
+    background: color-mix(in srgb, var(--accent) 55%, transparent);
+    color: var(--bg);
+  }
+  100% {
+    background: transparent;
+  }
+}
+.cue-explain {
+  right: 40px;
+}
+.clip-group {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 12px 0 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.clip-group-title {
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.clip-comment-text {
+  margin-top: 6px;
+  padding: 7px 9px;
+  border-radius: 6px;
+  background: var(--raised);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--muted);
+}
+a.term-jump {
+  text-decoration: none;
 }

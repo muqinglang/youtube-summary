@@ -5,6 +5,7 @@ import {
   pushClips,
   readClips,
   syncClips,
+  syncNoteIndex,
   uploadLegacyClips,
   writeClips,
   type Cloud,
@@ -77,8 +78,9 @@ describe('clip storage', () => {
     await writeClips('videoB', [clip({ start: 90 })]);
     expect((await readClips('videoA'))[0]?.comment).toBe('记一笔');
     expect((await readClips('videoB'))[0]?.start).toBe(90);
-    // Its own prefix, so trimming the AI cache cannot reach it.
-    expect(Object.keys(data)).toEqual(['notes:videoA', 'notes:videoB']);
+    // Its own prefix, so trimming the AI cache cannot reach it. The index rides along under the
+    // same prefix, which is also what makes signing in as someone else drop it with the notes.
+    expect(Object.keys(data)).toEqual(['notes:videoA', 'notes:index', 'notes:videoB']);
   });
 
   it('reads notes saved before accounts, and returns nothing for an unknown or malformed entry', async () => {
@@ -200,6 +202,64 @@ describe('notes follow the account', () => {
     await expect(syncClips('videoA', offline)).rejects.toThrow('offline');
     await expect(pushClips('videoA', offline)).rejects.toThrow('offline');
     expect((await readClips('videoA'))[0]?.comment).toBe('离线写的');
+  });
+
+
+  it('tells a machine that never opened a video that the account has notes for it', async () => {
+    const { cloud, items } = account();
+    now = 10;
+    await writeClips('videoA', [clip()]);
+    await pushClips('videoA', cloud);
+    expect(await syncNoteIndex(cloud)).toEqual([
+      { videoId: 'videoA', title: '', count: 1, updatedAt: 10 },
+    ]);
+    // A second machine, holding nothing of its own.
+    data = {};
+    now = 20;
+    expect(await syncNoteIndex(cloud)).toEqual([
+      { videoId: 'videoA', title: '', count: 1, updatedAt: 10 },
+    ]);
+    // Knowing the key is all it needed: the notes themselves come through the ordinary sync.
+    expect((await syncClips('videoA', cloud)).length).toBe(1);
+    expect(items.has('notes:index')).toBe(true);
+  });
+
+  it('keeps both machines’ videos in the index rather than the last one written', async () => {
+    const { cloud } = account();
+    now = 10;
+    await writeClips('videoA', [clip()]);
+    await syncNoteIndex(cloud);
+    // Another machine, which has never seen videoA, adds one of its own.
+    data = {};
+    now = 20;
+    await writeClips('videoB', [clip()]);
+    expect((await syncNoteIndex(cloud)).map((video) => video.videoId).sort()).toEqual([
+      'videoA',
+      'videoB',
+    ]);
+  });
+
+  it('records emptied notes so that another machine’s older entry cannot bring them back', async () => {
+    const { cloud } = account();
+    now = 10;
+    await writeClips('videoA', [clip()]);
+    await syncNoteIndex(cloud);
+    now = 30;
+    await writeClips('videoA', []);
+    expect(await syncNoteIndex(cloud)).toEqual([]);
+  });
+
+  it('shows what this machine holds when the account cannot be reached', async () => {
+    const cloud: Cloud = {
+      get: vi.fn(async () => {
+        throw new Error('offline');
+      }),
+      put: vi.fn(async () => false),
+    };
+    now = 10;
+    await writeClips('videoA', [clip()]);
+    expect((await syncNoteIndex(cloud)).map((video) => video.videoId)).toEqual(['videoA']);
+    expect(cloud.put).not.toHaveBeenCalled();
   });
 
   it('drops another account’s copy on sign-in, but lets the first account keep older notes', async () => {

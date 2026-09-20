@@ -1,7 +1,13 @@
 import fontkit from '@pdf-lib/fontkit';
 import { PDFDocument, PDFString, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
-import type { ExportDocument } from '../shared/types';
-import { createdLabel, sourceUrl, validateDocument, validTime } from './exports';
+import type { ExportDocument, VideoInfo } from '../shared/types';
+import {
+  createdLabel,
+  sourceUrl,
+  validateDocument,
+  validTime,
+  type SubtitleEntry,
+} from './exports';
 import { formatTime } from './transcript';
 
 // A4 at 72dpi, matching the print stylesheet's `@page { size: A4 }`.
@@ -125,20 +131,22 @@ class Writer {
     this.y -= 12;
   }
 
-  /** Returns the drawn box so callers can attach a link annotation to it. */
+  /** `onRow` draws the first line on a row the caller already reserved with `row()`. */
   text(
     raw: string,
     style: Style,
-    options: { indent?: number; width?: number; link?: string } = {},
+    options: { indent?: number; width?: number; link?: string; onRow?: boolean } = {},
   ): void {
     const text = this.clean(raw);
     if (!text.trim()) return;
     const indent = options.indent ?? 0;
     const maxWidth = options.width ?? CONTENT_WIDTH - indent;
     const color = style.color ?? INK;
-    for (const line of this.wrap(text, style.size, maxWidth)) {
-      this.ensure(style.lineHeight);
-      this.y -= style.lineHeight;
+    for (const [index, line] of this.wrap(text, style.size, maxWidth).entries()) {
+      if (index || !options.onRow) {
+        this.ensure(style.lineHeight);
+        this.y -= style.lineHeight;
+      }
       const x = MARGIN.left + indent;
       this.page.drawText(line, { x, y: this.y, size: style.size, font: this.font, color });
       // One font weight is bundled, so headings are emboldened by a hairline second pass.
@@ -266,6 +274,16 @@ const BODY: Style = { size: 10.5, lineHeight: 18 };
 const MONO: Style = { size: 9.5, lineHeight: 16, color: MUTED };
 const STAMP: Style = { size: 9.5, lineHeight: 18, color: LINK };
 
+function writeSource(writer: Writer, source: string | undefined): void {
+  if (!source) {
+    writer.text('来源：无有效视频链接', META);
+    return;
+  }
+  writer.row(META.lineHeight);
+  const after = writer.inline('来源：', META, MARGIN.left);
+  writer.inline(source, { ...META, color: LINK }, after, source);
+}
+
 /**
  * Renders the notes as a real PDF with selectable, searchable text. The browser print dialog is
  * the only other way an extension can produce a PDF, and it cannot be driven from script.
@@ -290,11 +308,7 @@ export async function buildPdf(doc: ExportDocument, options: PdfOptions): Promis
   writer.gap(8);
   writer.text(`视频：${video.title}`, META);
   writer.text(`作者：${video.author || 'YouTube'}`, META);
-  if (source) {
-    writer.row(META.lineHeight);
-    const after = writer.inline('来源：', META, MARGIN.left);
-    writer.inline(source, { ...META, color: LINK }, after, source);
-  } else writer.text('来源：无有效视频链接', META);
+  writeSource(writer, source);
   writer.text(`生成时间：${createdLabel(doc.createdAt)}`, META);
   writer.rule();
 
@@ -331,6 +345,45 @@ export async function buildPdf(doc: ExportDocument, options: PdfOptions): Promis
     writer.block(doc.prompt, MONO);
   }
 
+  writer.paginate();
+  return pdf.save();
+}
+
+/** Room left of each subtitle for its timestamp: `1:02:03` at STAMP size fits. */
+const GUTTER = 52;
+
+/** Every subtitle beside its linked timestamp, with any translation below it in grey. */
+export async function buildSubtitlePdf(
+  video: VideoInfo,
+  entries: SubtitleEntry[],
+  options: PdfOptions,
+): Promise<Uint8Array> {
+  const pdf = await PDFDocument.create();
+  pdf.registerFontkit(fontkit);
+  const font = await pdf.embedFont(options.font, { subset: true });
+  pdf.setTitle(`${video.title} · 字幕`);
+  pdf.setAuthor(video.author || 'YouTube');
+  pdf.setCreator('Sidenote 旁听');
+
+  const writer = new Writer(pdf, font);
+  writer.text('SIDENOTE / 旁听 · 视频字幕', BRAND);
+  writer.gap(6);
+  writer.text(video.title, TITLE);
+  writer.gap(8);
+  writer.text(`作者：${video.author || 'YouTube'}`, META);
+  writeSource(writer, sourceUrl({ video }));
+  writer.rule();
+  for (const entry of entries) {
+    writer.gap(4);
+    writer.row(BODY.lineHeight);
+    writer.inline(formatTime(entry.start), STAMP, MARGIN.left, sourceUrl({ video }, entry.start));
+    entry.lines.forEach((line, index) =>
+      writer.text(line, index ? { ...BODY, color: MUTED } : BODY, {
+        indent: GUTTER,
+        onRow: index === 0,
+      }),
+    );
+  }
   writer.paginate();
   return pdf.save();
 }

@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { strFromU8, unzipSync } from 'fflate';
-import { buildMarkdown, buildPrintHtml, buildXMind } from '../../src/core/exports';
+import {
+  buildMarkdown,
+  buildPrintHtml,
+  buildSrt,
+  buildSubtitleMarkdown,
+  buildXMind,
+  subtitleLines,
+} from '../../src/core/exports';
 import type { ExportDocument, MindMapNode } from '../../src/shared/types';
 
 function document(): ExportDocument {
@@ -32,6 +39,40 @@ function document(): ExportDocument {
     createdAt: '2026-09-07T08:00:00.000Z',
   };
 }
+
+describe('subtitle export', () => {
+  const entries = [
+    { start: 0, end: 12, lines: subtitleLines('Start with\na question.', '先提出问题。', 'bilingual') },
+    { start: 10, end: 13.5, lines: subtitleLines('Keep examples.', undefined, 'bilingual') },
+    { start: 3723.45, end: 3725, lines: subtitleLines('Act.', '行动。', 'translated') },
+  ];
+
+  it('picks lines by content and never leaves a subtitle blank', () => {
+    expect(subtitleLines('Hi.', '你好。', 'original')).toEqual(['Hi.']);
+    expect(subtitleLines('Hi.', '你好。', 'translated')).toEqual(['你好。']);
+    expect(subtitleLines('Hi.', ' ', 'translated')).toEqual(['Hi.']);
+    expect(entries[0]!.lines).toEqual(['Start with a question.', '先提出问题。']);
+  });
+
+  it('writes numbered SRT cues, each ending by the time the next begins', () => {
+    expect(buildSrt(entries)).toBe(
+      '1\n00:00:00,000 --> 00:00:10,000\nStart with a question.\n先提出问题。\n\n' +
+        '2\n00:00:10,000 --> 00:00:13,500\nKeep examples.\n\n' +
+        '3\n01:02:03,450 --> 01:02:05,000\n行动。\n',
+    );
+  });
+
+  it('writes Markdown with linked timestamps and text that still reads as plain text', () => {
+    const markdown = buildSubtitleMarkdown(document().video, [
+      { start: 90.5, end: 95, lines: ['Use *this* [link].', '- 译文'] },
+    ]);
+    expect(markdown).toContain('# 深度学习与思考');
+    expect(markdown).toContain('来源：[YouTube](https://www.youtube.com/watch?v=dQw4w9WgXcQ)');
+    expect(markdown).toContain(
+      '**[1:30](https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=90s)** Use \\*this\\* \\[link\\].  \n\\- 译文',
+    );
+  });
+});
 
 describe('XMind archive', () => {
   it('produces UTF-8 JSON workbook with official archive entries, hierarchy, notes and links', () => {

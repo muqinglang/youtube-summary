@@ -337,6 +337,13 @@ describe('private settings', () => {
     expect((await getPrivateSettings()).apiKey).toBe('new-claude-key');
   });
 
+  it('names the real reason a save failed, so a stale worker is not a mystery', async () => {
+    await expect(
+      saveSettings({ provider: 'a-provider-from-a-newer-build' } as never),
+    ).rejects.toThrow('刷新扩展');
+    await expect(saveSettings({ targetLanguage: '' })).rejects.toThrow('设置格式不正确');
+  });
+
   it('rejects a wrong provider model or endpoint before altering settings or credentials', async () => {
     await saveSettings({ apiKey: 'keep-key' });
     const before = structuredClone([local.data, session.data]);

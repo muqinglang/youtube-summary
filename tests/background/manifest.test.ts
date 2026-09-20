@@ -45,7 +45,10 @@ describe('extension permissions', () => {
     expect(manifest.host_permissions).toEqual([
       'https://www.youtube.com/*',
       'https://m.youtube.com/*',
+      // Both of Google's free translation endpoints: the batch one carries a whole video, the
+      // other answers one sentence at a time when a batch comes back unusable.
       'https://translate.googleapis.com/*',
+      'https://translate-pa.googleapis.com/*',
     ]);
     // `identity` is what store review will ask about: it exists only for Google sign-in, which
     // is the sole way into hosted mode. It grants no host access and reads nothing but the

@@ -38,11 +38,33 @@ export interface JsonClient {
 const DIGEST_BUDGET: JsonOptions = { timeoutMs: 45_000, maxTokens: 6000 };
 const SUMMARY_BUDGET: JsonOptions = { timeoutMs: 90_000, maxTokens: 8000 };
 const OUTLINE_BUDGET: JsonOptions = { timeoutMs: 60_000, maxTokens: 4000 };
-const ANSWER_BUDGET: JsonOptions = { timeoutMs: 60_000, maxTokens: 4000 };
+// A question now reads the whole transcript in one call, so it gets the room of a synthesis.
+const ANSWER_BUDGET: JsonOptions = { timeoutMs: 90_000, maxTokens: 4000 };
 const GUIDE_BUDGET: JsonOptions = { timeoutMs: 60_000, maxTokens: 4000 };
 const GLOSSARY_BUDGET: JsonOptions = { timeoutMs: 45_000, maxTokens: 4000 };
 const EXPLAIN_BUDGET: JsonOptions = { timeoutMs: 30_000, maxTokens: 1200 };
+/** Two sentences about one word: a small answer, and the wait is what makes the card usable. */
+const WORD_BUDGET: JsonOptions = { timeoutMs: 20_000, maxTokens: 400 };
 const TRANSLATE_BUDGET: JsonOptions = { timeoutMs: 45_000, maxTokens: 6000 };
+
+/**
+ * Up to this size a question reads the whole transcript in one call. Digesting it fragment by
+ * fragment first cost one call per fragment before the answer began, so a question on a long
+ * video took a minute. Every preset model accepts at least 200K tokens.
+ */
+const ASK_CONTEXT_TOKENS = 100_000;
+/**
+ * A custom endpoint's window is unknown. A fragment of Chinese text on the fragment path already
+ * came to about this many tokens, so this asks no more of such an endpoint than before.
+ */
+const CUSTOM_ASK_CONTEXT_TOKENS = 16_000;
+const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu;
+
+/** Deliberately generous: CJK runs near a token per character, other text near four per token. */
+function estimatedTokens(text: string): number {
+  const cjk = text.match(CJK)?.length ?? 0;
+  return cjk + (text.length - cjk) / 4;
+}
 
 /**
  * Lets a caller reuse fragment digests. The extension passes nothing and behaves as before; a
@@ -75,9 +97,18 @@ Cover the entire supplied source in chronological chapters. Include concrete exp
 const DIGEST_SCHEMA = `Return {"overview":string,"notes":[{"start":number,"text":string}]}.
 Create a faithful compact digest of the source. Maximum 1200 characters in overview, 12 notes, 500 characters in each note. Retain important claims, examples and decisions with exact source start values. Do not add unsupported knowledge.`;
 const GUIDE_SCHEMA = `Return {"questions":[{"question":string,"start":number,"answer":string}]}.
-Write 5-8 questions a viewer should hold in mind BEFORE watching, ordered by where the video addresses them. Each question must be answerable from the supplied evidence alone, must target this video's specific claims, decisions or examples rather than generic curiosity, and its start MUST equal an evidence timestamp marking where the video answers it. Keep every answer to at most two sentences drawn only from the evidence.`;
+Write 5-8 questions a viewer should hold in mind BEFORE watching, ordered by where the video addresses them. Each question must be answerable from the supplied evidence alone, must target this video's specific claims, decisions or examples rather than generic curiosity, and its start MUST equal an evidence timestamp marking where the video answers it.
+"answer" is the video's own answer to that exact question, in two to four sentences drawn only from the evidence. A question asking why or how is answered with the speaker's actual reasoning — the cause, the mechanism, the numbers or the example they give — not with the fact that they hold the view. Never restate the question as its own answer, never answer with the speaker's credentials or background instead of their argument, and never pad with context the question did not ask about. If the evidence names the claim without supporting it, say in one sentence what the video does say and that it gives no reason.`;
 const EXPLAIN_SCHEMA = `Return {"term":string,"kind":string,"meaning":string}.
 Explain the supplied "term" as THIS video uses it, using only the surrounding cues: what it means here and why the speaker raised it. Two to four sentences. "kind" is exactly one of "concept", "person", "tool", "work", "term". If the cues only mention it without explaining it, say exactly that and do not fill the gap from outside knowledge.`;
+// A dictionary already knows a word's senses, and says so in a fraction of the time. What it cannot
+// know is which of them this line is using, so that is the only thing asked of the model here.
+const WORD_SCHEMA = `Return {"term":string,"kind":string,"meaning":string}.
+The supplied "term" is a word the viewer tapped in the subtitle. "term" echoes it unchanged. "kind" is exactly one of "concept", "person", "tool", "work", "term".
+"meaning" is one or two short sentences, in the requested language, on which sense of the word THIS line uses and why the speaker chose it here. Do not list its other dictionary senses, do not give its pronunciation, and do not restate the line. Say plainly when the surrounding cues do not settle which sense is meant.`;
+const SENTENCE_SCHEMA = `Return {"term":string,"kind":string,"meaning":string}.
+The supplied "term" is one subtitle line the viewer did not follow. "term" echoes that line unchanged and "kind" is "concept".
+"meaning" explains the line in the requested language, in three to five sentences: first what it is saying in plain words, then any jargon, name, product or event in it that a viewer would have to already know, then what in the surrounding cues it is answering or leading to. Explain only what this line and the surrounding cues support; never invent background, and say so when the line depends on something the cues never state.`;
 const GLOSSARY_SCHEMA = `Return {"terms":[{"term":string,"kind":string,"meaning":string,"start":number}]}.
 List the named things a viewer must recognise to follow THIS fragment: concepts, people, tools, products, books, papers and domain jargon the speaker uses without defining. "kind" is exactly one of "concept", "person", "tool", "work", "term". "meaning" explains it in one or two sentences as this video uses it, not as a dictionary would. "start" MUST equal the evidence timestamp where it first appears here. Skip ordinary words, and return {"terms":[]} when the fragment introduces nothing worth listing.`;
 const OUTLINE_SCHEMA = `Return {"verdict":{"topic":string,"audience":string,"prerequisites":string,"advice":string},"sections":[{"title":string,"start":number,"density":number,"kind":string}]}.
@@ -251,7 +282,7 @@ async function prepareEvidence(
   let failure: unknown;
   for (let index = 0; index < sources.length; index += 1) {
     assertNotAborted(signal);
-    progress.begin(`正在分析字幕 ${index + 1} / ${sources.length}`);
+    progress.begin('正在分析字幕');
     const sourceCues = sources[index]!;
     const key = store
       ? await digestKey({
@@ -268,7 +299,7 @@ async function prepareEvidence(
       const hit = await store!.get(key);
       if (hit) {
         digests.push(hit);
-        progress.done(`已复用第 ${index + 1} 段分析`);
+        progress.done('正在分析字幕');
         continue;
       }
     }
@@ -291,17 +322,17 @@ ${taskInstruction}`,
       // Stored after snapping so a cache hit is identical to a fresh call.
       if (key) await store!.set(key, digest);
       digests.push(digest);
-      progress.done(`已分析字幕 ${index + 1} / ${sources.length}`);
+      progress.done('正在分析字幕');
     } catch (cause) {
       if (isCancellation(cause) || signal.aborted) throw cause;
       failure = cause;
-      progress.done(`第 ${index + 1} 段未能分析，继续处理剩余字幕`);
+      progress.done('正在分析字幕');
     }
   }
   if (!digests.length)
     throw failure instanceof Error
       ? failure
-      : new AiError('未能分析任何字幕片段，请检查模型与网络后重试。');
+      : new AiError('没能分析这段字幕，请检查模型与网络后重试。');
   // Coverage is measured against the source fragments, before reduction collapses them.
   const analysed = digests.length;
   // Hierarchical reduction keeps every source fragment in the pipeline, even for hours-long videos.
@@ -312,7 +343,7 @@ ${taskInstruction}`,
     for (let index = 0; index < groups.length; index += 1) {
       assertNotAborted(signal);
       const group = groups[index]!;
-      progress.begin(`正在合并章节 ${index + 1} / ${groups.length}`);
+      progress.begin('正在整理章节');
       let digest: Digest;
       const groupKey = store
         ? await digestKey({
@@ -327,7 +358,7 @@ ${taskInstruction}`,
       const merged = groupKey ? await store!.get(groupKey) : undefined;
       if (merged) {
         reduced.push(merged);
-        progress.done('已复用章节合并');
+        progress.done('正在整理章节');
         continue;
       }
       try {
@@ -354,7 +385,7 @@ ${taskInstruction}`,
         digest = mergeLocally(group);
       }
       reduced.push(digest);
-      progress.done('章节合并完成');
+      progress.done('章节整理完成');
     }
     if (reduced.length >= digests.length)
       throw new AiError('中间总结过长，请缩短自定义提示词后重试。');
@@ -415,8 +446,16 @@ export async function runAi(
   const batches = sourceBatches(
     request.task === 'translate' ? request.transcript.cues : mergeCues(request.transcript.cues),
   );
+  const wholeTranscript =
+    request.task === 'ask' &&
+    estimatedTokens(JSON.stringify(batches)) <=
+      (settings.provider === 'custom' ? CUSTOM_ASK_CONTEXT_TOKENS : ASK_CONTEXT_TOKENS);
   const progress = new Progress(
-    request.task === 'translate' ? batches.length : batches.length > 1 ? batches.length + 1 : 1,
+    request.task === 'translate'
+      ? batches.length
+      : batches.length > 1 && !wholeTranscript
+        ? batches.length + 1
+        : 1,
     onProgress,
   );
   if (request.task === 'translate') {
@@ -425,7 +464,7 @@ export async function runAi(
     let failure: unknown;
     for (let index = 0; index < batches.length; index += 1) {
       const sourceCues = batches[index]!;
-      progress.begin(`正在翻译字幕 ${index + 1} / ${batches.length}`);
+      progress.begin('正在翻译字幕');
       try {
         const result = await client.json(
           `${SOURCE_BOUNDARY}
@@ -449,12 +488,12 @@ Translate each source cue into the requested language. Preserve every cue id exa
           throw new AiError('翻译缺少字幕或包含错误编号，未保存本次结果，请重试。');
         }
         for (const cue of result.translations) translations[cue.id] = cue.text;
-        progress.done(`已翻译字幕 ${index + 1} / ${batches.length}`);
+        progress.done('正在翻译字幕');
       } catch (cause) {
         if (isCancellation(cause) || signal.aborted) throw cause;
         failed += 1;
         failure = cause;
-        progress.done(`第 ${index + 1} 段翻译失败，继续处理剩余字幕`);
+        progress.done('正在翻译字幕');
       }
     }
     // Only a total failure is fatal: keeping the batches that worked beats losing them all.
@@ -467,16 +506,16 @@ Translate each source cue into the requested language. Preserve every cue id exa
       task: 'translate',
       translations,
       ...(failed
-        ? { notice: `${batches.length} 段字幕中有 ${failed} 段未能翻译，可重新翻译补齐。` }
+        ? { notice: '有部分字幕没能翻译，可以再点一次「翻译全部」补齐。' }
         : {}),
     };
   }
   if (request.task === 'explain') {
     // The panel sends only the cues around the selection, so this is one small call.
-    progress.begin('正在解释所选内容');
+    progress.begin(request.mode === 'sentence' ? '正在解释这句话' : '正在解释所选内容');
     const explanation = await client.json(
       `${SOURCE_BOUNDARY}
-${EXPLAIN_SCHEMA}`,
+${request.mode === 'word' ? WORD_SCHEMA : request.mode === 'sentence' ? SENTENCE_SCHEMA : EXPLAIN_SCHEMA}`,
       {
         language: request.language,
         videoTitle: request.video.title,
@@ -485,7 +524,7 @@ ${EXPLAIN_SCHEMA}`,
       },
       explanationSchema,
       signal,
-      EXPLAIN_BUDGET,
+      request.mode === 'word' ? WORD_BUDGET : EXPLAIN_BUDGET,
     );
     assertNotAborted(signal);
     progress.done('解释完成');
@@ -499,7 +538,7 @@ ${EXPLAIN_SCHEMA}`,
     let lastFailure: unknown;
     for (let index = 0; index < batches.length; index += 1) {
       const sourceCues = batches[index]!;
-      progress.begin(`正在提取术语 ${index + 1} / ${batches.length}`);
+      progress.begin('正在整理术语');
       try {
         const found = await client.json(
           `${SOURCE_BOUNDARY}
@@ -512,12 +551,12 @@ ${GLOSSARY_SCHEMA}`,
         const allowed = sortedStarts(sourceCues.map((cue) => cue.start));
         for (const term of found.terms) term.start = nearestStart(term.start, allowed);
         collected.push(found.terms);
-        progress.done(`已提取术语 ${index + 1} / ${batches.length}`);
+        progress.done('正在整理术语');
       } catch (cause) {
         if (isCancellation(cause) || signal.aborted) throw cause;
         failedBatches += 1;
         lastFailure = cause;
-        progress.done(`第 ${index + 1} 段术语提取失败，继续处理剩余字幕`);
+        progress.done('正在整理术语');
       }
     }
     if (failedBatches === batches.length)
@@ -527,18 +566,13 @@ ${GLOSSARY_SCHEMA}`,
       task: 'glossary',
       glossary: { terms: mergeGlossary(collected) },
       ...(failedBatches
-        ? { notice: `${batches.length} 段字幕中有 ${failedBatches} 段未能提取，术语可能不全。` }
+        ? { notice: '有部分内容没能整理，术语可能不全。' }
         : {}),
     };
   }
-  const evidence = await prepareEvidence(
-    request,
-    client,
-    signal,
-    progress,
-    options.digests,
-    settings.model,
-  );
+  const evidence: Evidence = wholeTranscript
+    ? { payload: { sourceCues: batches.flat() }, analysed: 1, total: 1 }
+    : await prepareEvidence(request, client, signal, progress, options.digests, settings.model);
   const source = evidence.payload;
   const allowedTimes = sortedStarts(
     'sourceCues' in source
@@ -546,9 +580,7 @@ ${GLOSSARY_SCHEMA}`,
       : source.sourceDigests.flatMap((digest) => digest.notes.map((note) => note.start)),
   );
   const missing = evidence.total - evidence.analysed;
-  const notice = missing
-    ? `${evidence.total} 段字幕中有 ${missing} 段未能分析，结果可能不完整，可重新生成。`
-    : undefined;
+  const notice = missing ? '有部分内容没能分析，结果可能不完整，可以重新生成。' : undefined;
   progress.begin(
     request.task === 'ask'
       ? '正在根据字幕回答问题'
@@ -625,12 +657,16 @@ ${SUMMARY_SCHEMA}`,
   }
   const answer = await client.json(
     `${SOURCE_BOUNDARY}
-Answer the user question using only supplied evidence. Return {"text":string,"citations":[{"start":number,"label":string}]}. Cite relevant exact evidence starts. If the source cannot answer the question, state that clearly and return empty citations. Never pretend to know missing information.`,
+Answer the user question using only supplied evidence. Return {"text":string,"citations":[{"start":number,"label":string}]}.
+Open with the answer itself, then only the detail that supports it. Keep it short unless the question asks for depth: plain text, short paragraphs or "- " lists, no headings. "conversation" holds the user's earlier questions and your answers, oldest first; use it to understand what a follow-up refers to, while facts still come only from the evidence. Cite the one to four most relevant exact evidence starts, each labelled with what is said there. If the source cannot answer the question, state that clearly and return empty citations. Never pretend to know missing information.`,
     {
       videoTitle: request.video.title,
       language: request.language,
-      question: request.question,
+      // What stays the same across questions on this video comes first, so a provider that caches
+      // prompt prefixes can reuse the transcript for every follow-up.
       ...source,
+      ...(request.history?.length ? { conversation: request.history } : {}),
+      question: request.question,
     },
     answerSchema,
     signal,

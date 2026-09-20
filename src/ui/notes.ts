@@ -7,6 +7,14 @@ import { clearCache } from './cache';
  * work nobody can regenerate.
  */
 const PREFIX = 'notes:';
+/**
+ * The account keeps one item per video and offers no way to list them: a client can only ask for a
+ * key it already knows. So the account also keeps this index of which videos have notes, which is
+ * what lets a machine that never opened a video still know there are notes to fetch for it.
+ * `index` is five characters and a video id is at least six, so this can never be a video's key.
+ */
+const INDEX_KEY = `${PREFIX}index`;
+const MAX_INDEXED = 300;
 const MAX_CLIPS = 500;
 /** The account takes nothing larger, so a list that fits here is one that can also be kept there. */
 const MAX_BYTES = 1024 * 1024;
@@ -46,6 +54,131 @@ export async function readClips(videoId: string): Promise<Clip[]> {
   return Array.isArray(stored) ? stored : (stored?.clips ?? []);
 }
 
+/** Which videos have notes, as the account knows it. */
+export interface NoteVideo {
+  videoId: string;
+  title: string;
+  /** Zero is a tombstone: it records that the notes were emptied, rather than losing the entry. */
+  count: number;
+  updatedAt: number;
+}
+
+/** An object, not an array: that is what keeps the index out of the legacy-notes upload path. */
+interface StoredIndex {
+  videos: NoteVideo[];
+}
+
+/** The account is a trust boundary like any other: only well-formed entries reach the panel. */
+function isNoteVideo(value: unknown): value is NoteVideo {
+  if (typeof value !== 'object' || value === null) return false;
+  const entry = value as Record<string, unknown>;
+  return (
+    typeof entry.videoId === 'string' &&
+    entry.videoId.length > 0 &&
+    entry.videoId.length <= 128 &&
+    typeof entry.title === 'string' &&
+    Number.isFinite(entry.count) &&
+    Number.isFinite(entry.updatedAt)
+  );
+}
+
+async function readIndex(): Promise<NoteVideo[]> {
+  const stored: unknown = (await chrome.storage.local.get(INDEX_KEY))[INDEX_KEY];
+  const videos = (stored as StoredIndex | undefined)?.videos;
+  return Array.isArray(videos) ? videos.filter(isNoteVideo) : [];
+}
+
+/** Newest entry per video wins, so two machines editing different videos keep both. */
+function mergeIndex(...lists: NoteVideo[][]): NoteVideo[] {
+  const byId = new Map<string, NoteVideo>();
+  for (const entry of lists.flat()) {
+    const seen = byId.get(entry.videoId);
+    if (!seen || entry.updatedAt > seen.updatedAt) byId.set(entry.videoId, entry);
+  }
+  return [...byId.values()].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, MAX_INDEXED);
+}
+
+async function writeIndex(videos: NoteVideo[]): Promise<void> {
+  await chrome.storage.local.set({ [INDEX_KEY]: { videos } satisfies StoredIndex });
+}
+
+/** Records what this machine now holds for one video, for the next sync to carry up. */
+async function index(videoId: string, clips: Clip[]): Promise<void> {
+  const entry = {
+    videoId,
+    title: clips.find((clip) => clip.videoTitle)?.videoTitle ?? '',
+    count: clips.length,
+    updatedAt: Date.now(),
+  };
+  await writeIndex(mergeIndex(await readIndex(), [entry]));
+}
+
+/**
+ * Brings the index in line with the account's copy and returns every video that still has notes.
+ * The account's copy is merged rather than replaced: another machine's videos belong in it too.
+ * Offline, or signed out, this machine's own index is still worth showing.
+ */
+export async function syncNoteIndex(cloud: Cloud): Promise<NoteVideo[]> {
+  // Notes kept before the index existed are still on this machine; seeding from them is what
+  // carries them up to the account the first time this runs.
+  const held = (await readAllClips()).map((video) => ({
+    videoId: video.videoId,
+    title: video.title,
+    count: video.clips.length,
+    updatedAt: video.updatedAt,
+  }));
+  const local = mergeIndex(await readIndex(), held);
+  let remote: NoteVideo[] = [];
+  let reachable = true;
+  try {
+    const found = await cloud.get(INDEX_KEY);
+    remote = Array.isArray(found?.value) ? found.value.filter(isNoteVideo) : [];
+  } catch {
+    reachable = false;
+  }
+  const merged = mergeIndex(local, remote);
+  await writeIndex(merged);
+  if (reachable && JSON.stringify(merged) !== JSON.stringify(remote))
+    await cloud.put(INDEX_KEY, merged, Date.now()).catch(() => undefined);
+  return merged.filter((video) => video.count > 0);
+}
+
+/** One video's notes as this machine holds them, for the list that spans every video. */
+export interface VideoClips {
+  videoId: string;
+  title: string;
+  clips: Clip[];
+  /** When this machine last wrote them. Zero for notes kept before accounts existed. */
+  updatedAt: number;
+}
+
+/**
+ * Every video's notes on this machine, most recently written video first. Only what this machine
+ * holds: the account's copy of a video arrives when that video is opened, which is also the only
+ * moment its notes can be edited.
+ */
+export async function readAllClips(): Promise<VideoClips[]> {
+  const names = (await chrome.storage.local.getKeys()).filter(
+    (name) => name.startsWith(PREFIX) && name !== INDEX_KEY,
+  );
+  const stored = await chrome.storage.local.get(names);
+  return names
+    .map((name) => {
+      const value: unknown = stored[name];
+      const clips = Array.isArray(value)
+        ? (value as Clip[])
+        : ((value as Stored | undefined)?.clips ?? []);
+      return {
+        videoId: name.slice(PREFIX.length),
+        title: clips.find((clip) => clip.videoTitle)?.videoTitle ?? '',
+        clips: [...clips].sort((a, b) => a.start - b.start),
+        updatedAt: Array.isArray(value) ? 0 : ((value as Stored | undefined)?.updatedAt ?? 0),
+      };
+    })
+    .filter((video) => video.clips.length)
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
 export async function writeClips(videoId: string, clips: Clip[]): Promise<void> {
   if (!videoId) return;
   const trimmed = clips.slice(0, MAX_CLIPS);
@@ -53,6 +186,8 @@ export async function writeClips(videoId: string, clips: Clip[]): Promise<void> 
     throw new Error('笔记已超出存储上限，请先导出并删除部分卡片。');
   const stored: Stored = { clips: trimmed, updatedAt: Date.now() };
   await chrome.storage.local.set({ [key(videoId)]: stored });
+  // Every write goes through here, so the index cannot fall behind what is actually kept.
+  await index(videoId, trimmed);
 }
 
 export async function clearClips(videoId: string): Promise<void> {
@@ -106,8 +241,9 @@ export async function syncClips(videoId: string, cloud: Cloud): Promise<Clip[]> 
 
 /** Writes what sync settled on, unless the notes were edited while it waited on the server. */
 async function replace(videoId: string, seen: Stored | Clip[] | undefined, next: Stored) {
-  if (JSON.stringify(await readStored(videoId)) === JSON.stringify(seen))
-    await chrome.storage.local.set({ [key(videoId)]: next });
+  if (JSON.stringify(await readStored(videoId)) !== JSON.stringify(seen)) return;
+  await chrome.storage.local.set({ [key(videoId)]: next });
+  await index(videoId, next.clips);
 }
 
 /** Sends a video's notes up after an edit. If it fails, the next sync finds them newer here. */
