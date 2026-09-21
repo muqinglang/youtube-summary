@@ -19,7 +19,7 @@ const face = (golden = false): string => `
   <path class="study-cat-whiskers" d="m62 83-13-3m13 10-13 2m80-9 13-3m-13 10 13 2"/>
   <ellipse class="study-cat-pink" cx="71" cy="88" rx="7" ry="4"/>
   <ellipse class="study-cat-pink" cx="119" cy="88" rx="7" ry="4"/>
-  <g class="study-cat-eyes avatar-eyes">
+  <g class="study-cat-eyes">
     <ellipse class="study-cat-eye-rim" cx="80" cy="78" rx="${golden ? 9 : 7}" ry="${golden ? 10 : 7.5}"/>
     <ellipse class="study-cat-eye-rim" cx="111" cy="78" rx="${golden ? 9 : 7}" ry="${golden ? 10 : 7.5}"/>
     <ellipse class="study-cat-iris" cx="80" cy="78" rx="${golden ? 7 : 5}" ry="${golden ? 8 : 5.5}"/>
@@ -90,24 +90,9 @@ const goldenCompanion = `<g class="study-cat-body golden-loaf">
   </g>
 </g>`;
 
-/** The line-drawn cat lying down: the AI's face beside each answer and on the empty pages. */
-export const MASCOT_AVATAR = `<svg class="cat" viewBox="6 22 108 52" focusable="false">
-  <g class="cat-tail"><path class="cat-stroke" d="M86 65c12 1.5 17-6.5 13.5-15.5"/></g>
-  <path class="cat-solid" d="M32 68c0-17 12-28 28-28s28 11 28 28z"/>
-  <ellipse class="cat-solid" cx="45.5" cy="65.6" rx="7.4" ry="4"/>
-  <g class="cat-head avatar-head">
-    <path class="cat-solid cat-ear" d="M23.4 35.8q-1.2-11.4 5.4-7.2l5.6 3.4z"/>
-    <path class="cat-solid" d="M44.6 35.8q1.2-11.4-5.4-7.2L33.6 32z"/>
-    <circle class="cat-solid" cx="34" cy="46" r="15.6"/>
-    <g class="cat-eyes avatar-eyes">
-      <circle class="cat-dot" cx="28" cy="45.4" r="2.1"/>
-      <circle class="cat-dot" cx="40" cy="45.4" r="2.1"/>
-    </g>
-    <path class="cat-dot-stroke" d="M34 50.6 31.8 52.6h4.4z"/>
-    <path class="cat-fine" d="M34 52.8v1.4m0 0c-1.4 1.5-3 1.1-3.6-.1m3.6.1c1.4 1.5 3 1.1 3.6-.1"/>
-    <path class="cat-fine" d="M10 42.2h9.4M10.4 49h8.8"/>
-  </g>
-  <ellipse class="cat-solid" cx="31" cy="64.4" rx="7.4" ry="4"/>
+/** The golden cat lying with its paws in front: the AI's face beside answers and on empty pages. */
+export const MASCOT_AVATAR = `<svg class="cat-icon" viewBox="34 50 142 118" focusable="false">
+  <g class="study-cat-golden">${goldenCompanion}</g>
 </svg>`;
 
 export const MASCOT_LOADING = `<svg class="study-cat-scene" viewBox="0 0 320 190" focusable="false">

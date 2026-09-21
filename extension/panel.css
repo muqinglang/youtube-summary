@@ -1214,55 +1214,24 @@ textarea {
   height: 20px;
   overflow: visible;
 }
-/* The lying cat: a line drawing whose shapes are filled with the ground, so they cover each other. */
-.cat {
+/* Away from the waiting card the golden cat just lies there, paws in front, with nothing to read. */
+.cat-icon {
   display: block;
   overflow: visible;
-  color: var(--accent);
 }
-.cat-solid {
-  fill: var(--bg);
-  stroke: currentColor;
-  stroke-width: 2.4;
-  stroke-linejoin: round;
+.cat-icon .study-cat-guide-prop {
+  display: inline;
 }
-.cat-stroke,
-.cat-fine,
-.cat-dot-stroke {
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.cat-stroke {
-  stroke-width: 3.4;
-}
-.cat-fine {
-  stroke-width: 1.6;
-  opacity: 0.75;
-}
-.cat-dot-stroke {
-  stroke-width: 2.2;
-}
-.cat-dot {
-  fill: currentColor;
-}
-/* At avatar size a 2.4 stroke is under a pixel and blurs, and whiskers vanish; draw it bolder. */
-.ai-avatar .cat-solid {
-  stroke-width: 4.4;
-}
-.ai-avatar .cat-stroke {
-  stroke-width: 5.5;
-}
-.ai-avatar .cat-dot {
-  r: 3.2px;
-}
-.ai-avatar .cat-fine {
+.cat-icon .study-cat-summary-prop {
   display: none;
 }
+.cat-icon .study-cat-golden .study-cat-head,
+.cat-icon .study-cat-golden .study-cat-eyes {
+  animation: none;
+}
 .cat-mark {
-  width: 140px;
-  height: 84px;
+  width: 132px;
+  height: 108px;
   border: 0;
   background: radial-gradient(
     closest-side,
@@ -1270,97 +1239,24 @@ textarea {
     transparent
   );
 }
-.cat-mark .cat {
+.cat-mark .cat-icon {
   width: 116px;
-  height: 56px;
+  height: 96px;
 }
-.cat-tail,
-.cat-eyes,
-.cat-ear {
-  transform-box: fill-box;
+/* On an empty page it breathes, blinks, and now and then flicks an ear and the tip of its tail. */
+.cat-mark .study-cat-golden .study-cat-eyes {
+  animation: study-cat-blink 5.6s ease-in-out infinite;
 }
-.cat-mark .cat-tail,
-.is-pending .cat-tail {
-  transform-origin: 0% 100%;
-  animation: cat-wag 1600ms ease-in-out infinite;
+/* Beside an answer it keeps still until it is working on one. Then it listens with its head
+   cocked and flicks its tail, beside what is happening, for how long, and a way to stop. */
+.ai-avatar .cat-icon .study-cat-golden * {
+  animation: none;
 }
-.cat-mark .cat-eyes {
-  transform-origin: 50% 50%;
-  animation: cat-blink 4.4s ease-in-out infinite;
+.is-pending .ai-avatar .study-cat-head {
+  animation: golden-listen 3s ease-in-out infinite;
 }
-.cat-mark .cat-ear {
-  transform-origin: 50% 100%;
-  animation: cat-ear 5.2s ease-in-out infinite;
-}
-@keyframes cat-wag {
-  0%,
-  100% {
-    transform: rotate(-8deg);
-  }
-  50% {
-    transform: rotate(9deg);
-  }
-}
-@keyframes cat-blink {
-  0%,
-  93%,
-  100% {
-    transform: scaleY(1);
-  }
-  96% {
-    transform: scaleY(0.1);
-  }
-}
-@keyframes cat-ear {
-  0%,
-  86%,
-  100% {
-    transform: rotate(0deg);
-  }
-  90% {
-    transform: rotate(-11deg);
-  }
-  94% {
-    transform: rotate(5deg);
-  }
-}
-.avatar-head,
-.avatar-eyes {
-  transform-box: fill-box;
-}
-/* A question is answered inside the conversation, not behind the waiting card. While it is, the
-   cat tilts its head, glances about and wags its tail, beside what is happening, for how long,
-   and a way to stop. */
-.is-pending .avatar-head {
-  transform-origin: 50% 100%;
-  animation: avatar-tilt 1800ms ease-in-out infinite;
-}
-@keyframes avatar-tilt {
-  0%,
-  100% {
-    transform: rotate(5deg);
-  }
-  50% {
-    transform: rotate(-5deg);
-  }
-}
-.is-pending .avatar-eyes {
-  animation: avatar-glance 2.4s ease-in-out infinite;
-}
-@keyframes avatar-glance {
-  0%,
-  15%,
-  100% {
-    transform: translateX(0);
-  }
-  30%,
-  50% {
-    transform: translateX(-1.5px);
-  }
-  65%,
-  85% {
-    transform: translateX(1.5px);
-  }
+.is-pending .ai-avatar .golden-tail {
+  animation: golden-tail-tip 2s ease-in-out infinite;
 }
 .answer .pending {
   display: flex;
@@ -2797,11 +2693,13 @@ a.term-jump {
   }
 }
 .ai-avatar {
-  width: 40px;
-  height: 28px;
-  border-radius: 10px;
+  width: 38px;
+  height: 32px;
+  border: 0;
+  border-radius: 0;
+  background: none;
 }
 .ai-avatar svg {
-  width: 36px;
-  height: 18px;
+  width: 38px;
+  height: 32px;
 }
