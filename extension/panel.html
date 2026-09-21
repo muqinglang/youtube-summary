@@ -374,57 +374,36 @@
       <div id="job-status" class="job-overlay" hidden role="status" aria-live="polite">
         <div class="job-card">
           <div class="job-cat" aria-hidden="true">
-            <svg viewBox="0 0 160 140" class="cat" focusable="false">
-              <ellipse class="cat-shadow" cx="80" cy="128" rx="30" ry="4" />
-              <g class="cat-all">
-                <g class="cat-tail">
-                  <path
-                    class="cat-tail-outline"
-                    d="M98 107c27 5 34-12 26-24-4-6-10-2-7 3 6 10-1 15-16 13"
-                  />
+            <svg viewBox="0 0 160 140" class="pup" focusable="false">
+              <ellipse class="pup-shadow" cx="78" cy="130" rx="30" ry="4" />
+              <g class="pup-all">
+                <g class="pup-tail">
+                  <path class="pup-tail-line" d="M42 76c-14-4-18-16-9-21 5-3 9 2 6 6" />
                 </g>
-                <g class="cat-foot cat-foot-left">
-                  <path class="cat-solid" d="M65 108c-9 3-14 11-9 15 4 4 17 2 21-2l1-12" />
-                  <path class="cat-fine" d="m61 120 1 3m5-4 1 4" />
+                <g class="pup-legs pup-legs-back">
+                  <path class="pup-limb" d="M58 100 46 120M67 104 58 124" />
+                  <path class="pup-fine" d="m42 120 4 2m10 2 4 2" />
                 </g>
-                <g class="cat-foot cat-foot-right">
-                  <path class="cat-solid" d="M95 108c9 3 14 11 9 15-4 4-17 2-21-2l-1-12" />
-                  <path class="cat-fine" d="m99 120-1 3m-5-4-1 4" />
+                <g class="pup-legs pup-legs-front">
+                  <path class="pup-limb" d="M92 98 104 118M84 103 94 124" />
+                  <path class="pup-fine" d="m104 118 3 3m-13 3 3 3" />
                 </g>
-                <path
-                  class="cat-solid"
-                  d="M62 73c-5 10-9 21-7 31 2 13 13 16 25 16s23-3 25-16c2-10-2-21-7-31"
-                />
-                <ellipse class="cat-belly" cx="80" cy="101" rx="13" ry="12" />
-                <g class="cat-paw cat-paw-left">
-                  <path
-                    class="cat-solid"
-                    d="M61 86c-4-1-6-4-8-5-4-2-7 1-6 5 1 6 6 11 12 12"
-                  />
-                  <path class="cat-fine" d="m49 85 3 1" />
-                </g>
-                <g class="cat-paw cat-paw-right">
-                  <path class="cat-solid" d="M99 86c4-1 6-4 8-5 4-2 7 1 6 5-1 6-6 11-12 12" />
-                  <path class="cat-fine" d="m111 85-3 1" />
-                </g>
-                <g class="cat-head">
-                  <path
-                    class="cat-solid"
-                    d="M47 43 46 20q0-5 4-2l18 13q12-4 24 0l18-13q4-3 4 2l-1 23c6 7 9 14 7 22-3 14-20 21-40 21s-37-7-40-21c-2-8 1-15 7-22Z"
-                  />
-                  <path class="cat-ear-inner" d="m52 27 1 13 10-6Zm56 0-1 13-10-6Z" />
-                  <path class="cat-fine" d="m74 32 2 6m8-6-2 6" />
-                  <g class="cat-eyes">
-                    <ellipse class="cat-dot" cx="64" cy="55" rx="4" ry="5" />
-                    <ellipse class="cat-dot" cx="96" cy="55" rx="4" ry="5" />
-                    <circle class="cat-eye-shine" cx="65" cy="53.5" r="1.3" />
-                    <circle class="cat-eye-shine" cx="97" cy="53.5" r="1.3" />
+                <ellipse class="pup-solid" cx="70" cy="84" rx="32" ry="22" />
+                <ellipse class="pup-belly" cx="72" cy="94" rx="20" ry="10" />
+                <g class="pup-head">
+                  <circle class="pup-solid" cx="112" cy="62" r="20" />
+                  <ellipse class="pup-solid" cx="131" cy="70" rx="12.5" ry="9" />
+                  <ellipse class="pup-dot" cx="139" cy="66.5" rx="5" ry="4" />
+                  <path class="pup-mouth" d="M139 71v3m0 0q-4 4-7 .5" />
+                  <g class="pup-eyes">
+                    <ellipse class="pup-dot" cx="115" cy="56" rx="3.6" ry="4.4" />
+                    <circle class="pup-eye-shine" cx="116" cy="54.5" r="1.2" />
                   </g>
-                  <ellipse class="cat-blush" cx="54" cy="65" rx="6" ry="3" />
-                  <ellipse class="cat-blush" cx="106" cy="65" rx="6" ry="3" />
-                  <path class="cat-dot" d="M76 63q4-2 8 0l-4 4Z" />
-                  <path class="cat-mouth" d="M80 67v3m0 0q-5 6-9 0m9 0q5 6 9 0" />
-                  <path class="cat-fine" d="m34 56 13 3m-14 6 13-1m67-5 13-3m-12 8 13 1" />
+                  <ellipse class="pup-blush" cx="102" cy="72" rx="6" ry="3" />
+                  <g class="pup-ear">
+                    <path class="pup-solid" d="M104 44c-17 3-22 19-14 30 6 8 14 3 15-7Z" />
+                    <path class="pup-ear-inner" d="M101 52c-8 3-10 13-6 19 3 4 7 1 7-4Z" />
+                  </g>
                 </g>
               </g>
             </svg>

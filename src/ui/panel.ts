@@ -513,16 +513,20 @@ function renderVideoClips(video: { videoId: string; title: string; clips: Clip[]
     remove.dataset.unclip = noteRef(video.videoId, clip.id);
     remove.textContent = '删除';
     row.append(remove);
+    const body = document.createElement('button');
+    body.className = 'clip-body';
+    body.dataset.note = noteRef(video.videoId, clip.id);
     const text = document.createElement('p');
     text.className = 'clip-text';
     text.textContent = clip.text;
-    card.append(row, text);
+    body.append(text);
     if (clip.translation) {
       const line = document.createElement('p');
       line.className = 'clip-translation';
       line.textContent = clip.translation;
-      card.append(line);
+      body.append(line);
     }
+    card.append(row, body);
     const comment = document.createElement('button');
     comment.className = clip.comment ? 'clip-comment-open' : 'clip-comment-open is-empty';
     comment.dataset.note = noteRef(video.videoId, clip.id);
@@ -613,16 +617,20 @@ function renderClips(): void {
       remove.textContent = '删除';
       head.append(jump, remove);
 
+      const body = document.createElement('button');
+      body.className = 'clip-body';
+      body.dataset.note = noteRef(state.video?.id ?? '', clip.id);
       const text = document.createElement('p');
       text.className = 'clip-text';
       text.textContent = clip.text;
-      card.append(head, text);
+      body.append(text);
       if (clip.translation) {
         const translation = document.createElement('p');
         translation.className = 'clip-translation';
         translation.textContent = clip.translation;
-        card.append(translation);
+        body.append(translation);
       }
+      card.append(head, body);
 
       // A two-row edit box turned every note into a form and a long AI explanation into a
       // scrollbar. The card reads; the drawer, which has the room, is where it is written.

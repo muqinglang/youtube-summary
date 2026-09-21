@@ -724,6 +724,18 @@ textarea {
   color: var(--muted);
   overflow-wrap: anywhere;
 }
+/* The line opens the note too: having to aim at the comment box was the only way in. */
+.clip-body {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0;
+  background: none;
+}
+.clip-body:hover .clip-text {
+  color: var(--accent);
+}
+
 /* Reading, in the list. A card is not a form: writing happens in the drawer. */
 .clip-comment-open {
   width: 100%;
@@ -753,7 +765,8 @@ textarea {
 /* Writing, in the drawer, where the height is the point. */
 .note-comment {
   width: 100%;
-  min-height: 220px;
+  flex: 1;
+  min-height: 300px;
   padding: 11px 12px;
   border-radius: 8px;
   background: var(--bg);
@@ -1222,7 +1235,16 @@ textarea {
 }
 .is-pending .avatar-head {
   transform-origin: 50% 100%;
-  animation: cat-tilt 1800ms ease-in-out infinite;
+  animation: avatar-tilt 1800ms ease-in-out infinite;
+}
+@keyframes avatar-tilt {
+  0%,
+  100% {
+    transform: rotate(5deg);
+  }
+  50% {
+    transform: rotate(-5deg);
+  }
 }
 .is-pending .avatar-eyes {
   animation: avatar-glance 2.4s ease-in-out infinite;
@@ -1431,7 +1453,7 @@ textarea {
   color: var(--muted);
 }
 
-/* ---- Dancing kitten: independently animated paws, head and curled tail. ---- */
+/* ---- Hopping puppy: the body carries the arc, everything else lags behind it. ---- */
 .job-cat {
   position: relative;
   flex: none;
@@ -1445,191 +1467,200 @@ textarea {
   border-radius: 50%;
   background: radial-gradient(
     closest-side,
-    color-mix(in srgb, var(--accent) 12%, transparent),
+    color-mix(in srgb, var(--accent) 16%, transparent),
     transparent
   );
+  animation: pup-halo 3200ms ease-in-out infinite;
 }
-.cat {
-  position: relative;
+.pup {
   display: block;
   width: 100%;
   height: 100%;
   color: var(--accent);
   overflow: visible;
 }
-.cat-solid {
+/* Filled with the card's own ground, so overlapping shapes cover rather than darken each other. */
+.pup-solid {
   fill: var(--bg);
   stroke: currentColor;
-  stroke-width: 2.8;
-  stroke-linecap: round;
+  stroke-width: 3;
   stroke-linejoin: round;
 }
-.cat-tail-outline {
-  fill: color-mix(in srgb, var(--accent) 18%, var(--bg));
-  stroke: currentColor;
-  stroke-width: 2.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.cat-fine,
-.cat-mouth {
+.pup-limb {
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.7;
+  stroke-width: 8;
   stroke-linecap: round;
-  stroke-linejoin: round;
 }
-.cat-fine {
+.pup-tail-line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+.pup-fine,
+.pup-mouth {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
   opacity: 0.75;
 }
-.cat-dot,
-.cat-ear-inner,
-.cat-blush,
-.cat-belly,
-.cat-shadow {
+.pup-dot,
+.pup-blush,
+.pup-belly,
+.pup-ear-inner,
+.pup-shadow {
   fill: currentColor;
 }
-.cat-ear-inner {
+.pup-ear-inner {
   opacity: 0.4;
 }
-.cat-blush {
+.pup-blush {
   opacity: 0.28;
 }
-.cat-belly {
+.pup-belly {
   opacity: 0.1;
 }
-.cat-eye-shine {
+.pup-eye-shine {
   fill: var(--bg);
 }
-.cat-shadow {
-  opacity: 0.13;
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: kitten-shadow 1600ms ease-in-out infinite;
-}
-/* Explicit SVG coordinates keep the joints stable as each limb rotates. */
-.cat-all,
-.cat-head,
-.cat-tail,
-.cat-paw,
-.cat-foot {
+/* Explicit SVG coordinates keep every joint where it is drawn as the parts rotate. */
+.pup-all,
+.pup-head,
+.pup-ear,
+.pup-tail,
+.pup-legs,
+.pup-eyes,
+.pup-shadow {
   transform-box: view-box;
 }
-.cat-all {
-  transform-origin: 80px 120px;
-  animation: kitten-dance 1600ms ease-in-out infinite;
+/* One duration for the hop and for everything timed against it. */
+.pup-all {
+  transform-origin: 80px 124px;
+  animation: pup-hop 900ms cubic-bezier(0.38, 0, 0.6, 1) infinite;
 }
-.cat-head {
-  transform-origin: 80px 77px;
-  animation: kitten-head 1600ms ease-in-out infinite;
+.pup-shadow {
+  transform-origin: 78px 130px;
+  animation: pup-shadow 900ms cubic-bezier(0.38, 0, 0.6, 1) infinite;
 }
-.cat-tail {
-  transform-origin: 100px 105px;
-  animation: kitten-tail 800ms ease-in-out infinite;
+.pup-head {
+  transform-origin: 96px 78px;
+  animation: pup-nod 900ms ease-in-out infinite;
 }
-.cat-paw-left {
-  transform-origin: 60px 92px;
-  animation: kitten-paw 800ms ease-in-out infinite alternate;
+/* A fraction of a beat behind the body: the ear is carried, not driven. */
+.pup-ear {
+  transform-origin: 104px 46px;
+  animation: pup-ear 900ms ease-in-out infinite;
+  animation-delay: 80ms;
 }
-.cat-paw-right {
-  transform-origin: 100px 92px;
-  animation: kitten-paw 800ms ease-in-out infinite alternate-reverse;
+.pup-legs-front {
+  transform-origin: 90px 100px;
+  animation: pup-reach 900ms ease-in-out infinite;
 }
-.cat-foot-left {
-  transform-origin: 70px 110px;
-  animation: kitten-step 1600ms ease-in-out infinite;
+.pup-legs-back {
+  transform-origin: 62px 102px;
+  animation: pup-kick 900ms ease-in-out infinite;
 }
-.cat-foot-right {
-  transform-origin: 90px 110px;
-  animation: kitten-step 1600ms ease-in-out -800ms infinite;
+.pup-tail {
+  transform-origin: 40px 78px;
+  animation: pup-wag 300ms ease-in-out infinite;
 }
-.cat-eyes {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: cat-blink 4400ms ease-in-out infinite;
+.pup-eyes {
+  transform-origin: 115px 56px;
+  animation: pup-blink 5s ease-in-out infinite;
 }
-@keyframes kitten-dance {
+/* Squashed on landing, stretched at the top: the arc alone reads as drift without it. */
+@keyframes pup-hop {
   0%,
   100% {
-    transform: translate(-5px, 0) rotate(-7deg);
+    transform: translateY(0) scale(1.07, 0.93);
   }
-  25% {
-    transform: translate(0, -8px) rotate(0deg);
+  16% {
+    transform: translateY(-7px) scale(0.98, 1.03);
   }
   50% {
-    transform: translate(5px, 0) rotate(7deg);
+    transform: translateY(-20px) scale(0.97, 1.04);
   }
-  75% {
-    transform: translate(0, -8px) rotate(0deg);
+  84% {
+    transform: translateY(-7px) scale(0.99, 1.02);
   }
 }
-@keyframes kitten-head {
+@keyframes pup-shadow {
   0%,
   100% {
-    transform: rotate(5deg);
+    transform: scale(1);
+    opacity: 0.16;
   }
   50% {
-    transform: rotate(-5deg);
+    transform: scale(0.7);
+    opacity: 0.07;
   }
 }
-@keyframes kitten-tail {
+@keyframes pup-nod {
   0%,
   100% {
-    transform: rotate(-12deg);
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(3deg);
+  }
+}
+@keyframes pup-ear {
+  0%,
+  100% {
+    transform: rotate(8deg);
+  }
+  50% {
+    transform: rotate(-14deg);
+  }
+}
+@keyframes pup-reach {
+  0%,
+  100% {
+    transform: rotate(6deg);
+  }
+  50% {
+    transform: rotate(-9deg);
+  }
+}
+@keyframes pup-kick {
+  0%,
+  100% {
+    transform: rotate(-6deg);
+  }
+  50% {
+    transform: rotate(9deg);
+  }
+}
+@keyframes pup-wag {
+  0%,
+  100% {
+    transform: rotate(-14deg);
   }
   50% {
     transform: rotate(14deg);
   }
 }
-@keyframes kitten-paw {
-  from {
-    transform: rotate(-18deg);
-  }
-  to {
-    transform: rotate(22deg);
-  }
-}
-@keyframes kitten-step {
+@keyframes pup-blink {
   0%,
-  50%,
-  100% {
-    transform: translateY(0) rotate(0deg);
-  }
-  25% {
-    transform: translateY(-5px) rotate(-12deg);
-  }
-}
-@keyframes kitten-shadow {
-  0%,
-  50%,
-  100% {
-    transform: scaleX(1);
-    opacity: 0.13;
-  }
-  25%,
-  75% {
-    transform: scaleX(0.78);
-    opacity: 0.08;
-  }
-}
-/* Also used by the small AI avatar. */
-@keyframes cat-tilt {
-  0%,
-  100% {
-    transform: rotate(2.5deg);
-  }
-  50% {
-    transform: rotate(-2.5deg);
-  }
-}
-@keyframes cat-blink {
-  0%,
-  93%,
+  94%,
   100% {
     transform: scaleY(1);
   }
-  96% {
+  97% {
     transform: scaleY(0.1);
+  }
+}
+@keyframes pup-halo {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.07);
   }
 }
 
