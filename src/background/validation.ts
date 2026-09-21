@@ -297,6 +297,10 @@ export const explanationSchema: z.ZodType<Explanation> = z.object({
     }),
     6,
   ).optional(),
+  points: outputArray(
+    z.object({ label: outputText(80), text: outputText(600) }),
+    6,
+  ).optional(),
 });
 
 export const answerSchema = z.object({

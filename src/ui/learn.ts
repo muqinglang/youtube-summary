@@ -26,27 +26,71 @@ let caption: { start: number; end: number; original: string; translated: string 
 let captionPieces = { width: -1, original: [''], translated: [''] };
 const words = new Intl.Segmenter(undefined, { granularity: 'word' });
 
-/**
- * What the CC button steps through. Bilingual first because that is what the panel opens with,
- * and off last so the two single-language modes are one click apart.
- */
+/** What the CC menu offers. Picked from a list rather than cycled: four states is too many to step through. */
 const CAPTION_MODES = [
-  { value: 'bilingual', mark: '双', title: '双语对照' },
-  { value: 'original', mark: '原', title: '仅原文' },
-  { value: 'translated', mark: '译', title: '仅译文' },
-  { value: 'off', mark: '关', title: '不显示字幕' },
+  { value: 'bilingual', label: '双语' },
+  { value: 'original', label: '仅原文' },
+  { value: 'translated', label: '仅译文' },
+  { value: 'off', label: '不显示' },
 ] as const;
+const SPEEDS = [0.25, 0.75, 1, 1.25, 1.5, 2] as const;
+
+/** Both menus behave the same way, so they are built and closed the same way. */
+function buildMenu(
+  container: string,
+  items: readonly { value: string; label: string }[],
+  onPick: (value: string) => void,
+) {
+  const host = $(container);
+  host.replaceChildren(
+    ...items.map((item) => {
+      const button = document.createElement('button');
+      button.className = 'player-menu-option';
+      button.dataset.value = item.value;
+      button.textContent = item.label;
+      button.addEventListener('click', () => {
+        onPick(item.value);
+        closeMenus();
+      });
+      return button;
+    }),
+  );
+}
+
+function markMenu(container: string, value: string) {
+  for (const option of $(container).querySelectorAll<HTMLElement>('.player-menu-option'))
+    option.classList.toggle('is-current', option.dataset.value === value);
+}
+
+function closeMenus(except?: string) {
+  for (const [menu, toggle] of [
+    ['#speed-menu', '#speed-toggle'],
+    ['#volume-menu', '#volume-toggle'],
+    ['#captions-menu', '#captions-toggle'],
+  ]) {
+    if (menu === except) continue;
+    $(menu!).hidden = true;
+    $(toggle!).setAttribute('aria-expanded', 'false');
+  }
+}
+
+function toggleMenu(menu: string, toggle: string) {
+  const open = $(menu).hidden;
+  closeMenus(open ? menu : undefined);
+  $(menu).hidden = !open;
+  $(toggle).setAttribute('aria-expanded', String(open));
+}
 
 function applyPreferences(next: LearningPreferences) {
   const previous = preferences;
   preferences = next;
   $<HTMLButtonElement>('#settings').disabled = next.busy;
   $('#subtitles').hidden = !next.overlayEnabled;
-  const state = next.overlayEnabled ? next.displayMode : 'off';
-  const label = CAPTION_MODES.find((mode) => mode.value === state) ?? CAPTION_MODES[0];
+  const showing = next.overlayEnabled ? next.displayMode : 'off';
+  const label = CAPTION_MODES.find((mode) => mode.value === showing) ?? CAPTION_MODES[0];
   $('#captions-toggle').setAttribute('aria-pressed', String(next.overlayEnabled));
-  $('#captions-toggle').title = label.title;
-  $('#captions-mode').textContent = label.mark;
+  $('#captions-toggle').title = `字幕：${label.label}`;
+  markMenu('#captions-options', showing);
   if (next.overlayEnabled && previous?.overlayEnabled === false)
     player.setExternalCaptions(true, true);
 }
@@ -325,15 +369,48 @@ async function initialize() {
       }),
     'change',
   );
-  on('#speed', () => player.speed(Number($<HTMLSelectElement>('#speed').value)), 'change');
+  buildMenu(
+    '#speed-options',
+    SPEEDS.map((rate) => ({ value: String(rate), label: `${rate}×` })),
+    (value) => {
+      player.speed(Number(value));
+      $('#speed-now').textContent = `${value}×`;
+      markMenu('#speed-options', value);
+    },
+  );
+  markMenu('#speed-options', '1');
+  buildMenu('#captions-options', CAPTION_MODES, (value) => panelAction('captions-mode', value));
+  const volume = $<HTMLInputElement>('#volume');
+  const paintVolume = () => {
+    const level = Number(volume.value);
+    volume.style.setProperty('--progress', String(level / 100));
+    $('#volume-now').textContent = String(level);
+    // A muted player still shows its own icon, so the waves say what this control did.
+    $('#volume-waves').setAttribute('opacity', level ? '1' : '0.25');
+  };
+  on(
+    '#volume',
+    () => {
+      paintVolume();
+      player.volume(Number(volume.value));
+    },
+    'input',
+  );
+  // Only paints: the player is not ready while these are being bound, and asking it then would
+  // throw and leave every binding after this one unregistered.
+  paintVolume();
+  on('#speed-toggle', () => toggleMenu('#speed-menu', '#speed-toggle'));
+  on('#volume-toggle', () => toggleMenu('#volume-menu', '#volume-toggle'));
+  on('#captions-toggle', () => toggleMenu('#captions-menu', '#captions-toggle'));
+  document.addEventListener('pointerdown', (event) => {
+    if (!(event.target as Element | null)?.closest('.menu-wrap')) closeMenus();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeMenus();
+  });
   on('#settings', () => panelAction('settings'));
   on('#guide', () => panelAction('guide'));
-  on('#captions-toggle', () => {
-    const showing = preferences?.overlayEnabled ?? true;
-    const current = showing ? (preferences?.displayMode ?? 'bilingual') : 'off';
-    const at = CAPTION_MODES.findIndex((mode) => mode.value === current);
-    panelAction('captions-mode', CAPTION_MODES[(at + 1) % CAPTION_MODES.length]!.value);
-  });
+
   // A word here is as good a place to ask about as one in the list beside it.
   $('#original').addEventListener('click', (event) => {
     if (!(window.getSelection()?.isCollapsed ?? true)) return;

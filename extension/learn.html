@@ -88,8 +88,23 @@
           <div class="subtitles" id="subtitles" aria-live="off">
             <p id="original">字幕会随播放同步显示</p>
             <p id="translated"></p>
-            <button id="explain-caption" class="caption-explain" title="让 AI 解释这一句">
-              AI 解释这句
+            <button
+              id="explain-caption"
+              class="caption-explain"
+              title="让 AI 解释这一句"
+              aria-label="让 AI 解释这一句"
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path
+                  d="M8 2.4q1.5 4.1 5.6 5.6-4.1 1.5-5.6 5.6-1.5-4.1-5.6-5.6Q6.5 6.5 8 2.4z"
+                  fill="currentColor"
+                />
+                <path
+                  d="M15 11.4q.8 2.2 3 3-2.2.8-3 3-.8-2.2-3-3 2.2-.8 3-3z"
+                  fill="currentColor"
+                  opacity="0.75"
+                />
+              </svg>
             </button>
           </div>
           <div class="playback">
@@ -105,22 +120,106 @@
                 ><time id="clock">0:00 / 0:00</time>
               </div>
               <div class="playback-options">
-                <label for="speed" class="sr-only">播放速度</label
-                ><select id="speed">
-                  <option value="0.75">0.75×</option>
-                  <option value="1" selected>1×</option>
-                  <option value="1.25">1.25×</option>
-                  <option value="1.5">1.5×</option>
-                  <option value="2">2×</option>
-                </select>
-                <button
-                  id="captions-toggle"
-                  aria-label="字幕显示方式"
-                  aria-pressed="true"
-                  title="双语对照"
-                >
-                  CC<small id="captions-mode">双</small></button
-                ><button id="fullscreen" aria-label="全屏学习" title="全屏学习">⛶</button>
+                <div class="menu-wrap">
+                  <div id="speed-menu" class="player-menu" role="group" aria-label="播放速度" hidden>
+                    <div class="player-menu-head">
+                      <span>播放速度</span><b id="speed-now">1×</b>
+                    </div>
+                    <div class="player-menu-grid" id="speed-options"></div>
+                  </div>
+                  <button id="speed-toggle" aria-label="播放速度" aria-expanded="false" title="播放速度">
+                    <svg viewBox="0 0 20 20" aria-hidden="true" class="player-icon">
+                      <path
+                        d="M3.6 15.2a8 8 0 1 1 12.8 0"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                        stroke-linecap="round"
+                      />
+                      <path
+                        d="M10 11.2 13.6 7"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                        stroke-linecap="round"
+                      />
+                      <circle cx="10" cy="11.6" r="1.5" fill="currentColor" />
+                    </svg>
+                  </button>
+                </div>
+                <div class="menu-wrap">
+                  <div id="volume-menu" class="player-menu" role="group" aria-label="音量" hidden>
+                    <div class="player-menu-head"><span>音量</span><b id="volume-now">100</b></div>
+                    <input
+                      id="volume"
+                      class="player-slider"
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value="100"
+                      aria-label="音量"
+                    />
+                  </div>
+                  <button id="volume-toggle" aria-label="音量" aria-expanded="false" title="音量">
+                    <svg viewBox="0 0 20 20" aria-hidden="true" class="player-icon">
+                      <path
+                        d="M9.4 3.6 5.6 6.8H3a.9.9 0 0 0-.9.9v4.6a.9.9 0 0 0 .9.9h2.6l3.8 3.2z"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                        stroke-linejoin="round"
+                      />
+                      <path
+                        id="volume-waves"
+                        d="M12.8 7.2a4 4 0 0 1 0 5.6M15.2 5a7 7 0 0 1 0 10"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                        stroke-linecap="round"
+                      />
+                    </svg>
+                  </button>
+                </div>
+                <div class="menu-wrap">
+                  <div id="captions-menu" class="player-menu" role="group" aria-label="字幕显示" hidden>
+                    <div class="player-menu-head"><span>字幕</span></div>
+                    <div class="player-menu-grid" id="captions-options"></div>
+                  </div>
+                  <button
+                    id="captions-toggle"
+                    aria-label="字幕显示方式"
+                    aria-expanded="false"
+                    aria-pressed="true"
+                    title="字幕显示方式"
+                  >
+                    <svg viewBox="0 0 22 20" aria-hidden="true" class="player-icon">
+                      <rect
+                        x="1.6"
+                        y="3.4"
+                        width="15.6"
+                        height="13.2"
+                        rx="3.4"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                      />
+                      <path
+                        d="M7.6 8.6a2.4 2.4 0 1 0 0 2.8M13 8.6a2.4 2.4 0 1 0 0 2.8"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                        stroke-linecap="round"
+                      />
+                      <path
+                        class="cc-spark"
+                        d="M18.6 1.6q.7 2.5 3 3.2-2.3.7-3 3.2-.7-2.5-3-3.2 2.3-.7 3-3.2z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </button>
+                </div>
+                <button id="fullscreen" aria-label="全屏学习" title="全屏学习">⛶</button>
               </div>
             </div>
           </div>

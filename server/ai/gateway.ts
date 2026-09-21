@@ -7,7 +7,7 @@ import type { Store } from '../store/types';
  * Bump whenever a prompt, schema or pipeline rule changes. It is part of every cache key, so a
  * change retires the old artifacts instead of serving results the current code would not produce.
  */
-export const PIPELINE_VERSION = 5;
+export const PIPELINE_VERSION = 6;
 
 async function sha256(value: unknown): Promise<string> {
   const bytes = new TextEncoder().encode(JSON.stringify(value));

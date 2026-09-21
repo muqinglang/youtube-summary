@@ -183,6 +183,13 @@ export class YoutubePlayer {
     this.requireReady();
     this.post('setPlaybackRate', [rate]);
   }
+  /** 0-100, the range the embedded player itself works in. */
+  volume(level: number) {
+    this.requireReady();
+    const bounded = Math.round(Math.min(100, Math.max(0, level)));
+    this.post(bounded ? 'unMute' : 'mute');
+    this.post('setVolume', [bounded]);
+  }
   private requireReady() {
     if (!this.sourceMatches) throw new Error(this.identityError());
     if (!this.ready) throw new Error('视频播放器尚未就绪，请先点击视频播放。');

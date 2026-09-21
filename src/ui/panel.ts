@@ -1435,6 +1435,24 @@ function renderExplanation(explanation: Explanation, cue: Cue | undefined, mode:
   parts.push(
     explainSection(mode === 'sentence' ? '这句话在说什么' : '在这句里', explanation.meaning),
   );
+  const points = explanation.points ?? [];
+  if (points.length) {
+    const block = document.createElement('section');
+    block.className = 'explain-section';
+    const heading = document.createElement('h3');
+    heading.textContent = '要点';
+    const list = document.createElement('dl');
+    list.className = 'explain-points';
+    for (const point of points) {
+      const label = document.createElement('dt');
+      label.textContent = point.label;
+      const text = document.createElement('dd');
+      text.textContent = point.text;
+      list.append(label, text);
+    }
+    block.append(heading, list);
+    parts.push(block);
+  }
   const senses = explanation.senses ?? [];
   if (senses.length) {
     const block = document.createElement('section');

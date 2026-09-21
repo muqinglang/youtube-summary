@@ -372,7 +372,10 @@ test('independent learning page: source untouched, embedded playback, real API, 
     await source.locator('video').evaluate((video: HTMLVideoElement) => video.currentTime),
   ).toBe(7);
   await expect(panel.locator('[data-cue="2"]')).toHaveAttribute('aria-current', 'true');
-  await learning.locator('#speed').selectOption('1.5');
+  // Speed is a menu now, not a select: open it and pick.
+  await learning.locator('#speed-toggle').click();
+  await learning.locator('#speed-options .player-menu-option', { hasText: '1.5×' }).click();
+  await expect(learning.locator('#speed-menu')).toBeHidden();
   await expect
     .poll(() => embed.locator('video').evaluate((video: HTMLVideoElement) => video.playbackRate))
     .toBe(1.5);
@@ -506,13 +509,16 @@ test('independent learning page: source untouched, embedded playback, real API, 
     expect(lastPieces[index]!.text).not.toBe(firstPieces[index]!.text);
   }
   await showCaption(shown[0]!, shown[1]!, 0, 1e6);
-  // CC steps through 双语 → 仅原文 → 仅译文 → 关闭, so the panel's own select follows it.
-  await learning.locator('#captions-toggle').click();
+  // CC opens a menu; whatever is picked there is what the panel's own 字幕显示 shows.
+  const pickCaption = async (label: string) => {
+    await learning.locator('#captions-toggle').click();
+    await learning.locator('#captions-options .player-menu-option', { hasText: label }).click();
+  };
+  await pickCaption('仅原文');
   await expect(panel.locator('#display-mode')).toHaveValue('original');
-  await expect(learning.locator('#captions-mode')).toHaveText('原');
-  await learning.locator('#captions-toggle').click();
+  await pickCaption('仅译文');
   await expect(panel.locator('#display-mode')).toHaveValue('translated');
-  await learning.locator('#captions-toggle').click();
+  await pickCaption('不显示');
   await expect(learning.locator('#captions-toggle')).toHaveAttribute('aria-pressed', 'false');
   await expect(panel.locator('#overlay-enabled')).not.toBeChecked();
   await expect(learning.locator('#subtitles')).toBeHidden();
@@ -520,7 +526,10 @@ test('independent learning page: source untouched, embedded playback, real API, 
   await panel.locator('#overlay-enabled').check();
   await expect(learning.locator('#captions-toggle')).toHaveAttribute('aria-pressed', 'true');
   await panel.locator('#display-mode').selectOption('bilingual');
-  await expect(learning.locator('#captions-mode')).toHaveText('双');
+  await learning.locator('#captions-toggle').click();
+  await expect(learning.locator('#captions-options .is-current')).toHaveText('双语');
+  await learning.locator('#captions-toggle').click();
+  await expect(learning.locator('#captions-menu')).toBeHidden();
   await expect(learning.locator('#subtitles')).toBeVisible();
   await expect.poll(captionCommands).toEqual([
     { func: 'unloadModule', args: ['captions'] },

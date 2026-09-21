@@ -106,9 +106,13 @@ Explain the supplied "term" as THIS video uses it, using only the surrounding cu
 const WORD_SCHEMA = `Return {"term":string,"kind":string,"meaning":string}.
 The supplied "term" is a word the viewer tapped in the subtitle. "term" echoes it unchanged. "kind" is exactly one of "concept", "person", "tool", "work", "term".
 "meaning" is one or two short sentences, in the requested language, on which sense of the word THIS line uses and why the speaker chose it here. Do not list its other dictionary senses, do not give its pronunciation, and do not restate the line. Say plainly when the surrounding cues do not settle which sense is meant.`;
-const SENTENCE_SCHEMA = `Return {"term":string,"kind":string,"meaning":string}.
+// One block of prose is the hardest thing to read back. The parts a reader actually looks for —
+// what it says, which words carry weight, where it sits in the conversation — come back separately.
+const SENTENCE_SCHEMA = `Return {"term":string,"kind":string,"meaning":string,"points":[{"label":string,"text":string}]}.
 The supplied "term" is one subtitle line the viewer did not follow. "term" echoes that line unchanged and "kind" is "concept".
-"meaning" explains the line in the requested language, in three to five sentences: first what it is saying in plain words, then any jargon, name, product or event in it that a viewer would have to already know, then what in the surrounding cues it is answering or leading to. Explain only what this line and the surrounding cues support; never invent background, and say so when the line depends on something the cues never state.`;
+"meaning" is one or two sentences in the requested language saying what this line is saying, in plain words. Nothing else belongs here.
+"points" is two to four entries, each about one thing in this line a viewer would have to already know: a term, a name, a product, a reference, or what the line is answering or leading to in the surrounding cues. "label" is that thing itself, two to six characters where possible (the word, the name, or 承上启下). "text" explains it in one or two sentences.
+Explain only what this line and the surrounding cues support. Never invent background: when the line depends on something the cues never state, say that in a point instead of guessing.`;
 const GLOSSARY_SCHEMA = `Return {"terms":[{"term":string,"kind":string,"meaning":string,"start":number}]}.
 List the named things a viewer must recognise to follow THIS fragment: concepts, people, tools, products, books, papers and domain jargon the speaker uses without defining. "kind" is exactly one of "concept", "person", "tool", "work", "term". "meaning" explains it in one or two sentences as this video uses it, not as a dictionary would. "start" MUST equal the evidence timestamp where it first appears here. Skip ordinary words, and return {"terms":[]} when the fragment introduces nothing worth listing.`;
 const OUTLINE_SCHEMA = `Return {"verdict":{"topic":string,"audience":string,"prerequisites":string,"advice":string},"sections":[{"title":string,"start":number,"density":number,"kind":string}]}.

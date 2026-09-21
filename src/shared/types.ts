@@ -141,6 +141,8 @@ export interface Explanation {
   /** IPA, for a word the viewer tapped. Empty for a phrase, a name or a whole line. */
   phonetic?: string;
   senses?: WordSense[];
+  /** For a whole line: the terms and background it takes for granted, one each. */
+  points?: { label: string; text: string }[];
 }
 
 /** A question to hold in mind before watching, plus where the video answers it. */

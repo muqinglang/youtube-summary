@@ -339,18 +339,94 @@ h1 {
   left: 50%;
   transform: translateX(-50%);
 }
-.playback #captions-toggle {
+/* ---- Player menus ---------------------------------------------------------
+   Speed, volume and captions each open a small panel above their own button,
+   rather than cycling: four caption states and six speeds are too many to step
+   through, and a list shows what the other choices even are. */
+.menu-wrap {
+  position: relative;
   display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 12px;
-  font-weight: 700;
 }
-/* Which of the four the button is on, in the button itself: a CC that only toggles says nothing. */
-#captions-mode {
-  font-size: 10px;
-  font-weight: 600;
-  opacity: 0.75;
+.player-icon {
+  width: 19px;
+  height: 19px;
+  display: block;
+}
+.cc-spark {
+  opacity: 0.85;
+}
+.player-menu {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  right: 0;
+  z-index: 20;
+  width: 212px;
+  padding: 12px;
+  border: 1px solid #2f3336;
+  border-radius: 14px;
+  background: #16181a;
+  box-shadow: 0 14px 34px rgb(0 0 0 / 55%);
+}
+.player-menu[hidden] {
+  display: none;
+}
+.player-menu-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: #a6adaf;
+}
+.player-menu-head b {
+  color: var(--gold);
+  font-size: 13px;
+}
+.player-menu-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.player-menu-option {
+  padding: 7px 4px;
+  border: 1px solid #2f3336;
+  border-radius: 9px;
+  background: #1d2022;
+  color: #c7cacf;
+  font-size: 12px;
+  cursor: pointer;
+}
+.player-menu-option:hover {
+  border-color: #4a4534;
+  color: #fff;
+}
+.player-menu-option.is-current {
+  border-color: var(--gold);
+  background: #343020;
+  color: var(--gold);
+}
+/* Captions have four choices, so they wrap two by two instead of three across. */
+#captions-options {
+  grid-template-columns: repeat(2, 1fr);
+}
+.player-slider {
+  width: 100%;
+  height: 4px;
+  appearance: none;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--gold) calc(var(--progress, 1) * 100%),
+    #33383b calc(var(--progress, 1) * 100%)
+  );
+}
+.player-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--gold);
+  cursor: pointer;
 }
 #captions-toggle[aria-pressed='true'] {
   color: var(--gold);
@@ -600,15 +676,24 @@ h1 {
   position: absolute;
   top: 6px;
   right: 8px;
-  padding: 3px 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
   border: 1px solid var(--border, #303437);
   border-radius: 999px;
   background: rgb(0 0 0 / 35%);
   color: var(--muted, #a6adaf);
-  font-size: 11px;
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.14s ease;
+}
+.caption-explain svg {
+  width: 16px;
+  height: 16px;
+  display: block;
 }
 .subtitles:hover .caption-explain,
 .caption-explain:focus-visible {
