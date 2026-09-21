@@ -2558,9 +2558,7 @@ async function searchLibrary(query: string): Promise<void> {
 
 function appendLibraryResults(query: string, matches: LibraryMatch[]): void {
   const item = document.createElement('section');
-  const asked = document.createElement('div');
-  asked.className = 'user-message';
-  asked.textContent = query;
+  item.innerHTML = userTurn(query);
   const answer = document.createElement('div');
   answer.className = 'answer';
   const label = document.createElement('span');
@@ -2597,7 +2595,7 @@ function appendLibraryResults(query: string, matches: LibraryMatch[]): void {
     card.append(title, text, where);
     answer.append(card);
   }
-  item.append(asked, answer);
+  item.append(answer);
   $('#messages').append(item);
   $('#messages').scrollTo({ top: $('#messages').scrollHeight, behavior: 'smooth' });
 }
@@ -2606,6 +2604,15 @@ function appendLibraryResults(query: string, matches: LibraryMatch[]): void {
 const HISTORY_TURNS = 4;
 /** The mascot's head gives answers a face; while a reply is pending it tilts and glances about. */
 const ANSWER_HEAD = `<div class="answer-head"><span class="ai-avatar" aria-hidden="true">${MASCOT_AVATAR}</span><span class="answer-label">旁听 AI</span></div>`;
+
+/**
+ * The viewer's side of an exchange, as in any chat: who asked, then what. The name sits outside
+ * the bubble because the bubble's text is what goes back to the model as history.
+ */
+function userTurn(question: string): string {
+  const name = state.settings?.accountEmail.split('@')[0] || '我';
+  return `<div class="user-turn"><div class="user-head"><span class="user-name">${esc(name)}</span><span class="user-avatar" aria-hidden="true">${esc([...name][0]!.toUpperCase())}</span></div><div class="user-message">${esc(question)}</div></div>`;
+}
 
 async function ask(question: string): Promise<void> {
   question = question.trim();
@@ -2639,7 +2646,7 @@ async function ask(question: string): Promise<void> {
 
 function appendExchange(question: string): HTMLElement {
   const item = document.createElement('section');
-  item.innerHTML = `<div class="user-message">${esc(question)}</div><div class="answer is-pending" aria-busy="true">${ANSWER_HEAD}<div class="pending"><span class="pending-label">正在准备内容…</span><span class="pending-time" aria-hidden="true"></span><button type="button" class="text-button stop-answer">停止回答</button></div></div>`;
+  item.innerHTML = `${userTurn(question)}<div class="answer is-pending" aria-busy="true">${ANSWER_HEAD}<div class="pending"><span class="pending-label">正在准备内容…</span><span class="pending-time" aria-hidden="true"></span><button type="button" class="text-button stop-answer">停止回答</button></div></div>`;
   item.querySelector('.stop-answer')?.addEventListener('click', () => state.job?.abort());
   $('#messages').append(item);
   $('#messages').scrollTo({ top: $('#messages').scrollHeight, behavior: 'smooth' });
