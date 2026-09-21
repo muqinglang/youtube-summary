@@ -187,8 +187,11 @@ h1 {
    constant; a cue too long for its box is shown a piece at a time instead (paintCaption in
    learn.ts). */
 .subtitles {
+  /* Named once: the caption lines and the button that sits beside them share this edge. */
+  --caption-max: 1100px;
+  --caption-pad: 40px;
   flex: none;
-  padding: 10px 40px 14px;
+  padding: 10px var(--caption-pad) 14px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -197,7 +200,7 @@ h1 {
 }
 .subtitles p {
   margin: 0;
-  max-width: 1100px;
+  max-width: var(--caption-max);
   line-height: var(--caption-line);
   overflow-wrap: anywhere;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
@@ -360,8 +363,8 @@ h1 {
   bottom: calc(100% + 10px);
   right: 0;
   z-index: 20;
-  width: 212px;
-  padding: 12px;
+  width: 196px;
+  padding: 10px;
   border: 1px solid #2f3336;
   border-radius: 14px;
   background: #16181a;
@@ -374,33 +377,41 @@ h1 {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  margin-bottom: 10px;
-  font-size: 12px;
-  color: #a6adaf;
+  margin-bottom: 8px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: #8f9699;
 }
 .player-menu-head b {
   color: var(--gold);
-  font-size: 13px;
+  font-size: 12px;
 }
 .player-menu-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
+  gap: 5px;
 }
-.player-menu-option {
-  padding: 7px 4px;
+/* Scoped to .playback on purpose: `.playback button` sets a 38px pill at 22px type for the
+   transport controls, and it outranks a lone class selector in here. */
+.playback .player-menu-option {
+  min-width: 0;
+  height: auto;
+  padding: 6px 4px;
   border: 1px solid #2f3336;
-  border-radius: 9px;
+  border-radius: 8px;
   background: #1d2022;
   color: #c7cacf;
   font-size: 12px;
+  line-height: 1.5;
+  font-weight: 400;
   cursor: pointer;
 }
-.player-menu-option:hover {
+.playback .player-menu-option:hover {
   border-color: #4a4534;
+  background: #23262a;
   color: #fff;
 }
-.player-menu-option.is-current {
+.playback .player-menu-option.is-current {
   border-color: var(--gold);
   background: #343020;
   color: var(--gold);
@@ -409,13 +420,34 @@ h1 {
 #captions-options {
   grid-template-columns: repeat(2, 1fr);
 }
+/* Volume stands up: it is one value, and a column next to the button reads faster than a bar. */
+.player-menu-column {
+  /* Narrow enough to centre over its own button instead of hanging off the right edge. */
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%);
+  width: auto;
+  min-width: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 10px 14px;
+}
+.player-menu-column b {
+  color: var(--gold);
+  font-size: 12px;
+  line-height: 1;
+}
 .player-slider {
-  width: 100%;
-  height: 4px;
+  writing-mode: vertical-rl;
+  direction: rtl;
+  width: 6px;
+  height: 104px;
   appearance: none;
   border-radius: 999px;
   background: linear-gradient(
-    to right,
+    to top,
     var(--gold) calc(var(--progress, 1) * 100%),
     #33383b calc(var(--progress, 1) * 100%)
   );
@@ -675,12 +707,20 @@ h1 {
 .caption-explain {
   position: absolute;
   top: 6px;
-  right: 8px;
+  /* Just outside the caption's own right edge, not the window's: the text is centred and capped,
+     so on a wide screen the far corner is nowhere near what it refers to. */
+  right: max(
+    8px,
+    calc((100% - var(--caption-max) - var(--caption-pad) * 2) / 2 + var(--caption-pad) - 42px)
+  );
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  box-sizing: border-box;
+  width: 34px;
+  height: 34px;
+  /* The shared button rule sets a 34px minimum, which turned a 30px box into an oval. */
+  min-height: 0;
   padding: 0;
   border: 1px solid var(--border, #303437);
   border-radius: 999px;
