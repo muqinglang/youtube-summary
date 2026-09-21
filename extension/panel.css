@@ -2187,6 +2187,16 @@ dialog .text-button {
 }
 /* The title leads, the way out sits at the far end: a close button beside a title reads as part
    of it, and this one is the last thing in the row instead. */
+.explain-panel-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--accent);
+}
+.explain-panel-icon svg {
+  width: 17px;
+  height: 17px;
+  display: block;
+}
 #explain-panel-title {
   flex: 1;
   font-size: 13px;

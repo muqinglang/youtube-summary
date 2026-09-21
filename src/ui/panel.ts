@@ -1322,6 +1322,28 @@ let explainSubject:
     }
   | undefined;
 
+/** One mark per kind of answer, so the drawer says what it is before its content loads. */
+const DRAWER_HEADS = {
+  word: {
+    title: 'AI 词典',
+    icon: '<path d="M3 3.6h5.2A2.8 2.8 0 0 1 11 6.4v8.2a2.2 2.2 0 0 0-2.2-2.2H3zM19 3.6h-5.2A2.8 2.8 0 0 0 11 6.4v8.2a2.2 2.2 0 0 1 2.2-2.2H19z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>',
+  },
+  sentence: {
+    title: 'AI 解释这一句',
+    icon: '<path d="M8 2.4q1.5 4.1 5.6 5.6-4.1 1.5-5.6 5.6-1.5-4.1-5.6-5.6Q6.5 6.5 8 2.4z" fill="currentColor"/><path d="M15 11.4q.8 2.2 3 3-2.2.8-3 3-.8-2.2-3-3 2.2-.8 3-3z" fill="currentColor" opacity="0.7"/>',
+  },
+  note: {
+    title: '笔记',
+    icon: '<path d="M14.2 2.8 17.2 5.8 7.4 15.6l-4 1 1-4z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>',
+  },
+} as const;
+
+function setDrawerHead(kind: keyof typeof DRAWER_HEADS): void {
+  const head = DRAWER_HEADS[kind];
+  $('#explain-panel-title').textContent = head.title;
+  $('#explain-panel-icon').innerHTML = `<svg viewBox="0 0 20 20">${head.icon}</svg>`;
+}
+
 function closeExplainPanel(): void {
   $('#explain-panel').classList.remove('is-open');
   const marked = explainSubject;
@@ -1620,7 +1642,7 @@ async function explainInPanel(term: string, cueIndex: number, mode: ExplainMode)
   renderTranscript();
   const cue = cues[cueIndex];
   $('#explain-panel').classList.add('is-open');
-  $('#explain-panel-title').textContent = mode === 'sentence' ? 'AI 解释这一句' : 'AI 词典';
+  setDrawerHead(mode === 'sentence' ? 'sentence' : 'word');
   let waiting: { parts: HTMLElement[]; fail: (message: string) => void } | undefined;
   if (mode === 'word') {
     renderWordCard(subject, cue);
@@ -1685,7 +1707,7 @@ async function openNote(ref: string): Promise<void> {
   const here = videoId === state.video?.id;
   explainSubject = undefined;
   $('#explain-panel').classList.add('is-open');
-  $('#explain-panel-title').textContent = '笔记';
+  setDrawerHead('note');
   const quote = document.createElement(here ? 'button' : 'div');
   quote.className = 'explain-source';
   // Another video's note cannot seek this player, so it links out to where it was taken instead.
