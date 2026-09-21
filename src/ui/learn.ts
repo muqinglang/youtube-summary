@@ -26,12 +26,27 @@ let caption: { start: number; end: number; original: string; translated: string 
 let captionPieces = { width: -1, original: [''], translated: [''] };
 const words = new Intl.Segmenter(undefined, { granularity: 'word' });
 
+/**
+ * What the CC button steps through. Bilingual first because that is what the panel opens with,
+ * and off last so the two single-language modes are one click apart.
+ */
+const CAPTION_MODES = [
+  { value: 'bilingual', mark: '双', title: '双语对照' },
+  { value: 'original', mark: '原', title: '仅原文' },
+  { value: 'translated', mark: '译', title: '仅译文' },
+  { value: 'off', mark: '关', title: '不显示字幕' },
+] as const;
+
 function applyPreferences(next: LearningPreferences) {
   const previous = preferences;
   preferences = next;
   $<HTMLButtonElement>('#settings').disabled = next.busy;
   $('#subtitles').hidden = !next.overlayEnabled;
+  const state = next.overlayEnabled ? next.displayMode : 'off';
+  const label = CAPTION_MODES.find((mode) => mode.value === state) ?? CAPTION_MODES[0];
   $('#captions-toggle').setAttribute('aria-pressed', String(next.overlayEnabled));
+  $('#captions-toggle').title = label.title;
+  $('#captions-mode').textContent = label.mark;
   if (next.overlayEnabled && previous?.overlayEnabled === false)
     player.setExternalCaptions(true, true);
 }
@@ -313,7 +328,12 @@ async function initialize() {
   on('#speed', () => player.speed(Number($<HTMLSelectElement>('#speed').value)), 'change');
   on('#settings', () => panelAction('settings'));
   on('#guide', () => panelAction('guide'));
-  on('#captions-toggle', () => panelAction('captions', !(preferences?.overlayEnabled ?? true)));
+  on('#captions-toggle', () => {
+    const showing = preferences?.overlayEnabled ?? true;
+    const current = showing ? (preferences?.displayMode ?? 'bilingual') : 'off';
+    const at = CAPTION_MODES.findIndex((mode) => mode.value === current);
+    panelAction('captions-mode', CAPTION_MODES[(at + 1) % CAPTION_MODES.length]!.value);
+  });
   // A word here is as good a place to ask about as one in the list beside it.
   $('#original').addEventListener('click', (event) => {
     if (!(window.getSelection()?.isCollapsed ?? true)) return;

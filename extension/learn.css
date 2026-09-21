@@ -340,8 +340,17 @@ h1 {
   transform: translateX(-50%);
 }
 .playback #captions-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   font-size: 12px;
   font-weight: 700;
+}
+/* Which of the four the button is on, in the button itself: a CC that only toggles says nothing. */
+#captions-mode {
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.75;
 }
 #captions-toggle[aria-pressed='true'] {
   color: var(--gold);

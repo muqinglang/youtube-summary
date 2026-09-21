@@ -31,6 +31,8 @@ export interface VideoChapter {
 
 export interface LearningPreferences {
   overlayEnabled: boolean;
+  /** Which of the two lines the caption under the player is showing. */
+  displayMode: DisplayMode;
   busy: boolean;
 }
 

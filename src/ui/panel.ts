@@ -180,6 +180,7 @@ function publishPreferences(): void {
   if (!workspace) return;
   const preferences: LearningPreferences = {
     overlayEnabled: $<HTMLInputElement>('#overlay-enabled').checked,
+    displayMode: state.displayMode,
     busy: Boolean(state.job),
   };
   const identity = JSON.stringify(preferences);
@@ -960,7 +961,12 @@ function showTab(tab: Tab): void {
     $(`#view-${name}`).hidden = name !== tab;
   }
   closeExport();
-  if (tab === 'transcript' && state.follow) followCurrent();
+  // Coming back to the subtitles means wanting to read along again: whatever turned following off
+  // — a scroll to look something up, a page button — was about the visit that just ended.
+  if (tab === 'transcript') {
+    setFollow(true);
+    followCurrent();
+  }
   if (tab === 'chapters') updateChapterPlayback(true);
 }
 
@@ -1732,6 +1738,16 @@ async function clipExplained(): Promise<void> {
     state.translations[cue.id] ?? '',
     subject.explanation ? explanationNote(subject.explanation, subject.mode) : '',
   );
+}
+
+/** One place to change how the two lines are shown, whichever control asked for it. */
+function applyDisplayMode(mode: DisplayMode): void {
+  state.displayMode = mode;
+  $<HTMLSelectElement>('#display-mode').value = mode;
+  renderTranscript();
+  updatePlayback();
+  followCurrent();
+  publishPreferences();
 }
 
 function renderTranscript(): void {
@@ -3177,12 +3193,7 @@ function bindEvents(): void {
   });
   for (const event of ['wheel', 'touchmove'])
     $('#transcript-list').addEventListener(event, () => setFollow(false), { passive: true });
-  on('#display-mode', 'change', () => {
-    state.displayMode = $<HTMLSelectElement>('#display-mode').value as DisplayMode;
-    renderTranscript();
-    updatePlayback();
-    followCurrent();
-  });
+  on('#display-mode', 'change', () => applyDisplayMode($<HTMLSelectElement>('#display-mode').value as DisplayMode));
   on('#font-size', 'change', () => {
     $('#transcript-list').classList.toggle(
       'large-captions',
@@ -3356,6 +3367,17 @@ function bindEvents(): void {
             void explainInPanel(cue.text, state.activeCue, 'sentence').catch((error: unknown) =>
               notice(errorMessage(error), true),
             );
+        }
+        // The CC button cycles the same setting the drawer's 字幕显示 does, so the two agree.
+        if (event.data.action === 'captions-mode' && typeof event.data.value === 'string') {
+          const wanted = event.data.value;
+          const showing = wanted !== 'off';
+          $<HTMLInputElement>('#overlay-enabled').checked = showing;
+          if (showing) applyDisplayMode(wanted as DisplayMode);
+          else {
+            updatePlayback();
+            publishPreferences();
+          }
         }
         if (event.data.action === 'captions' && typeof event.data.value === 'boolean') {
           $<HTMLInputElement>('#overlay-enabled').checked = event.data.value;

@@ -506,6 +506,12 @@ test('independent learning page: source untouched, embedded playback, real API, 
     expect(lastPieces[index]!.text).not.toBe(firstPieces[index]!.text);
   }
   await showCaption(shown[0]!, shown[1]!, 0, 1e6);
+  // CC steps through 双语 → 仅原文 → 仅译文 → 关闭, so the panel's own select follows it.
+  await learning.locator('#captions-toggle').click();
+  await expect(panel.locator('#display-mode')).toHaveValue('original');
+  await expect(learning.locator('#captions-mode')).toHaveText('原');
+  await learning.locator('#captions-toggle').click();
+  await expect(panel.locator('#display-mode')).toHaveValue('translated');
   await learning.locator('#captions-toggle').click();
   await expect(learning.locator('#captions-toggle')).toHaveAttribute('aria-pressed', 'false');
   await expect(panel.locator('#overlay-enabled')).not.toBeChecked();
@@ -513,6 +519,8 @@ test('independent learning page: source untouched, embedded playback, real API, 
   await expect(embed.locator('#native-captions')).toBeHidden();
   await panel.locator('#overlay-enabled').check();
   await expect(learning.locator('#captions-toggle')).toHaveAttribute('aria-pressed', 'true');
+  await panel.locator('#display-mode').selectOption('bilingual');
+  await expect(learning.locator('#captions-mode')).toHaveText('双');
   await expect(learning.locator('#subtitles')).toBeVisible();
   await expect.poll(captionCommands).toEqual([
     { func: 'unloadModule', args: ['captions'] },
