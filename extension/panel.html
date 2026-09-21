@@ -356,58 +356,26 @@
           </button>
         </div>
         <form id="question-form">
-          <label for="question" class="sr-only">关于视频的问题</label
-          ><textarea
-            id="question"
-            rows="2"
-            maxlength="2000"
-            placeholder="关于这段视频，你想了解什么？"
-          ></textarea>
-          <div>
-            <span>Enter 发送，Shift + Enter 换行</span
-            ><button type="submit" id="ask-btn" class="button primary" aria-label="发送问题">
-              ↑
-            </button>
+          <div class="composer">
+            <label for="question" class="sr-only">关于视频的问题</label
+            ><textarea
+              id="question"
+              rows="2"
+              maxlength="2000"
+              placeholder="关于这段视频，你想了解什么？"
+            ></textarea>
+            <div class="composer-bar">
+              <span>Enter 发送，Shift + Enter 换行</span
+              ><button type="submit" id="ask-btn" class="button primary" aria-label="发送问题">
+                ↑
+              </button>
+            </div>
           </div>
         </form>
       </section>
       <div id="job-status" class="job-overlay" hidden role="status" aria-live="polite">
         <div class="job-card">
-          <div class="job-cat" aria-hidden="true">
-            <svg viewBox="0 0 160 140" class="pup" focusable="false">
-              <ellipse class="pup-shadow" cx="78" cy="130" rx="30" ry="4" />
-              <g class="pup-all">
-                <g class="pup-tail">
-                  <path class="pup-tail-line" d="M42 76c-14-4-18-16-9-21 5-3 9 2 6 6" />
-                </g>
-                <g class="pup-legs pup-legs-back">
-                  <path class="pup-limb" d="M58 100 46 120M67 104 58 124" />
-                  <path class="pup-fine" d="m42 120 4 2m10 2 4 2" />
-                </g>
-                <g class="pup-legs pup-legs-front">
-                  <path class="pup-limb" d="M92 98 104 118M84 103 94 124" />
-                  <path class="pup-fine" d="m104 118 3 3m-13 3 3 3" />
-                </g>
-                <ellipse class="pup-solid" cx="70" cy="84" rx="32" ry="22" />
-                <ellipse class="pup-belly" cx="72" cy="94" rx="20" ry="10" />
-                <g class="pup-head">
-                  <circle class="pup-solid" cx="112" cy="62" r="20" />
-                  <ellipse class="pup-solid" cx="131" cy="70" rx="12.5" ry="9" />
-                  <ellipse class="pup-dot" cx="139" cy="66.5" rx="5" ry="4" />
-                  <path class="pup-mouth" d="M139 71v3m0 0q-4 4-7 .5" />
-                  <g class="pup-eyes">
-                    <ellipse class="pup-dot" cx="115" cy="56" rx="3.6" ry="4.4" />
-                    <circle class="pup-eye-shine" cx="116" cy="54.5" r="1.2" />
-                  </g>
-                  <ellipse class="pup-blush" cx="102" cy="72" rx="6" ry="3" />
-                  <g class="pup-ear">
-                    <path class="pup-solid" d="M104 44c-17 3-22 19-14 30 6 8 14 3 15-7Z" />
-                    <path class="pup-ear-inner" d="M101 52c-8 3-10 13-6 19 3 4 7 1 7-4Z" />
-                  </g>
-                </g>
-              </g>
-            </svg>
-          </div>
+          <div id="job-mascot" class="job-mascot" aria-hidden="true"></div>
           <p id="job-label" class="job-label">正在处理</p>
           <div
             id="job-progress"

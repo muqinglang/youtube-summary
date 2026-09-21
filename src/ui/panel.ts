@@ -1,4 +1,5 @@
 import '../shared/zod-setup';
+import { MASCOT_AVATAR, MASCOT_LOADING } from './mascot';
 import {
   buildMarkdown,
   buildSrt,
@@ -411,7 +412,8 @@ function renderGuide(): void {
       answer.className = 'guide-answer';
       answer.id = `guide-answer-${index}`;
       answer.hidden = true;
-      answer.textContent = item.answer || '视频里没有正面回答这个问题，可以跳到这个时间点自己看看。';
+      answer.textContent =
+        item.answer || '视频里没有正面回答这个问题，可以跳到这个时间点自己看看。';
 
       card.append(row, jump, answer);
       return card;
@@ -1432,7 +1434,11 @@ function occurrenceRow(spots: number[]): HTMLElement {
   return row;
 }
 
-function renderExplanation(explanation: Explanation, cue: Cue | undefined, mode: ExplainMode): void {
+function renderExplanation(
+  explanation: Explanation,
+  cue: Cue | undefined,
+  mode: ExplainMode,
+): void {
   const parts: HTMLElement[] = [];
   if (mode !== 'sentence') {
     const head = document.createElement('div');
@@ -1647,7 +1653,11 @@ async function explainInPanel(term: string, cueIndex: number, mode: ExplainMode)
   if (mode === 'word') {
     renderWordCard(subject, cue);
     // The dictionary half owes nothing to the model and arrives in a fraction of the time.
-    void lookupWord(term, $<HTMLSelectElement>('#target-language').value, new AbortController().signal)
+    void lookupWord(
+      term,
+      $<HTMLSelectElement>('#target-language').value,
+      new AbortController().signal,
+    )
       .then((entry) => {
         if (explainSubject !== subject) return;
         subject.entry = entry;
@@ -1675,7 +1685,9 @@ async function explainInPanel(term: string, cueIndex: number, mode: ExplainMode)
     language: $<HTMLSelectElement>('#target-language').value,
   });
   if (explainSubject !== subject) return;
-  const failure = state.job ? '正在处理另一个任务，完成后再试一次。' : '这次没有取到解释，请再试一次。';
+  const failure = state.job
+    ? '正在处理另一个任务，完成后再试一次。'
+    : '这次没有取到解释，请再试一次。';
   if (result?.task !== 'explain') {
     if (!waiting) {
       // The dictionary half may already be on screen; only the model's line is missing.
@@ -1809,9 +1821,8 @@ function renderTranscript(): void {
     const cue = cues[index];
     if (!cue) continue;
     const marked = marks.get(index);
-    const lookup = explainSubject?.mode === 'word' && explainSubject.cue === index
-      ? explainSubject.term
-      : '';
+    const lookup =
+      explainSubject?.mode === 'word' && explainSubject.cue === index ? explainSubject.term : '';
     const source =
       marked || lookup ? markTerms(esc(cue.text), marked ?? [], lookup) : esc(cue.text);
     const original =
@@ -1950,6 +1961,7 @@ function updateActions(): void {
   $<HTMLButtonElement>('#settings-open').disabled = Boolean(state.job);
   // Translation paints subtitles as it goes, an explanation is a two-second aside, and a question
   // is answered inside the conversation; none of them belongs behind the full-panel waiting card.
+  $('#job-status').dataset.task = state.jobTask ?? 'summary';
   $('#job-status').hidden =
     !state.job ||
     state.jobTask === 'translate' ||
@@ -2593,7 +2605,7 @@ function appendLibraryResults(query: string, matches: LibraryMatch[]): void {
 /** Earlier exchanges sent along with a question, so a follow-up can refer back to them. */
 const HISTORY_TURNS = 4;
 /** The mascot's head gives answers a face; while a reply is pending it tilts and glances about. */
-const ANSWER_HEAD = `<div class="answer-head"><span class="ai-avatar" aria-hidden="true"><svg viewBox="10 4 28 28"><g class="avatar-head"><path class="cat-fill" d="M15 14.5 16.2 6l7.2 5.2z"/><path class="cat-fill" d="M33 14.5 31.8 6l-7.2 5.2z"/><circle class="cat-fill" cx="24" cy="19.2" r="9.6"/><g class="avatar-eyes"><circle cx="20.4" cy="18.6" r="1.5"/><circle cx="27.6" cy="18.6" r="1.5"/></g><path class="cat-nose" d="M24 22.4 22.5 23.7h3z"/><path class="cat-whiskers" d="M11.8 17.4h4.2M11.8 21h4.2M36.2 17.4H32M36.2 21H32"/></g></svg></span><span class="answer-label">旁听 AI</span></div>`;
+const ANSWER_HEAD = `<div class="answer-head"><span class="ai-avatar" aria-hidden="true">${MASCOT_AVATAR}</span><span class="answer-label">旁听 AI</span></div>`;
 
 async function ask(question: string): Promise<void> {
   question = question.trim();
@@ -3233,7 +3245,9 @@ function bindEvents(): void {
   });
   for (const event of ['wheel', 'touchmove'])
     $('#transcript-list').addEventListener(event, () => setFollow(false), { passive: true });
-  on('#display-mode', 'change', () => applyDisplayMode($<HTMLSelectElement>('#display-mode').value as DisplayMode));
+  on('#display-mode', 'change', () =>
+    applyDisplayMode($<HTMLSelectElement>('#display-mode').value as DisplayMode),
+  );
   on('#font-size', 'change', () => {
     $('#transcript-list').classList.toggle(
       'large-captions',
@@ -3479,6 +3493,7 @@ function bindGuide(): void {
 }
 
 async function initialize(): Promise<void> {
+  $('#job-mascot').innerHTML = MASCOT_LOADING;
   state.settings = await send<PublicSettings>({ type: 'settings:get' });
   // Notes and results are kept in the account, so there is nothing to use until there is one.
   if (!state.settings.hasSession) {

@@ -1214,8 +1214,8 @@ textarea {
   height: 20px;
   overflow: visible;
 }
-.avatar-eyes circle {
-  fill: currentColor;
+.ai-avatar .study-cat-eyes {
+  animation: none;
 }
 .avatar-head,
 .avatar-eyes {
@@ -1285,8 +1285,7 @@ textarea {
   font-size: 11px;
   color: var(--muted);
 }
-/* Outside the composer on purpose: `#question-form > div` styles the send bar, and a second
-   child div would pick that up. */
+/* Outside the form on purpose: the composer is one box, and this row is not part of it. */
 .ask-scope {
   display: flex;
   gap: 6px;
@@ -1343,32 +1342,54 @@ textarea {
   padding: 10px 20px 15px;
   flex: none;
 }
+/* One box, drawn once. It used to be two elements with half the corners each, and the focus ring
+   could only go round one of them — so it floated over the seam instead of the whole composer. */
+.composer {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  transition:
+    border-color 0.14s ease,
+    box-shadow 0.14s ease;
+}
+.composer:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
 #question-form textarea {
+  display: block;
   width: 100%;
   resize: none;
-  padding: 12px;
-  border-radius: 8px 8px 0 0;
-  border-bottom: none;
-  display: block;
+  padding: 12px 12px 4px;
+  border: 0;
+  border-radius: 10px 10px 0 0;
+  background: transparent;
 }
-#question-form > div {
+/* The ring belongs to the composer; one on the textarea too would be drawn twice. */
+#question-form textarea:focus-visible {
+  outline: none;
+}
+.composer-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 7px;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-top: none;
-  border-radius: 0 0 8px 8px;
-  background: var(--surface);
+  padding: 6px 8px 8px 12px;
 }
-#question-form > div > span {
+.composer-bar > span {
   font-size: 11px;
   color: var(--muted);
 }
 #ask-btn {
-  padding: 2px 10px;
-  font-size: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 8px;
+  font-size: 17px;
+  line-height: 1;
 }
 /* ---- Waiting state -------------------------------------------------------
    A long video needs dozens of sequential model calls, so the wait is minutes,
@@ -1453,215 +1474,266 @@ textarea {
   color: var(--muted);
 }
 
-/* ---- Hopping puppy: the body carries the arc, everything else lags behind it. ---- */
-.job-cat {
-  position: relative;
+/* SideNote's tabby study companion: thinking for guides, writing for summaries. */
+.job-mascot {
   flex: none;
-  width: 160px;
-  height: 140px;
+  width: 300px;
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 32 / 19;
+  margin-bottom: 4px;
 }
-.job-cat::before {
-  content: '';
-  position: absolute;
-  inset: -12% -6%;
-  border-radius: 50%;
-  background: radial-gradient(
-    closest-side,
-    color-mix(in srgb, var(--accent) 16%, transparent),
-    transparent
-  );
-  animation: pup-halo 3200ms ease-in-out infinite;
-}
-.pup {
+.study-cat-scene {
   display: block;
   width: 100%;
   height: 100%;
-  color: var(--accent);
   overflow: visible;
 }
-/* Filled with the card's own ground, so overlapping shapes cover rather than darken each other. */
-.pup-solid {
-  fill: var(--bg);
-  stroke: currentColor;
-  stroke-width: 3;
+.study-cat-fur {
+  fill: var(--cat-fur, #dbaf82);
+  stroke: #725842;
+  stroke-width: 2.2;
   stroke-linejoin: round;
 }
-.pup-limb {
+.study-cat-muzzle {
+  fill: #fff3dd;
+}
+.study-cat-stripe {
+  fill: var(--cat-stripe, #b98b60);
+}
+.study-cat-whiskers {
   fill: none;
-  stroke: currentColor;
-  stroke-width: 8;
+  stroke: #947151;
+  stroke-width: 1.6;
   stroke-linecap: round;
 }
-.pup-tail-line {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 6;
-  stroke-linecap: round;
-}
-.pup-fine,
-.pup-mouth {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2.4;
-  stroke-linecap: round;
-  opacity: 0.75;
-}
-.pup-dot,
-.pup-blush,
-.pup-belly,
-.pup-ear-inner,
-.pup-shadow {
-  fill: currentColor;
-}
-.pup-ear-inner {
-  opacity: 0.4;
-}
-.pup-blush {
-  opacity: 0.28;
-}
-.pup-belly {
-  opacity: 0.1;
-}
-.pup-eye-shine {
-  fill: var(--bg);
-}
-/* Explicit SVG coordinates keep every joint where it is drawn as the parts rotate. */
-.pup-all,
-.pup-head,
-.pup-ear,
-.pup-tail,
-.pup-legs,
-.pup-eyes,
-.pup-shadow {
+.study-cat-tail {
   transform-box: view-box;
+  transform-origin: 127px 145px;
+  animation: study-cat-tail 3.2s ease-in-out infinite;
 }
-/* One duration for the hop and for everything timed against it. */
-.pup-all {
-  transform-origin: 80px 124px;
-  animation: pup-hop 900ms cubic-bezier(0.38, 0, 0.6, 1) infinite;
+.study-cat-tail-outline,
+.study-cat-tail-fill,
+.study-cat-tail-stripe {
+  fill: none;
+  stroke-linecap: round;
 }
-.pup-shadow {
-  transform-origin: 78px 130px;
-  animation: pup-shadow 900ms cubic-bezier(0.38, 0, 0.6, 1) infinite;
+.study-cat-tail-outline {
+  stroke: #725842;
+  stroke-width: 15;
 }
-.pup-head {
-  transform-origin: 96px 78px;
-  animation: pup-nod 900ms ease-in-out infinite;
+.study-cat-tail-fill {
+  stroke: var(--cat-fur, #dbaf82);
+  stroke-width: 11;
 }
-/* A fraction of a beat behind the body: the ear is carried, not driven. */
-.pup-ear {
-  transform-origin: 104px 46px;
-  animation: pup-ear 900ms ease-in-out infinite;
-  animation-delay: 80ms;
+.study-cat-tail-stripe {
+  stroke: var(--cat-stripe, #b98b60);
+  stroke-width: 4;
 }
-.pup-legs-front {
-  transform-origin: 90px 100px;
-  animation: pup-reach 900ms ease-in-out infinite;
-}
-.pup-legs-back {
-  transform-origin: 62px 102px;
-  animation: pup-kick 900ms ease-in-out infinite;
-}
-.pup-tail {
-  transform-origin: 40px 78px;
-  animation: pup-wag 300ms ease-in-out infinite;
-}
-.pup-eyes {
-  transform-origin: 115px 56px;
-  animation: pup-blink 5s ease-in-out infinite;
-}
-/* Squashed on landing, stretched at the top: the arc alone reads as drift without it. */
-@keyframes pup-hop {
+@keyframes study-cat-tail {
   0%,
   100% {
-    transform: translateY(0) scale(1.07, 0.93);
-  }
-  16% {
-    transform: translateY(-7px) scale(0.98, 1.03);
+    transform: rotate(-5deg);
   }
   50% {
-    transform: translateY(-20px) scale(0.97, 1.04);
-  }
-  84% {
-    transform: translateY(-7px) scale(0.99, 1.02);
-  }
-}
-@keyframes pup-shadow {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 0.16;
-  }
-  50% {
-    transform: scale(0.7);
-    opacity: 0.07;
-  }
-}
-@keyframes pup-nod {
-  0%,
-  100% {
-    transform: rotate(-4deg);
-  }
-  50% {
-    transform: rotate(3deg);
-  }
-}
-@keyframes pup-ear {
-  0%,
-  100% {
     transform: rotate(8deg);
   }
-  50% {
-    transform: rotate(-14deg);
-  }
 }
-@keyframes pup-reach {
+.study-cat-pink {
+  fill: #e6aaa0;
+}
+.study-cat-ink {
+  fill: #493c35;
+}
+.study-cat-line {
+  fill: none;
+  stroke: #725842;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.study-cat-ground {
+  fill: var(--accent);
+  opacity: 0.09;
+}
+.study-cat-scarf {
+  fill: var(--accent);
+  stroke: #9e7833;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+.study-cat-paper {
+  fill: #fffae9;
+  stroke: #a38b65;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.study-cat-note-line {
+  fill: none;
+  stroke: #b7a382;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.study-cat-pencil {
+  fill: var(--accent);
+  stroke: #725842;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+.study-cat-bubble {
+  fill: var(--raised);
+  stroke: #897950;
+  stroke-width: 1.5;
+}
+.study-cat-question {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.8;
+  stroke-linecap: round;
+}
+.study-cat-body,
+.study-cat-head,
+.study-cat-ear,
+.study-cat-eyes,
+.study-cat-writing,
+.study-cat-thought,
+.study-cat-summary-spark {
+  transform-box: view-box;
+}
+.study-cat-body {
+  transform-origin: 96px 156px;
+  animation: study-cat-breathe 3.2s ease-in-out infinite;
+}
+.study-cat-head {
+  transform-origin: 96px 106px;
+  animation: study-cat-read 3.2s ease-in-out infinite;
+}
+.study-cat-ear-right {
+  transform-origin: 119px 57px;
+  animation: study-cat-ear 3.2s ease-in-out infinite;
+}
+.study-cat-eyes {
+  transform-origin: 96px 78px;
+  animation: study-cat-blink 5.6s ease-in-out infinite;
+}
+.study-cat-writing {
+  transform-origin: 133px 123px;
+  animation: study-cat-write 1.4s ease-in-out infinite;
+}
+.study-cat-summary-spark {
+  stroke: var(--accent);
+  animation: study-cat-spark 3.2s ease-in-out infinite;
+}
+.study-cat-guide-prop,
+.study-cat-thought {
+  display: none;
+}
+.job-overlay[data-task='guide'] .study-cat-guide-prop,
+.job-overlay[data-task='guide'] .study-cat-thought {
+  display: inline;
+}
+.job-overlay[data-task='guide'] .study-cat-summary-prop,
+.job-overlay[data-task='guide'] .study-cat-summary-spark {
+  display: none;
+}
+.job-overlay[data-task='guide'] .study-cat-head {
+  animation: study-cat-think 4s ease-in-out infinite;
+}
+.study-cat-thought {
+  transform-origin: 160px 55px;
+  animation: study-cat-thought 4s ease-in-out infinite;
+}
+@keyframes study-cat-breathe {
   0%,
   100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+@keyframes study-cat-read {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  45%,
+  65% {
+    transform: translateY(2px) rotate(3deg);
+  }
+}
+@keyframes study-cat-think {
+  0%,
+  15%,
+  100% {
+    transform: rotate(0deg);
+  }
+  35%,
+  70% {
+    transform: rotate(-8deg);
+  }
+}
+@keyframes study-cat-ear {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  45%,
+  65% {
     transform: rotate(6deg);
   }
-  50% {
-    transform: rotate(-9deg);
-  }
 }
-@keyframes pup-kick {
+@keyframes study-cat-blink {
   0%,
-  100% {
-    transform: rotate(-6deg);
-  }
-  50% {
-    transform: rotate(9deg);
-  }
-}
-@keyframes pup-wag {
-  0%,
-  100% {
-    transform: rotate(-14deg);
-  }
-  50% {
-    transform: rotate(14deg);
-  }
-}
-@keyframes pup-blink {
-  0%,
-  94%,
+  43%,
+  47%,
   100% {
     transform: scaleY(1);
   }
-  97% {
+  45% {
     transform: scaleY(0.1);
   }
 }
-@keyframes pup-halo {
+@keyframes study-cat-write {
   0%,
   100% {
-    opacity: 0.7;
-    transform: scale(1);
+    transform: rotate(-5deg);
+  }
+  20%,
+  60% {
+    transform: translate(-2px, 1px) rotate(4deg);
+  }
+  40%,
+  80% {
+    transform: translate(1px, -1px) rotate(-3deg);
+  }
+}
+@keyframes study-cat-thought {
+  0%,
+  10%,
+  100% {
+    opacity: 0;
+    transform: translateY(5px) scale(0.9);
+  }
+  25%,
+  80% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes study-cat-spark {
+  0%,
+  100% {
+    opacity: 0.25;
   }
   50% {
-    opacity: 1;
-    transform: scale(1.07);
+    opacity: 0.9;
+    transform: translateY(-3px);
   }
+}
+/* Pause hidden artwork; reduced-motion retains a complete, readable illustration. */
+.job-overlay[hidden] .study-cat-scene * {
+  animation-play-state: paused;
 }
 
 /* ---- Waiting for one explanation ------------------------------------------
@@ -1758,9 +1830,9 @@ textarea {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cat,
-  .cat *,
-  .job-cat::before,
+  .study-cat-scene *,
+  .ai-avatar *,
+  .ai-avatar::after,
   .skeleton,
   .explain-waiting::before,
   .job-track.is-indeterminate .job-bar {
@@ -2426,4 +2498,215 @@ dialog .text-button {
 }
 a.term-jump {
   text-decoration: none;
+}
+
+/* Photo-derived coats: orange/white bib and socks; golden coat and large green eyes. */
+.study-cat-orange {
+  --cat-fur: #dbaf82;
+  --cat-stripe: #b98b60;
+  --cat-iris: #938366;
+}
+.study-cat-golden {
+  --cat-fur: #cba36d;
+  --cat-stripe: #92714e;
+  --cat-iris: #8baa91;
+}
+.study-cat-white,
+.study-cat-orange .study-cat-chest {
+  fill: #fffaf0;
+}
+.study-cat-orange .study-cat-paw {
+  fill: #fffaf0;
+}
+.study-cat-golden .study-cat-chest {
+  fill: #e6cda5;
+}
+.study-cat-eye-rim {
+  fill: #514637;
+}
+.study-cat-iris {
+  fill: var(--cat-iris);
+}
+.study-cat-nose {
+  fill: #ce8e8e;
+}
+/* Distinct actions, not phase-shifted copies: ask/write versus listen/read. */
+.study-cat-asking-paw {
+  transform-box: view-box;
+  transform-origin: 74px 118px;
+  animation: cat-raise-paw 4s ease-in-out infinite;
+}
+.study-cat-golden .study-cat-body {
+  animation: golden-rest 5.8s ease-in-out infinite;
+  transform-origin: 108px 160px;
+}
+.study-cat-golden .study-cat-head {
+  animation: golden-reading 5.8s ease-in-out infinite;
+}
+.job-overlay[data-task='guide'] .study-cat-golden .study-cat-head {
+  animation: golden-listen 6s ease-in-out infinite;
+}
+.study-cat-golden .study-cat-ear-right {
+  animation: golden-ear-twitch 6s ease-in-out infinite;
+}
+.study-cat-golden .study-cat-eyes {
+  animation: golden-scan 5.8s ease-in-out infinite;
+}
+.job-overlay[data-task='guide'] .study-cat-golden .study-cat-eyes {
+  animation: golden-look-left 6s ease-in-out infinite;
+}
+.golden-tail {
+  transform-box: view-box;
+  transform-origin: 133px 145px;
+  animation: golden-tail-tip 6s ease-in-out infinite;
+}
+.golden-tracing-paw {
+  transform-box: view-box;
+  transform-origin: 67px 140px;
+  animation: golden-follow-line 5.8s ease-in-out infinite;
+}
+@keyframes cat-raise-paw {
+  0%,
+  10%,
+  85%,
+  100% {
+    transform: translateY(3px) rotate(-12deg);
+  }
+  30%,
+  65% {
+    transform: translateY(-8px) rotate(18deg);
+  }
+  45% {
+    transform: translateY(-10px) rotate(10deg);
+  }
+}
+@keyframes golden-rest {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(1.025);
+  }
+}
+@keyframes golden-listen {
+  0%,
+  15%,
+  100% {
+    transform: rotate(0deg);
+  }
+  35%,
+  70% {
+    transform: translateX(-4px) rotate(-12deg);
+  }
+  48%,
+  60% {
+    transform: translate(-4px, 2px) rotate(-10deg);
+  }
+}
+@keyframes golden-reading {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  20%,
+  65% {
+    transform: translate(-3px, 6px) rotate(7deg);
+  }
+  80% {
+    transform: translate(-2px, 1px) rotate(-6deg);
+  }
+}
+@keyframes golden-scan {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  20% {
+    transform: translate(-3px, 3px);
+  }
+  60% {
+    transform: translate(2px, 3px);
+  }
+  80%,
+  88% {
+    transform: translate(-2px, 0) scaleY(1);
+  }
+  84% {
+    transform: translate(-2px, 0) scaleY(0.1);
+  }
+}
+@keyframes golden-look-left {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  30%,
+  70% {
+    transform: translateX(-3px);
+  }
+  82%,
+  90% {
+    transform: scaleY(1);
+  }
+  86% {
+    transform: scaleY(0.1);
+  }
+}
+@keyframes golden-ear-twitch {
+  0%,
+  60%,
+  80%,
+  100% {
+    transform: rotate(0deg);
+  }
+  65%,
+  75% {
+    transform: rotate(-12deg);
+  }
+  70% {
+    transform: rotate(5deg);
+  }
+}
+@keyframes golden-tail-tip {
+  0%,
+  55%,
+  85%,
+  100% {
+    transform: rotate(0deg);
+  }
+  65% {
+    transform: rotate(-13deg);
+  }
+  75% {
+    transform: rotate(6deg);
+  }
+}
+@keyframes golden-follow-line {
+  0%,
+  10%,
+  100% {
+    transform: translate(0, 0);
+  }
+  55%,
+  65% {
+    transform: translate(15px, -2px) rotate(-6deg);
+  }
+  80% {
+    transform: translate(0, 4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .study-cat-scene * {
+    animation: none !important;
+  }
+}
+.ai-avatar {
+  width: 38px;
+  height: 30px;
+  border-radius: 12px;
+}
+.ai-avatar svg {
+  width: 34px;
+  height: 26px;
 }
