@@ -130,7 +130,7 @@ textarea {
 }
 .button.small {
   padding: 6px 9px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .button.wide {
   width: 100%;
@@ -150,7 +150,7 @@ textarea {
 }
 .text-button {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   padding: 5px 2px;
 }
 .text-button:hover,
@@ -178,7 +178,7 @@ textarea {
 }
 .brand div > span {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   margin-left: 5px;
   font-weight: 400;
 }
@@ -219,7 +219,7 @@ textarea {
   display: flex;
   align-items: center;
   gap: 11px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   margin-top: 8px;
 }
@@ -232,7 +232,7 @@ textarea {
   border: 1px solid #625533;
   padding: 10px 12px;
   margin: 0 16px 12px;
-  font-size: 11px;
+  font-size: 12px;
   overflow-wrap: anywhere;
 }
 .notice.error {
@@ -272,7 +272,7 @@ textarea {
   color: var(--accent);
   background: #373120;
   border-radius: 3px;
-  font-size: 11px;
+  font-size: 12px;
   padding: 1px 4px;
   margin-left: 3px;
 }
@@ -308,7 +308,7 @@ textarea {
   width: 0;
   flex: 1;
   padding: 7px 5px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .transcript-settings .arrow {
   color: #969d9f;
@@ -407,7 +407,7 @@ textarea {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--muted);
 }
 .drawer-field > label {
@@ -418,10 +418,10 @@ textarea {
   flex: 1;
   min-width: 0;
   padding: 6px 8px;
-  font-size: 12.5px;
+  font-size: 13px;
 }
 .settings-drawer .inline-check {
-  font-size: 12.5px;
+  font-size: 13px;
 }
 .drawer-actions {
   display: flex;
@@ -433,7 +433,7 @@ textarea {
 .settings-drawer .translation-hint {
   margin: 2px 0 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.6;
 }
 .google-web-fallback {
@@ -441,7 +441,7 @@ textarea {
   flex-direction: column;
   gap: 3px;
   margin: 2px 0 0;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 .google-web-fallback button {
@@ -456,7 +456,7 @@ textarea {
 .transcript-tools input {
   flex: 1;
   min-width: 0;
-  font-size: 12.5px;
+  font-size: 13px;
   padding: 7px 10px;
 }
 .transcript-tools button {
@@ -473,17 +473,17 @@ textarea {
 .display-tools select {
   background: transparent;
   padding: 3px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .inline-check {
   display: flex;
   gap: 6px;
   align-items: center;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 .display-tools .inline-check {
-  font-size: 11px;
+  font-size: 12px;
 }
 .display-tools #font-size {
   margin-left: auto;
@@ -518,7 +518,7 @@ textarea {
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   opacity: 0;
   transition: opacity 0.12s ease;
 }
@@ -588,7 +588,7 @@ textarea {
   align-items: center;
   padding: 9px 17px;
   border-top: 1px solid #24292b;
-  font-size: 11px;
+  font-size: 12px;
   flex: none;
 }
 .transcript-footer span {
@@ -604,7 +604,7 @@ textarea {
   flex: none;
 }
 .view-tools > span {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 .chapter-heading {
@@ -616,7 +616,7 @@ textarea {
   gap: 12px;
 }
 #chapter-outline-btn {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--accent);
 }
 #chapter-count {
@@ -643,7 +643,7 @@ textarea {
 .chapter-number,
 .chapter-card time {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   padding-top: 1px;
 }
@@ -706,20 +706,20 @@ textarea {
   margin-bottom: 8px;
 }
 .clip-remove {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 .clip-remove:hover {
   color: #e0857a;
 }
 .clip-text {
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.8;
   overflow-wrap: anywhere;
 }
 .clip-translation {
   margin-top: 4px;
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.8;
   color: var(--muted);
   overflow-wrap: anywhere;
@@ -745,7 +745,7 @@ textarea {
   border-radius: 7px;
   background: #121617;
   color: var(--text);
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.8;
   text-align: left;
   overflow-wrap: anywhere;
@@ -770,7 +770,7 @@ textarea {
   padding: 11px 12px;
   border-radius: 8px;
   background: var(--bg);
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.9;
   resize: vertical;
 }
@@ -805,7 +805,7 @@ textarea {
   margin-bottom: 6px;
 }
 .explain-meaning {
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.85;
   color: var(--text);
   overflow-wrap: anywhere;
@@ -818,7 +818,7 @@ textarea {
   margin-top: 9px;
   padding-top: 8px;
   border-top: 1px dashed var(--border);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 
@@ -857,7 +857,7 @@ textarea {
   padding: 1px 7px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 .term-name {
@@ -872,7 +872,7 @@ textarea {
   border-radius: 999px;
   background: var(--raised);
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
@@ -882,7 +882,7 @@ textarea {
 }
 .term-meaning {
   grid-column: 1 / -1;
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.85;
   color: var(--muted);
   overflow-wrap: anywhere;
@@ -908,7 +908,7 @@ textarea {
 .verdict-row {
   display: flex;
   gap: 8px;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.9;
   color: var(--text);
   overflow-wrap: anywhere;
@@ -925,7 +925,7 @@ textarea {
   padding: 1px 7px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 /* Dimmed rather than hidden: the viewer should still see what 「只看干货」 will skip. */
@@ -972,7 +972,7 @@ textarea {
 }
 .guide-index {
   padding-top: 2px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--accent);
   font-variant-numeric: tabular-nums;
 }
@@ -988,7 +988,7 @@ textarea {
   padding: 2px 9px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   white-space: nowrap;
 }
@@ -1004,7 +1004,7 @@ textarea {
   border-radius: 999px;
   background: var(--raised);
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
@@ -1054,7 +1054,7 @@ textarea {
 }
 .empty .button {
   margin-top: 9px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .summary-title {
   font-size: 23px;
@@ -1071,7 +1071,7 @@ textarea {
   white-space: pre-line;
 }
 .result-badge {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--accent);
   border: 1px solid #4d452e;
   background: #262319;
@@ -1102,7 +1102,7 @@ textarea {
 }
 .section-time {
   color: var(--accent);
-  font-size: 11px;
+  font-size: 12px;
   margin-bottom: 9px;
 }
 .section-time:hover {
@@ -1120,7 +1120,7 @@ textarea {
 }
 .muted {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.8;
   margin: 10px 0;
 }
@@ -1145,7 +1145,7 @@ textarea {
   border-radius: 8px;
   background: var(--surface);
   padding: 13px;
-  font-size: 11px;
+  font-size: 12px;
   display: flex;
   justify-content: space-between;
   gap: 10px;
@@ -1169,7 +1169,7 @@ textarea {
 }
 .answer .answer-label {
   color: var(--accent);
-  font-size: 11px;
+  font-size: 12px;
 }
 .answer p {
   font-size: 13px;
@@ -1186,7 +1186,7 @@ textarea {
   padding: 5px 8px;
   border-radius: 5px;
   margin: 0 5px 5px 0;
-  font-size: 11px;
+  font-size: 12px;
 }
 .answer-head {
   display: flex;
@@ -1194,7 +1194,7 @@ textarea {
   gap: 8px;
 }
 .answer-head .answer-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
 }
 .ai-avatar {
@@ -1214,25 +1214,123 @@ textarea {
   height: 20px;
   overflow: visible;
 }
-.ai-avatar .study-cat-eyes {
-  animation: none;
+/* The lying cat: a line drawing whose shapes are filled with the ground, so they cover each other. */
+.cat {
+  display: block;
+  overflow: visible;
+  color: var(--accent);
+}
+.cat-solid {
+  fill: var(--bg);
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linejoin: round;
+}
+.cat-stroke,
+.cat-fine,
+.cat-dot-stroke {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cat-stroke {
+  stroke-width: 3.4;
+}
+.cat-fine {
+  stroke-width: 1.6;
+  opacity: 0.75;
+}
+.cat-dot-stroke {
+  stroke-width: 2.2;
+}
+.cat-dot {
+  fill: currentColor;
+}
+/* At avatar size a 2.4 stroke is under a pixel and blurs, and whiskers vanish; draw it bolder. */
+.ai-avatar .cat-solid {
+  stroke-width: 4.4;
+}
+.ai-avatar .cat-stroke {
+  stroke-width: 5.5;
+}
+.ai-avatar .cat-dot {
+  r: 3.2px;
+}
+.ai-avatar .cat-fine {
+  display: none;
+}
+.cat-mark {
+  width: 140px;
+  height: 84px;
+  border: 0;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--accent) 14%, transparent),
+    transparent
+  );
+}
+.cat-mark .cat {
+  width: 116px;
+  height: 56px;
+}
+.cat-tail,
+.cat-eyes,
+.cat-ear {
+  transform-box: fill-box;
+}
+.cat-mark .cat-tail,
+.is-pending .cat-tail {
+  transform-origin: 0% 100%;
+  animation: cat-wag 1600ms ease-in-out infinite;
+}
+.cat-mark .cat-eyes {
+  transform-origin: 50% 50%;
+  animation: cat-blink 4.4s ease-in-out infinite;
+}
+.cat-mark .cat-ear {
+  transform-origin: 50% 100%;
+  animation: cat-ear 5.2s ease-in-out infinite;
+}
+@keyframes cat-wag {
+  0%,
+  100% {
+    transform: rotate(-8deg);
+  }
+  50% {
+    transform: rotate(9deg);
+  }
+}
+@keyframes cat-blink {
+  0%,
+  93%,
+  100% {
+    transform: scaleY(1);
+  }
+  96% {
+    transform: scaleY(0.1);
+  }
+}
+@keyframes cat-ear {
+  0%,
+  86%,
+  100% {
+    transform: rotate(0deg);
+  }
+  90% {
+    transform: rotate(-11deg);
+  }
+  94% {
+    transform: rotate(5deg);
+  }
 }
 .avatar-head,
 .avatar-eyes {
   transform-box: fill-box;
 }
-/* A question is answered inside the conversation, not behind the waiting card. While it is, an arc
-   circles the face and the cat tilts its head and glances about, beside what is happening, for
-   how long, and a way to stop. */
-.is-pending .ai-avatar::after {
-  content: '';
-  position: absolute;
-  inset: -4px;
-  border-radius: 50%;
-  border: 2px solid transparent;
-  border-top-color: var(--accent);
-  animation: avatar-spin 0.9s linear infinite;
-}
+/* A question is answered inside the conversation, not behind the waiting card. While it is, the
+   cat tilts its head, glances about and wags its tail, beside what is happening, for how long,
+   and a way to stop. */
 .is-pending .avatar-head {
   transform-origin: 50% 100%;
   animation: avatar-tilt 1800ms ease-in-out infinite;
@@ -1248,11 +1346,6 @@ textarea {
 }
 .is-pending .avatar-eyes {
   animation: avatar-glance 2.4s ease-in-out infinite;
-}
-@keyframes avatar-spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 @keyframes avatar-glance {
   0%,
@@ -1282,7 +1375,7 @@ textarea {
 }
 .stop-answer {
   margin-left: auto;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 /* Outside the form on purpose: the composer is one box, and this row is not part of it. */
@@ -1298,7 +1391,7 @@ textarea {
   color: var(--muted);
   padding: 4px 11px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .scope-chip[aria-pressed='true'] {
   border-color: var(--accent);
@@ -1320,7 +1413,7 @@ textarea {
   border-color: var(--accent);
 }
 .library-result h4 {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--accent);
   margin: 0 0 4px;
   overflow-wrap: anywhere;
@@ -1334,7 +1427,7 @@ textarea {
 }
 .library-result .library-where {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   margin-top: 6px;
 }
@@ -1377,7 +1470,7 @@ textarea {
   padding: 6px 8px 8px 12px;
 }
 .composer-bar > span {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 #ask-btn {
@@ -1388,8 +1481,10 @@ textarea {
   height: 32px;
   padding: 0;
   border-radius: 8px;
-  font-size: 17px;
-  line-height: 1;
+}
+#ask-btn svg {
+  width: 16px;
+  height: 16px;
 }
 /* ---- Waiting state -------------------------------------------------------
    A long video needs dozens of sequential model calls, so the wait is minutes,
@@ -1460,12 +1555,12 @@ textarea {
   display: flex;
   justify-content: space-between;
   width: 100%;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 .job-hint {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.8;
   color: var(--muted);
   min-height: 3.6em;
@@ -1832,7 +1927,7 @@ textarea {
 @media (prefers-reduced-motion: reduce) {
   .study-cat-scene *,
   .ai-avatar *,
-  .ai-avatar::after,
+  .cat-mark *,
   .skeleton,
   .explain-waiting::before,
   .job-track.is-indeterminate .job-bar {
@@ -1849,7 +1944,7 @@ textarea {
   flex: none;
 }
 .app-footer > span {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 /* The two views that left the tab bar. Styled as a pair of quiet entries rather than tabs, so
@@ -1863,7 +1958,7 @@ textarea {
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   white-space: nowrap;
 }
 .footer-tab:hover {
@@ -1875,10 +1970,10 @@ textarea {
 }
 .footer-tab small {
   color: var(--accent);
-  font-size: 11px;
+  font-size: 12px;
 }
 .app-footer .button {
-  font-size: 11px;
+  font-size: 12px;
 }
 /* Icon only, but still a bordered button rather than a bare glyph: this is the only way data
    leaves the extension, so it has to stay findable. */
@@ -1986,7 +2081,7 @@ body.signed-out .sign-in-gate {
   background: #33393b;
 }
 .export-menu [data-export] b {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--accent);
   border: 1px solid #686246;
   padding: 9px 5px;
@@ -2001,7 +2096,7 @@ body.signed-out .sign-in-gate {
   display: block;
   color: var(--muted);
   margin-top: 4px;
-  font-size: 11px;
+  font-size: 12px;
 }
 /* Subtitles need no summary, so they come first, with Trancy-style format and content choices. */
 .export-subtitles {
@@ -2013,7 +2108,7 @@ body.signed-out .sign-in-gate {
 }
 .export-menu h3 {
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--muted);
 }
@@ -2024,7 +2119,7 @@ body.signed-out .sign-in-gate {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .export-choice > span {
   width: 30px;
@@ -2060,7 +2155,7 @@ body.signed-out .sign-in-gate {
 }
 .export-status {
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.6;
   color: var(--muted);
 }
@@ -2206,7 +2301,7 @@ dialog .text-button {
     gap: 6px;
   }
   .display-tools .inline-check {
-    font-size: 11px;
+    font-size: 12px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2343,7 +2438,7 @@ dialog .text-button {
 .explain-source-translation {
   display: block;
   margin-top: 4px;
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.8;
   color: var(--muted);
 }
@@ -2356,21 +2451,21 @@ dialog .text-button {
   margin: 0;
 }
 .explain-points dt {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--accent);
   overflow-wrap: anywhere;
 }
 .explain-points dd {
   margin: 0;
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.85;
   color: var(--text);
   overflow-wrap: anywhere;
 }
 
 .explain-section h3 {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--muted);
   margin-bottom: 7px;
@@ -2395,7 +2490,7 @@ dialog .text-button {
   display: contents;
 }
 .explain-panel .explain-meaning {
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.9;
 }
 .explain-pending {
@@ -2422,14 +2517,14 @@ dialog .text-button {
   border-radius: 4px;
   background: var(--raised);
   color: var(--accent);
-  font-size: 11px;
+  font-size: 12px;
 }
 .sense-gloss {
   font-size: 14px;
   color: var(--text);
 }
 .sense-definition {
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.8;
   color: var(--muted);
 }
@@ -2437,7 +2532,7 @@ dialog .text-button {
   margin-top: 6px;
   padding-left: 9px;
   border-left: 2px solid var(--border);
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.8;
   color: var(--text);
 }
@@ -2478,12 +2573,12 @@ dialog .text-button {
   justify-content: space-between;
   gap: 10px;
   margin: 12px 0 2px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 .clip-group-title {
   color: var(--text);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
   overflow-wrap: anywhere;
 }
@@ -2702,11 +2797,11 @@ a.term-jump {
   }
 }
 .ai-avatar {
-  width: 38px;
-  height: 30px;
-  border-radius: 12px;
+  width: 40px;
+  height: 28px;
+  border-radius: 10px;
 }
 .ai-avatar svg {
-  width: 34px;
-  height: 26px;
+  width: 36px;
+  height: 18px;
 }

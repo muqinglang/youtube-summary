@@ -90,9 +90,24 @@ const goldenCompanion = `<g class="study-cat-body golden-loaf">
   </g>
 </g>`;
 
-export const MASCOT_AVATAR = `<svg viewBox="0 0 156 100" focusable="false">
-  <g class="study-cat-orange" transform="translate(-30 0) scale(.88)"><g class="avatar-head">${face()}</g></g>
-  <g class="study-cat-golden" transform="translate(48 3) scale(.88)"><g class="avatar-head">${face(true)}</g></g>
+/** The line-drawn cat lying down: the AI's face beside each answer and on the empty pages. */
+export const MASCOT_AVATAR = `<svg class="cat" viewBox="6 22 108 52" focusable="false">
+  <g class="cat-tail"><path class="cat-stroke" d="M86 65c12 1.5 17-6.5 13.5-15.5"/></g>
+  <path class="cat-solid" d="M32 68c0-17 12-28 28-28s28 11 28 28z"/>
+  <ellipse class="cat-solid" cx="45.5" cy="65.6" rx="7.4" ry="4"/>
+  <g class="cat-head avatar-head">
+    <path class="cat-solid cat-ear" d="M23.4 35.8q-1.2-11.4 5.4-7.2l5.6 3.4z"/>
+    <path class="cat-solid" d="M44.6 35.8q1.2-11.4-5.4-7.2L33.6 32z"/>
+    <circle class="cat-solid" cx="34" cy="46" r="15.6"/>
+    <g class="cat-eyes avatar-eyes">
+      <circle class="cat-dot" cx="28" cy="45.4" r="2.1"/>
+      <circle class="cat-dot" cx="40" cy="45.4" r="2.1"/>
+    </g>
+    <path class="cat-dot-stroke" d="M34 50.6 31.8 52.6h4.4z"/>
+    <path class="cat-fine" d="M34 52.8v1.4m0 0c-1.4 1.5-3 1.1-3.6-.1m3.6.1c1.4 1.5 3 1.1 3.6-.1"/>
+    <path class="cat-fine" d="M10 42.2h9.4M10.4 49h8.8"/>
+  </g>
+  <ellipse class="cat-solid" cx="31" cy="64.4" rx="7.4" ry="4"/>
 </svg>`;
 
 export const MASCOT_LOADING = `<svg class="study-cat-scene" viewBox="0 0 320 190" focusable="false">

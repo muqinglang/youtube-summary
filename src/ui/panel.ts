@@ -983,7 +983,7 @@ function resetResults(): void {
   state.summaryPrompt = '';
   $('#summary-content').className = 'empty';
   $('#summary-content').innerHTML =
-    '<div class="empty-mark">AI</div><h2>把整片视频，读成一页笔记</h2><p>按章节整理观点、案例和可执行建议，每条都带时间点。</p>';
+    `<div class="empty-mark cat-mark">${MASCOT_AVATAR}</div><h2>把整片视频，读成一页笔记</h2><p>按章节整理观点、案例和可执行建议，每条都带时间点。</p>`;
   syncExportMenu();
   $('#summarize-btn').textContent = '生成视频总结';
 }
@@ -1003,7 +1003,7 @@ function resetVideo(): void {
   $('#google-web-fallback').hidden = true;
   $<HTMLInputElement>('#search').value = '';
   $('#messages').innerHTML =
-    '<div class="empty chat-welcome"><div class="empty-mark">AI</div><h2>关于这段视频，你想了解什么？</h2><p>AI 会参考当前字幕，并附上回看时间点。</p></div>';
+    `<div class="empty chat-welcome"><div class="empty-mark cat-mark">${MASCOT_AVATAR}</div><h2>关于这段视频，你想了解什么？</h2><p>AI 会参考当前字幕，并附上回看时间点。</p></div>`;
   resetResults();
   lastOverlay = '';
   void command({
@@ -3494,6 +3494,7 @@ function bindGuide(): void {
 
 async function initialize(): Promise<void> {
   $('#job-mascot').innerHTML = MASCOT_LOADING;
+  for (const mark of document.querySelectorAll('.cat-mark')) mark.innerHTML = MASCOT_AVATAR;
   state.settings = await send<PublicSettings>({ type: 'settings:get' });
   // Notes and results are kept in the account, so there is nothing to use until there is one.
   if (!state.settings.hasSession) {

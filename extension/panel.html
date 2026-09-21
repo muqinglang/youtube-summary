@@ -323,7 +323,7 @@
         </div>
         <div class="scroll summary-scroll">
           <div id="summary-content" class="empty">
-            <div class="empty-mark">AI</div>
+            <div class="empty-mark cat-mark"></div>
             <h2>把整片视频，读成一页笔记</h2>
             <p>按章节整理观点、案例和可执行建议，每条都带时间点，点一下回到原片核对。</p>
           </div>
@@ -336,7 +336,7 @@
       <section id="view-chat" class="view" role="tabpanel" aria-labelledby="tab-chat" hidden>
         <div id="messages" class="scroll messages" aria-live="polite">
           <div class="empty chat-welcome">
-            <div class="empty-mark">AI</div>
+            <div class="empty-mark cat-mark"></div>
             <h2>带着问题，深入理解</h2>
             <p>只依据这段视频的内容回答，并给出可以回看的时间点。</p>
             <div class="suggestions">
@@ -367,7 +367,16 @@
             <div class="composer-bar">
               <span>Enter 发送，Shift + Enter 换行</span
               ><button type="submit" id="ask-btn" class="button primary" aria-label="发送问题">
-                ↑
+                <svg viewBox="0 0 16 16" aria-hidden="true">
+                  <path
+                    d="M8 12.5V4M4.5 7.5 8 4l3.5 3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
               </button>
             </div>
           </div>
